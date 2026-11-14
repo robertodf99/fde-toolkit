@@ -1,0 +1,37 @@
+name: Feature request
+description: Something Hook Me Up could do, or do better.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Ideas are also welcome as a conversation in
+        [Feedback & ideas](https://github.com/robertodf99/hook-me-up/discussions/1).
+  - type: textarea
+    id: problem
+    attributes:
+      label: What you'd like to do
+      description: The situation, and what gets in the way today.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: How it could work
+      description: What you'd see in the notification, the menu bar or the installer.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you do instead today
+  - type: dropdown
+    id: install-method
+    attributes:
+      label: How Hook Me Up was installed
+      options:
+        - curl installer (install.sh)
+        - Homebrew (robertodf99/tap/hook-me-up)
+        - Claude Code plugin (/hook-me-up:install)
+        - From source (make install)
+        - Not installed yet

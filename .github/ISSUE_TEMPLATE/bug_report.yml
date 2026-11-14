@@ -1,0 +1,77 @@
+name: Bug report
+description: Something doesn't work as the README says.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting it. Please run `hook-me-up-setup doctor` first: it often
+        says what is off and how to fix it, and its output helps a lot here. Before you
+        paste anything, remove what you'd rather keep private (folder names, project
+        names, your user name).
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, and what Hook Me Up or Claude Code did.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      description: "`sw_vers -productVersion`"
+      placeholder: "15.5"
+    validations:
+      required: true
+  - type: input
+    id: claude-code
+    attributes:
+      label: Claude Code version
+      description: "`claude --version`"
+      placeholder: "2.1.300"
+    validations:
+      required: true
+  - type: input
+    id: terminal
+    attributes:
+      label: Editor or terminal
+      description: Where Claude Code runs.
+      placeholder: "Terminal, iTerm2, Ghostty, VS Code, Cursor, …"
+    validations:
+      required: true
+  - type: dropdown
+    id: install-method
+    attributes:
+      label: How Hook Me Up was installed
+      options:
+        - curl installer (install.sh)
+        - Homebrew (robertodf99/tap/hook-me-up)
+        - Claude Code plugin (/hook-me-up:install)
+        - From source (make install)
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Output of hook-me-up-setup doctor
+      description: |
+        Run `~/Applications/"Hook Me Up.app"/Contents/MacOS/hook-me-up-setup doctor`
+        (with Homebrew: `hook-me-up-setup doctor`) and paste everything it prints.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Relevant lines of ~/Library/Logs/hook-me-up.log
+      description: |
+        The log holds event kinds and short ids, not commands or messages, but read it
+        before pasting and remove anything private.
+      render: text
