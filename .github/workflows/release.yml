@@ -2,7 +2,8 @@ name: Release
 
 # Pushing a tag such as v1.0.0 builds the universal app, checks it and publishes a
 # GitHub release with hook-me-up-<version>-macos.zip and its .sha256, which install.sh
-# downloads. The package is signed ad-hoc; install.sh installs it unchanged.
+# downloads. The package is signed ad-hoc; install.sh installs it unchanged. The zip
+# gets a build provenance attestation (gh attestation verify <zip> --repo <owner/repo>).
 on:
   push:
     tags: ["v*"]
@@ -60,19 +61,31 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: write # create the release
+      id-token: write # sign the attestation (Sigstore certificate for this workflow run)
+      attestations: write # store the attestation with the repository
     steps:
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: package
           path: dist
 
+      - name: Check the package
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          (cd dist && sha256sum -c "hook-me-up-${version}-macos.zip.sha256")
+
+      # SLSA build provenance for the zip: which repository, workflow and commit built it.
+      - name: Attest build provenance
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: dist/*.zip
+
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           version="${GITHUB_REF_NAME#v}"
-          (cd dist && sha256sum -c "hook-me-up-${version}-macos.zip.sha256")
           gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
             "dist/hook-me-up-${version}-macos.zip" \
             "dist/hook-me-up-${version}-macos.zip.sha256" \

@@ -89,7 +89,8 @@ hook; the agent sees the connection close and removes the entry and its notifica
   `Contents/MacOS` (`UNIVERSAL=1` for arm64 + x86_64); `make dist` packages it as
   `hook-me-up-<version>-macos.zip` with a `.sha256`.
 - A `v*` tag runs `.github/workflows/release.yml`: tests, a universal ad-hoc-signed
-  package, checks, and a GitHub release with the zip and checksum. The app icon is drawn
+  package, checks, a build provenance attestation for the zip (`gh attestation verify`),
+  and a GitHub release with the zip and checksum. The app icon is drawn
   at build time by `scripts/make-icon.swift` from the committed symbol path
   (`Resources/icon/claude-symbol.svg`).
 - `install.sh` downloads that release (checksum verified), installs
