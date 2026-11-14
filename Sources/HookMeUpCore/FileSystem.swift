@@ -7,4 +7,15 @@ public protocol FileSystem {
     func fileExists(atPath path: String, isDirectory: UnsafeMutablePointer<ObjCBool>?) -> Bool
     /// The file's bytes, or nil when it cannot be read.
     func contents(atPath path: String) -> Data?
+    /// The file's bytes when it is a regular file of at most `limit` bytes; nil otherwise.
+    /// A conformance that can should check the size before reading (the default reads first).
+    func contents(atPath path: String, limit: Int) -> Data?
+}
+
+extension FileSystem {
+    /// Reads the whole file, then drops it when it is over `limit` bytes.
+    public func contents(atPath path: String, limit: Int) -> Data? {
+        guard let data = contents(atPath: path), data.count <= limit else { return nil }
+        return data
+    }
 }

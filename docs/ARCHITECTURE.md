@@ -8,7 +8,7 @@ over a Unix socket. Everything else is libraries, so the logic is tested without
 
 | Module | Kind | Responsibility |
 |---|---|---|
-| `HookMeUpCore` | library | Pure domain logic on Foundation, no I/O of its own: hook input parsing, the plain-language `Summarizer`, `DecisionEncoder`, `SessionPermissionFilter`, wire messages and `Framing`, the agent's routing reducer `AgentCore` with `PendingStore`, the notification mapping `NativeNotification`, terminal mapping and `SessionActivation` (how a click brings a session forward: tab, project window or app). File reads go through the injected `FileSystem` protocol. |
+| `HookMeUpCore` | library | Pure domain logic on Foundation, no I/O of its own: hook input parsing, the plain-language `Summarizer`, `DecisionEncoder`, `SessionPermissionFilter`, wire messages and `Framing`, the agent's routing reducer `AgentCore` with `PendingStore`, the notification mapping `NativeNotification`, terminal mapping, `SessionActivation` (how a click brings a session forward: tab, project window or app) and `EditorWindows` (which open VS Code-family window contains a session's folder, read from the editor's `storage.json`). File reads go through the injected `FileSystem` protocol. |
 | `HookMeUpIPC` | library | Socket transport: `SocketServer`, `SocketClient`, `Connection` and the file-system/peer checks. |
 | `HookKit` | library | The hook runner `runHook`: parse, summarise, ask the agent, encode the decision. |
 | `AgentKit` | library | The agent runtime `AgentController`: socket ↔ `AgentCore` ↔ notifications, behind the protocols `NotificationPresenting`, `TerminalActivating` and `WallClock`. |

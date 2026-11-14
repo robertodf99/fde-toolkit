@@ -40,7 +40,4 @@ public enum TerminalApp: Equatable, Sendable {
     /// Terminal and iTerm2 can select the exact tab by tty via AppleScript; the others
     /// get app-level activation only.
     public var selectsTabByTTY: Bool { self == .appleTerminal || self == .iTerm2 }
-
-    /// Editors that bring forward the window of a folder when asked to open it.
-    public var opensFolders: Bool { [.vsCode, .cursor, .windsurf, .zed].contains(self) }
 }

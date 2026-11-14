@@ -4,13 +4,15 @@ import HookMeUpCore
 
 /// Brings a session forward when its notification is clicked: Terminal and iTerm2
 /// select the exact tab by tty (AppleScript; macOS asks for Automation permission once);
-/// VS Code, Cursor, Windsurf and Zed open the session's project folder, which focuses
-/// that project's window; other apps (Ghostty, Warp, Claude desktop…) come forward.
+/// VS Code, VS Code Insiders, Cursor and Windsurf focus the open window that holds the
+/// session's folder (by opening exactly that window's folder or workspace file), and are
+/// only brought forward when no open window holds it, so a click never opens a new
+/// window; other apps (Zed, Ghostty, Warp, Claude desktop…) come forward.
 ///
 /// Activation is cooperative (macOS 14): the notification click makes this app active,
-/// and it yields to the target app. Logs say what really happened (the result and the
-/// frontmost app shortly after), never the folder. This is the only place the agent
-/// activates another app on purpose.
+/// and it yields to the target app. Logs say what really happened (the strategy, the
+/// result and the frontmost app shortly after), never a path. This is the only place the
+/// agent activates another app on purpose.
 @MainActor
 struct TerminalActivator: TerminalActivating {
     func open(_ place: SessionPlace) {
@@ -20,12 +22,15 @@ struct TerminalActivator: TerminalActivating {
         }
         let plan = SessionActivation.plan(
             ownerBundleID: owner.bundleID, tty: place.terminal.tty, folder: place.folder,
-            fileSystem: LocalFileSystem())
+            home: FileManager.default.homeDirectoryForCurrentUser.path, fileSystem: LocalFileSystem(),
+            resolve: LocalFileSystem.resolvingSymlinks)
         switch plan {
         case .selectTab(let app, let tty):
             Self.selectTab(app, tty: tty, owner: owner)
-        case .openFolder(let folder):
-            Self.openFolder(folder, owner: owner)
+        case .focusWindow(let target):
+            Self.focusWindow(target, owner: owner)
+        case .activateApp where EditorWindows.tracksWindows(bundleID: owner.bundleID):
+            Self.bringForward(owner, strategy: "no matching window; brought the editor forward")
         case .activateApp, .none:
             Self.bringForward(owner)
         }
@@ -49,17 +54,18 @@ struct TerminalActivator: TerminalActivating {
         }
     }
 
-    /// Opens the folder with the editor that runs the session: it focuses the window that
-    /// has the folder open, or opens one.
-    private static func openFolder(_ folder: String, owner: TerminalMapping.Owner) {
-        if let target = running(owner) { NSApp.yieldActivation(to: target) }
+    /// Opens exactly the window's folder (or `.code-workspace` file) with the editor that
+    /// runs the session, which focuses that existing window.
+    private static func focusWindow(_ target: String, owner: TerminalMapping.Owner) {
+        if let app = running(owner) { NSApp.yieldActivation(to: app) }
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = true
+        configuration.addsToRecentItems = false
         NSWorkspace.shared.open(
-            [URL(fileURLWithPath: folder, isDirectory: true)], withApplicationAt: URL(fileURLWithPath: owner.appPath),
+            [URL(fileURLWithPath: target)], withApplicationAt: URL(fileURLWithPath: owner.appPath),
             configuration: configuration
         ) { _, error in
-            // Only the error's domain and code: its description may contain the folder.
+            // Only the error's domain and code: its description may contain the path.
             let failure = error.map { error -> String in
                 let error = error as NSError
                 return "\(error.domain) \(error.code)"
@@ -67,10 +73,10 @@ struct TerminalActivator: TerminalActivating {
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     if let failure {
-                        AgentLog.info("open session: \(owner.bundleID) could not open the project folder (\(failure))")
+                        AgentLog.info("open session: \(owner.bundleID) could not focus the window (\(failure))")
                         bringForward(owner)
                     } else {
-                        AgentLog.info("open session: asked \(owner.bundleID) to show the project's window")
+                        AgentLog.info("open session: focused an existing window of \(owner.bundleID)")
                         reportFrontmost(expected: owner.bundleID)
                     }
                 }
@@ -79,16 +85,17 @@ struct TerminalActivator: TerminalActivating {
     }
 
     /// Brings the app forward with cooperative activation, falling back to a plain
-    /// activation request.
-    private static func bringForward(_ owner: TerminalMapping.Owner) {
+    /// activation request. `strategy`, when given, starts the log line.
+    private static func bringForward(_ owner: TerminalMapping.Owner, strategy: String? = nil) {
+        let prefix = "open session: " + (strategy.map { "\($0); " } ?? "")
         guard let target = running(owner) else {
-            AgentLog.info("open session: \(owner.bundleID) is not running")
+            AgentLog.info(prefix + "\(owner.bundleID) is not running")
             return
         }
         NSApp.yieldActivation(to: target)
         var accepted = target.activate(from: NSRunningApplication.current, options: [])
         if !accepted { accepted = target.activate() }
-        AgentLog.info("open session: activating \(owner.bundleID) \(accepted ? "accepted" : "refused")")
+        AgentLog.info(prefix + "activating \(owner.bundleID) \(accepted ? "accepted" : "refused")")
         reportFrontmost(expected: owner.bundleID)
     }
 

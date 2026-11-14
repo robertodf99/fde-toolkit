@@ -48,10 +48,12 @@ Requirements: macOS 14 or later, and [Claude Code](https://docs.claude.com/en/do
 | finishes a turn, or waits for a reply | `project · Finished` / `Waiting for your reply` | none |
 
 - **Clicking a notification opens its session**: Terminal and iTerm2 select the exact
-  tab; VS Code and Cursor are asked to open the folder Claude Code was started in,
-  which brings forward the window whose root is that folder (otherwise the editor opens
-  a new window for it); Windsurf and Zed get the same, best-effort; other apps come to
-  the front. The click hands the request to Claude Code's terminal dialog: nothing is
+  tab. VS Code and Cursor (and VS Code Insiders and Windsurf) focus the open window that
+  contains the folder Claude Code was started in: that folder's window, the window of
+  the repository a worktree or subfolder belongs to, or a multi-root workspace that
+  includes it. A click never opens a new window: when no open window contains the
+  folder, the editor just comes to the front. Zed and other apps come to the front.
+  The click hands the request to Claude Code's terminal dialog: nothing is
   approved or answered from it. In a multi-question flow, the answers given so far are
   dropped and the terminal asks all the questions again.
 - macOS shows the **first action as a button** and the others under **Options** when
