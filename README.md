@@ -252,6 +252,8 @@ problem (it changes nothing itself):
 ~/Applications/"Hook Me Up.app"/Contents/MacOS/hook-me-up-setup doctor
 ```
 
+(With Homebrew: `hook-me-up-setup doctor`. From Claude Code: `/hook-me-up:doctor`.)
+
 - **No notifications.** Check System Settings → Notifications → Hook Me Up. While
   notifications are off, every request goes to the terminal and the log says how to
   turn them on.
