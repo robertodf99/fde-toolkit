@@ -320,10 +320,14 @@ check "ready: next steps only restart the sessions" \
 # The real hook-me-up-setup takes exactly these flags (no wait; a socket nobody listens on).
 args="$(sed -n 's/^notifications //p' "$LOGS/stub-fresh.txt" | sed -e 's/--wait 10/--wait 0/' -e 's/--result-file [^ ]*//')"
 read -r -a args <<<"$args"
-"$STUB_MACOS/hook-me-up-setup-current" notifications "${args[@]}" --socket "$WORKDIR/nobody.sock" \
-  --result-file "$WORKDIR/real-result" </dev/null >"$LOGS/real-notifications.txt" 2>&1
+# With the stand-ins on PATH too, so it can never open the real System Settings.
+: >"$LOGS/stub-real.txt"
+env PATH="$STUBS/bin:$PATH" STUB_LOG="$LOGS/stub-real.txt" "$STUB_MACOS/hook-me-up-setup-current" notifications \
+  "${args[@]}" --socket "$WORKDIR/nobody.sock" --result-file "$WORKDIR/real-result" </dev/null \
+  >"$LOGS/real-notifications.txt" 2>&1
 check "the real notifications command takes the installer's flags" \
-  '[ "$(cat "$WORKDIR/real-result")" = no-agent ]'
+  '[ "$(cat "$WORKDIR/real-result")" = no-agent ] && grep -q -- "--open-settings" <<<"${args[*]}"'
+check "and without an agent it opens nothing" '[ ! -s "$LOGS/stub-real.txt" ]'
 onboard upgrade-banners not-alerts
 check "upgrade: --open-settings-if-off" \
   'grep -qx "notifications --wait 10 --test --open-settings-if-off --result-file .*/notifications" "$LOGS/stub-upgrade-banners.txt"'
@@ -341,6 +345,9 @@ onboard bootstrap-fails ready STUB_BOOTSTRAP_FAILS=1
 check "launchctl failing: no check, the app is opened instead" \
   'grep -q "^Notification check skipped (the agent was not started by launchctl)" "$LOGS/install-bootstrap-fails.txt" \
    && ! grep -q "^notifications" "$LOGS/stub-bootstrap-fails.txt" && grep -q "^open .*Hook Me Up.app" "$LOGS/stub-bootstrap-fails.txt"'
+check "all four checks got only known flags, and /dev/null as stdin" \
+  '[ "$(cat "$LOGS"/stub-{fresh,upgrade-banners,upgrade-off,upgrade-no-agent}.txt | grep -c "^notifications ")" = 4 ] \
+   && ! grep -q -e "unknown flag" -e "stdin is not /dev/null" "$LOGS"/stub-*.txt'
 run uninstall.sh HOOK_ME_UP_YES=1 >"$LOGS/uninstall-stub.txt" 2>&1
 check "and uninstalled" 'json_equal "$WORKDIR/original.json" "$SETTINGS" && [ ! -e "$APP" ]'
 

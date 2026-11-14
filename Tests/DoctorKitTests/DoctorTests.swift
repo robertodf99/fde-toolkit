@@ -289,6 +289,19 @@ private func run(_ probe: FakeProbe, _ options: Doctor.Options = realHome) -> Do
         #expect(report.exitCode == 0)
     }
 
+    @Test func hooksAtARelativePathCanOnlyBeRemovedByHand() {
+        let probe = healthy()
+        let ours = String(decoding: hooks(at: "\(app)/Contents/MacOS/hook-me-up"), as: UTF8.self)
+        let theirs =
+            #""Stop": [{"hooks": [{"type": "command", "command": "HookMeUp.app/Contents/MacOS/hook-me-up finished"}]}, "#
+        probe.files[settingsPath] = Data(
+            ours.replacingOccurrences(of: #""Stop": ["#, with: theirs + "{\"x\": 1},").utf8)
+        let check = run(probe).check("Other installation")
+        #expect(check?.detail.hasSuffix("from HookMeUp.app/Contents/MacOS/hook-me-up") == true)
+        #expect(check?.fix?.contains("(by hand) the entries that run HookMeUp.app/Contents/MacOS/hook-me-up") == true)
+        #expect(check?.fix?.contains("uninstall") == false)
+    }
+
     @Test func disabledHooksFail() {
         let probe = healthy()
         let text = String(decoding: hooks(at: "\(app)/Contents/MacOS/hook-me-up"), as: UTF8.self)

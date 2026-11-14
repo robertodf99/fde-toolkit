@@ -152,7 +152,9 @@ private func warnAboutOtherInstallations(in settings: JSONValue, settingsURL: UR
     guard !found.otherPaths.isEmpty else { return }
     let setup = Doctor.quoted(Bundle.main.executablePath ?? "hook-me-up-setup")
     let removals = found.otherPaths.map {
-        "  \(setup) uninstall --settings \(Doctor.quoted(settingsURL.path)) --hook \(Doctor.quoted($0))"
+        $0.hasPrefix("/")
+            ? "  \(setup) uninstall --settings \(Doctor.quoted(settingsURL.path)) --hook \(Doctor.quoted($0))"
+            : "  (by hand) the entries that run \($0), a path relative to where Claude Code runs"
     }
     print(
         """
