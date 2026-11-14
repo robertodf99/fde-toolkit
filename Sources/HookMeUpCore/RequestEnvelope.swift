@@ -19,11 +19,14 @@ public struct RequestEnvelope: Codable, Equatable, Sendable {
     /// What "Approve for session" would add (the hook's session-only suggestions), for
     /// display only: the hook re-derives it from its own input when it answers.
     public var sessionPermissions: [PermissionUpdate]
+    /// The folder Claude Code was started in (`CLAUDE_PROJECT_DIR`, else the hook's cwd):
+    /// what a click opens in an editor. Optional on the wire, for older hooks.
+    public var sessionFolder: String?
 
     /// Creates a request.
     public init(
         id: UUID, sessionID: String, project: ProjectInfo, summary: RequestSummary, input: JSONValue,
-        terminal: TerminalHint, sessionPermissions: [PermissionUpdate] = []
+        terminal: TerminalHint, sessionPermissions: [PermissionUpdate] = [], sessionFolder: String? = nil
     ) {
         self.id = id
         self.sessionID = sessionID
@@ -32,5 +35,6 @@ public struct RequestEnvelope: Codable, Equatable, Sendable {
         self.input = input
         self.terminal = terminal
         self.sessionPermissions = sessionPermissions
+        self.sessionFolder = sessionFolder
     }
 }

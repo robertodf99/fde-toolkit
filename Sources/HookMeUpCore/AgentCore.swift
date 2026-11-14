@@ -70,7 +70,7 @@ public struct AgentCore: Sendable {
             summary.kind = kind
             let entry = PendingStore.Entry(
                 id: envelope.id, sessionID: envelope.sessionID, kind: kind, summary: summary, project: envelope.project,
-                terminal: envelope.terminal)
+                terminal: envelope.terminal, sessionFolder: envelope.sessionFolder)
             store.add(entry)
             requests[envelope.id] = (connection, envelope)
             requestOnConnection[connection] = envelope.id
@@ -87,7 +87,7 @@ public struct AgentCore: Sendable {
                 summary: RequestSummary(
                     kind: note.kind, title: title, description: note.message, tags: [],
                     origin: nil),
-                project: note.project, terminal: note.terminal)
+                project: note.project, terminal: note.terminal, sessionFolder: note.sessionFolder)
             store.add(entry)
             return []
 
@@ -130,7 +130,10 @@ public struct AgentCore: Sendable {
                 ]
             }
             store.remove(id: id)
-            let place = SessionPlace(terminal: entry.terminal, folder: entry.project.gitRoot ?? entry.project.folder)
+            // The folder Claude Code was started in, else the project's (git root, else cwd).
+            let place = SessionPlace(
+                terminal: entry.terminal,
+                folder: entry.sessionFolder ?? entry.project.gitRoot ?? entry.project.folder)
             return effects + [.openSession(place)]
 
         case .approve, .approveForSession, .deny, .answer, .approvePlan, .requestChanges:

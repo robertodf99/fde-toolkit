@@ -334,4 +334,33 @@ private func response(_ id: UUID, _ outcome: ResponseOutcome) -> WireMessage {
             core.resolve(id: finished.id, .openInTerminal, now: t0)
                 == [.openSession(SessionPlace(terminal: finished.terminal, folder: "/home/dev/scratch"))])
     }
+
+    /// The folder Claude Code was started in wins over the git root (a worktree, a
+    /// subfolder of a monorepo) and over the working folder.
+    @Test func theSessionFolderIsPreferredForOpening() {
+        var core = AgentCore()
+        var request = questionRequest()
+        request.project = ProjectInfo(
+            name: "acme-api", gitRoot: "/home/dev/projects/acme-api/.claude/worktrees/fix", branch: "fix",
+            worktree: "fix")
+        request.sessionFolder = "/home/dev/projects/acme-api"
+        _ = core.receive(.request(request), from: 1, now: t0)
+        #expect(
+            core.resolve(id: request.id, .openInTerminal, now: t0).last
+                == .openSession(SessionPlace(terminal: request.terminal, folder: "/home/dev/projects/acme-api")))
+
+        _ = core.receive(
+            .notify(
+                NotifyEnvelope(
+                    sessionID: "s9",
+                    project: ProjectInfo(
+                        name: "scratch", gitRoot: nil, branch: nil, worktree: nil, folder: "/home/dev/scratch/sub"),
+                    kind: .finished, message: "Done", terminal: TerminalHint(ancestorPIDs: [], tty: nil),
+                    sessionFolder: "/home/dev/scratch")),
+            from: 2, now: t0)
+        let finished = core.store.entries[0]
+        #expect(
+            core.resolve(id: finished.id, .openInTerminal, now: t0)
+                == [.openSession(SessionPlace(terminal: finished.terminal, folder: "/home/dev/scratch"))])
+    }
 }

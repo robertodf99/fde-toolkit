@@ -28,11 +28,13 @@ public struct PendingStore: Sendable {
         public var terminal: TerminalHint
         /// Whether a hook is still waiting for it.
         public var state: State
+        /// The folder Claude Code was started in, when the hook sent it.
+        public var sessionFolder: String?
 
         /// Creates an entry.
         init(
             id: UUID, sessionID: String, kind: EntryKind, summary: RequestSummary, project: ProjectInfo,
-            terminal: TerminalHint, state: State = .pending
+            terminal: TerminalHint, state: State = .pending, sessionFolder: String? = nil
         ) {
             self.id = id
             self.sessionID = sessionID
@@ -41,6 +43,7 @@ public struct PendingStore: Sendable {
             self.project = project
             self.terminal = terminal
             self.state = state
+            self.sessionFolder = sessionFolder
         }
 
         /// Blocking entries have a hook waiting on a connection; they end with it.

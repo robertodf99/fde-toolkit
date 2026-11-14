@@ -13,18 +13,19 @@ public func runHook(
 ) -> Data? {
     guard let input = try? HookInput.parse(stdin) else { return nil }
     let headless = isHeadless(environment)
+    let folder = sessionFolder(input, environment: environment)
     switch mode {
     case .permission(let timeout):
         return requestDecision(
-            input, handlerTimeout: timeout, socketPath: socketPath, headless: headless,
+            input, handlerTimeout: timeout, socketPath: socketPath, headless: headless, sessionFolder: folder,
             watchProcess: watchProcess, clock: clock)
     case .notify:
         // Headless (`claude -p`, SDK) sessions have nobody to come back to.
         guard input.hookEventName == "Notification", !headless else { return nil }
-        notify(input, kind: .waiting, socketPath: socketPath)
+        notify(input, kind: .waiting, sessionFolder: folder, socketPath: socketPath)
     case .finished:
         guard input.hookEventName == "Stop", !headless else { return nil }
-        notify(input, kind: .finished, socketPath: socketPath)
+        notify(input, kind: .finished, sessionFolder: folder, socketPath: socketPath)
     case .clear:
         fireAndForget(.clear(sessionID: input.sessionID), socketPath: socketPath)
     }
@@ -33,7 +34,7 @@ public func runHook(
 
 private func requestDecision(
     _ input: HookInput, handlerTimeout requestedTimeout: TimeInterval, socketPath: URL,
-    headless: Bool, watchProcess: pid_t?, clock: () -> Date
+    headless: Bool, sessionFolder: String, watchProcess: pid_t?, clock: () -> Date
 ) -> Data? {
     guard input.hookEventName == "PermissionRequest", input.toolName != nil else { return nil }
     let handlerTimeout = min(max(requestedTimeout, 1), HookTiming.defaultHandlerTimeout)
@@ -46,7 +47,8 @@ private func requestDecision(
     var envelope = RequestEnvelope(
         id: id, sessionID: input.sessionID, project: project, summary: summary,
         input: input.toolInput ?? .null, terminal: terminalHint(),
-        sessionPermissions: SessionPermissionFilter.sessionOnly(input.permissionSuggestions))
+        sessionPermissions: SessionPermissionFilter.sessionOnly(input.permissionSuggestions),
+        sessionFolder: sessionFolder)
 
     guard let connection = try? SocketClient.connect(path: socketPath, timeout: HookTiming.permissionConnectTimeout)
     else { return nil }
@@ -85,14 +87,14 @@ private func requestDecision(
     return DecisionEncoder.output(for: decision, input: input)
 }
 
-private func notify(_ input: HookInput, kind: EntryKind, socketPath: URL) {
+private func notify(_ input: HookInput, kind: EntryKind, sessionFolder: String, socketPath: URL) {
     let project = ProjectInfo.resolve(cwd: URL(fileURLWithPath: input.cwd), fileSystem: LocalFileSystem())
     let summary = Summarizer.summarize(input, project: project, home: HookMeUpPaths.homeDirectory.path)
     fireAndForget(
         .notify(
             NotifyEnvelope(
                 sessionID: input.sessionID, project: project, kind: kind,
-                message: summary.description, terminal: terminalHint())),
+                message: summary.description, terminal: terminalHint(), sessionFolder: sessionFolder)),
         socketPath: socketPath)
 }
 
@@ -107,6 +109,14 @@ private func terminalHint() -> TerminalHint {
     let ancestors = ProcessTree.ancestors(of: getpid())
     let tty = ancestors.lazy.compactMap { ProcessTree.controllingTTY(of: $0.pid) }.first
     return TerminalHint(ancestorPIDs: ancestors.map(\.pid), tty: tty)
+}
+
+/// The folder Claude Code was started in: `CLAUDE_PROJECT_DIR`, which stays put when
+/// Claude enters a worktree, else the working folder from the hook's input. The agent
+/// only uses it to open that folder in the editor that runs the session.
+func sessionFolder(_ input: HookInput, environment: [String: String]) -> String {
+    if let folder = environment["CLAUDE_PROJECT_DIR"], !folder.isEmpty { return folder }
+    return input.cwd
 }
 
 /// Assumption (not verified): `claude -p` and SDK runs report an "sdk-*" entrypoint;

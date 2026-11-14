@@ -138,8 +138,12 @@ func serveRawOnce(_ path: String, bytes: Data) {
     }.start()
 }
 
-private func run(_ mode: HookMode, _ json: String, socket: URL, clock: @escaping () -> Date = Date.init) -> String? {
-    runHook(mode: mode, stdin: Data(json.utf8), socketPath: socket, clock: clock).map {
+/// Runs the hook with a fixed environment (by default none), never this process's own.
+private func run(
+    _ mode: HookMode, _ json: String, socket: URL, clock: @escaping () -> Date = Date.init,
+    environment: [String: String] = [:]
+) -> String? {
+    runHook(mode: mode, stdin: Data(json.utf8), socketPath: socket, clock: clock, environment: environment).map {
         String(decoding: $0, as: UTF8.self)
     }
 }
@@ -340,6 +344,29 @@ private func run(_ mode: HookMode, _ json: String, socket: URL, clock: @escaping
         let again = Date()
         #expect(run(.clear, clearJSON, socket: temp.socket) == nil)
         #expect(Date().timeIntervalSince(again) < 0.25)
+    }
+
+    /// The folder a click should open is the one Claude Code was started in
+    /// (CLAUDE_PROJECT_DIR stays put when Claude enters a worktree), else the hook's cwd.
+    @Test func requestsAndNotesCarryTheSessionFolder() throws {
+        let temp = try ShortTempDir()
+        let agent = try FakeAgent(path: temp.socket, reply: respond(.paused))
+        let started = ["CLAUDE_PROJECT_DIR": "/home/dev/projects/acme-api"]
+        _ = run(.permission(timeout: 600), docsPermissionRequest, socket: temp.socket, environment: started)
+        _ = run(.permission(timeout: 600), docsPermissionRequest, socket: temp.socket)
+        #expect(waitUntil { agent.requests.count == 2 })
+        let folders = agent.requests.map(\.sessionFolder)
+        #expect(folders.contains("/home/dev/projects/acme-api"))
+        #expect(folders.contains("/home/..."))  // the cwd in the input
+
+        _ = run(.notify, notification, socket: temp.socket, environment: started)
+        _ = run(.finished, stop, socket: temp.socket)
+        #expect(waitUntil { agent.received.value.count == 4 })
+        let notes = agent.received.value.compactMap { message -> NotifyEnvelope? in
+            if case .notify(let note) = message { note } else { nil }
+        }
+        #expect(notes.first { $0.sessionID == "n1" }?.sessionFolder == "/home/dev/projects/acme-api")
+        #expect(notes.first { $0.sessionID == "f1" }?.sessionFolder == "/tmp")
     }
 
     @Test func clearNotifyAndFinishedReachTheAgent() throws {

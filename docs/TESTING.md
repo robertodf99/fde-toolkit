@@ -32,13 +32,17 @@ said otherwise, so that permission prompts actually appear.
    your original bytes).
 2. Run the installer again: it reports no changes to the settings and replaces the app
    (that is how upgrades work).
-3. macOS asks once to allow notifications from **Hook Me Up**: Allow.
-4. System Settings → Notifications → Hook Me Up: Allow notifications on, **style set
+3. System Settings → General → Login Items → Allow in the Background lists **Hook Me
+   Up** with its icon (not "HookMeUp" with a generic icon), after a fresh install and
+   after upgrading from 0.1.0. Optionally, `sfltool dumpbtm` shows the item with
+   `io.github.robertodf99.hook-me-up` among its associated bundle identifiers.
+4. macOS asks once to allow notifications from **Hook Me Up**: Allow.
+5. System Settings → Notifications → Hook Me Up: Allow notifications on, **style set
    to Alerts** (they stay on screen until you answer), sounds on. The log says
    `notifications: authorized, style alert`. Notifications show the app icon: a white
    spark on a clay rounded square.
-5. The menu bar shows ✻ (with the number of waiting entries, ⏸ while paused).
-6. The first click on a notification with Terminal or iTerm2 asks once for Automation
+6. The menu bar shows ✻ (with the number of waiting entries, ⏸ while paused).
+7. The first click on a notification with Terminal or iTerm2 asks once for Automation
    permission: allow it.
 
 ## 1. Requests
@@ -78,8 +82,9 @@ said otherwise, so that permission prompts actually appear.
 
 | # | Check | Expected |
 |---|---|---|
-| 18 | Click a notification from Terminal, iTerm2, Ghostty, VS Code, Cursor, Claude desktop | Terminal / iTerm2: the exact tab is selected. VS Code / Cursor: the window of that session's project comes forward. Others: the app comes forward. The log says what happened (`open session: …` and the frontmost app). |
+| 18 | Click a notification from Terminal, iTerm2, Ghostty, VS Code, Cursor, Claude desktop (and, if installed, VS Code Insiders, Windsurf, Zed) | Terminal / iTerm2: the exact tab is selected. VS Code / Cursor: the window whose root is the folder Claude Code was started in comes forward. Others: the app comes forward. The log says what happened (`open session: …` and the frontmost app). |
 | 18b | With two VS Code windows open (two projects), run Claude Code in each and click a notification from each | Each click focuses the window of that session's project, not just VS Code. |
+| 18c | In VS Code, start Claude Code at a repository's root and let it work in a worktree (`.claude/worktrees/<name>`); another time open a monorepo subfolder as the window and start Claude Code there | The click brings back that same window each time (the folder Claude Code was started in), not a new window for the worktree or the repository root. |
 | 19 | Subagent permission request | Title ends with "· subagent". |
 | 20 | Your usual permission mode (e.g. auto) for a while | Note which tool names reach the notifications. |
 

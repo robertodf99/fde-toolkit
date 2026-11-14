@@ -12,13 +12,19 @@ public struct NotifyEnvelope: Codable, Equatable, Sendable {
     public var message: String
     /// Where the session's terminal is.
     public var terminal: TerminalHint
+    /// The folder Claude Code was started in; optional on the wire, for older hooks.
+    public var sessionFolder: String?
 
     /// Creates a heads-up.
-    public init(sessionID: String, project: ProjectInfo, kind: EntryKind, message: String, terminal: TerminalHint) {
+    public init(
+        sessionID: String, project: ProjectInfo, kind: EntryKind, message: String, terminal: TerminalHint,
+        sessionFolder: String? = nil
+    ) {
         self.sessionID = sessionID
         self.project = project
         self.kind = kind
         self.message = message
         self.terminal = terminal
+        self.sessionFolder = sessionFolder
     }
 }

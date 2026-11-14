@@ -25,6 +25,26 @@ private func header(_ length: UInt32) -> Data {
         let summaryObject = try #require(object["summary"] as? [String: Any])
         #expect(Set(summaryObject.keys) == ["kind", "title", "description", "tags", "origin"])
     }
+
+    /// The session folder is optional on the wire: messages from a hook without it still
+    /// decode, and an agent that does not know it ignores it.
+    @Test func sessionFolderIsOptionalOnTheWire() throws {
+        let withFolder = RequestEnvelope(
+            id: UUID(), sessionID: "s", project: project, summary: summary, input: .object([:]), terminal: terminal,
+            sessionFolder: "/home/dev/projects/acme-api")
+        var object = try #require(
+            try JSONSerialization.jsonObject(with: JSONEncoder().encode(withFolder)) as? [String: Any])
+        #expect(object["sessionFolder"] as? String == "/home/dev/projects/acme-api")
+        object["sessionFolder"] = nil  // as an older hook sends it
+        let decoded = try JSONDecoder().decode(
+            RequestEnvelope.self, from: JSONSerialization.data(withJSONObject: object))
+        #expect(decoded.sessionFolder == nil)
+        #expect(decoded.id == withFolder.id)
+        let note = NotifyEnvelope(
+            sessionID: "s", project: project, kind: .finished, message: "Done.", terminal: terminal,
+            sessionFolder: "/home/dev/projects/acme-api")
+        #expect(try JSONDecoder().decode(NotifyEnvelope.self, from: JSONEncoder().encode(note)) == note)
+    }
 }
 
 @Suite struct FramingTests {
