@@ -56,6 +56,11 @@ final class Box<T>: @unchecked Sendable {
         get { lock.withLock { stored } }
         set { lock.withLock { stored = newValue } }
     }
+    /// Changes the value in one step. `value.append(x)` would be a separate get and set,
+    /// so two connections' threads could lose each other's change.
+    func mutate(_ change: (inout T) -> Void) {
+        lock.withLock { change(&stored) }
+    }
 }
 
 final class ShortTempDir {
@@ -89,9 +94,9 @@ final class FakeAgent: @unchecked Sendable {
         let received = self.received
         let closedByClient = self.closedByClient
         try server.start { connection in
-            connection.onClose = { closedByClient.value += 1 }
+            connection.onClose = { closedByClient.mutate { $0 += 1 } }
             connection.startReading(queue: DispatchQueue(label: "fake-agent")) { message in
-                received.value.append(message)
+                received.mutate { $0.append(message) }
                 if case .request(let request) = message { reply(request, connection) }
             }
         }
@@ -347,10 +352,16 @@ private func run(_ mode: HookMode, _ json: String, socket: URL, clock: @escaping
         #expect(run(.notify, notification, socket: temp.socket) == nil)
         #expect(run(.finished, stop, socket: temp.socket) == nil)
         #expect(waitUntil { agent.received.value.count == 3 })
+        // Each message travels on its own connection, so they may arrive in any order:
+        // find them by kind and session instead of by position.
         let messages = agent.received.value
-        #expect(messages.first == .clear(sessionID: "s1"))
-        guard messages.count == 3, case .notify(let waiting) = messages[1], case .notify(let finished) = messages[2]
-        else {
+        #expect(messages.contains(.clear(sessionID: "s1")))
+        let notes = Dictionary(
+            messages.compactMap { message -> (String, NotifyEnvelope)? in
+                if case .notify(let note) = message { (note.sessionID, note) } else { nil }
+            },
+            uniquingKeysWith: { first, _ in first })
+        guard messages.count == 3, let waiting = notes["n1"], let finished = notes["f1"] else {
             Issue.record("unexpected messages: \(messages)")
             return
         }

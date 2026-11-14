@@ -31,6 +31,11 @@ final class Box<T>: @unchecked Sendable {
         get { lock.withLock { stored } }
         set { lock.withLock { stored = newValue } }
     }
+    /// Changes the value in one step. `value.append(x)` would be a separate get and set,
+    /// so two connections' threads could lose each other's change.
+    func mutate(_ change: (inout T) -> Void) {
+        lock.withLock { change(&stored) }
+    }
 }
 
 func waitUntil(timeout: TimeInterval = 2, _ condition: () -> Bool) -> Bool {
@@ -183,7 +188,7 @@ private let sampleRequest = WireMessage.request(
         let received = Box<[WireMessage]>([])
         try server.start { connection in
             connection.startReading(queue: DispatchQueue(label: "test.reader")) { message in
-                received.value.append(message)
+                received.mutate { $0.append(message) }
                 if case .request(let request) = message {
                     try? connection.send(.response(ResponseEnvelope(id: request.id, outcome: .decided(.approve))))
                 }
@@ -226,7 +231,7 @@ private let sampleRequest = WireMessage.request(
         let gotRequest = Box(false)
         let closed = Box(0)
         try server.start { connection in
-            connection.onClose = { closed.value += 1 }
+            connection.onClose = { closed.mutate { $0 += 1 } }
             connection.startReading(queue: DispatchQueue(label: "test.reader")) { _ in gotRequest.value = true }
         }
         defer { server.stop() }
