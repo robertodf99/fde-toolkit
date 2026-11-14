@@ -70,6 +70,12 @@ private func header(_ length: UInt32) -> Data {
             .clear(sessionID: "sess-1"),
             .timedOut(id: id),
             .response(ResponseEnvelope(id: id, outcome: .paused)),
+            .statusQuery,
+            .status(
+                AgentStatus(
+                    version: "0.2.0", build: "0.2.0-beta.1",
+                    notifications: NotificationAuthorization(status: .notDetermined, alertStyle: .banner), paused: true,
+                    pendingCount: 3)),
         ] + decisions.map { .response(ResponseEnvelope(id: id, outcome: .decided($0))) }
     }()
 
@@ -121,6 +127,20 @@ private func header(_ length: UInt32) -> Data {
     @Test func zeroLengthThrows() {
         var buffer = header(0) + Data("{}".utf8)
         #expect(throws: FramingError.self) { try Framing.decode(&buffer) }
+    }
+
+    /// The status messages carry no request content, and their JSON is what an older
+    /// agent sees: a case it can't decode, so it closes the connection.
+    @Test func statusMessagesOnTheWire() throws {
+        let query = try JSONSerialization.jsonObject(with: JSONEncoder().encode(WireMessage.statusQuery))
+        #expect((query as? [String: Any])?.keys.sorted() == ["statusQuery"])
+        let status = AgentStatus(
+            version: "0.2.0", build: "7", notifications: NotificationAuthorization(status: .denied, alertStyle: .none),
+            paused: false, pendingCount: 0)
+        let object = try #require(
+            try JSONSerialization.jsonObject(with: JSONEncoder().encode(status)) as? [String: Any])
+        #expect(Set(object.keys) == ["version", "build", "notifications", "paused", "pendingCount"])
+        #expect(object["notifications"] as? [String: String] == ["status": "denied", "alertStyle": "none"])
     }
 
     @Test func garbagePayloadThrows() {

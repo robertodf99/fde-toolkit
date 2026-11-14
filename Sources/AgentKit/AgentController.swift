@@ -26,6 +26,8 @@ public final class AgentController: ObservableObject {
     private let presenter: any NotificationPresenting
     private let terminal: any TerminalActivating
     private let clock: any WallClock
+    private let version: String
+    private let build: String
     private let log: @MainActor (String) -> Void
     private var server: SocketServer?
     private var connections: [ConnectionID: any AgentConnection] = [:]
@@ -36,14 +38,18 @@ public final class AgentController: ObservableObject {
     private var hasLoggedNotificationsOff = false
 
     /// Creates a controller that shows entries with `presenter`, opens sessions with
-    /// `terminal`, reads the time from `clock` and writes to `log`.
+    /// `terminal`, reads the time from `clock` and writes to `log`. `version` and `build`
+    /// are the app's, reported to status queries.
     public init(
         presenter: any NotificationPresenting, terminal: any TerminalActivating,
-        clock: any WallClock = SystemWallClock(), log: @escaping @MainActor (String) -> Void = { AgentLog.info($0) }
+        clock: any WallClock = SystemWallClock(), version: String = "unknown", build: String = "unknown",
+        log: @escaping @MainActor (String) -> Void = { AgentLog.info($0) }
     ) {
         self.presenter = presenter
         self.terminal = terminal
         self.clock = clock
+        self.version = version
+        self.build = build
         self.log = log
     }
 
@@ -169,6 +175,10 @@ public final class AgentController: ObservableObject {
 
     func received(_ message: WireMessage, from connection: ConnectionID) {
         enqueue { controller in
+            if message == .statusQuery {
+                await controller.answerStatusQuery(on: connection)
+                return
+            }
             if message.wantsNotification {
                 await controller.refreshAuthorization()
             }
@@ -187,6 +197,31 @@ public final class AgentController: ObservableObject {
                 "connection \(connection) closed by peer"
                     + (removed > 0 ? "; removed \(removed) entry" : "") + " -> \(controller.counts)")
         }
+    }
+
+    /// Answers with one `status` (no request content) and closes the connection. Reads
+    /// the notification settings without acting on them, so the entries stay as they are.
+    private func answerStatusQuery(on connection: ConnectionID) async {
+        let authorization = await presenter.authorization()
+        let status = AgentStatus(
+            version: version, build: build, notifications: authorization, paused: isPaused,
+            pendingCount: core.store.entries.count)
+        do {
+            try connections[connection]?.send(.status(status))
+        } catch {
+            log("send on connection \(connection) failed: \(error)")
+        }
+        log("connection \(connection): status query")
+        closeLocally(connection)
+    }
+
+    /// Closes a connection the agent is done with. A request a confused peer sent on the
+    /// same connection ends with it, as if the peer had closed it.
+    private func closeLocally(_ connection: ConnectionID) {
+        connections.removeValue(forKey: connection)?.close()
+        let before = core.store.entries.count
+        let effects = core.connectionClosed(connection, now: clock.now)
+        if core.store.entries.count != before || !effects.isEmpty { apply(effects) }
     }
 
     // MARK: Notifications
@@ -293,6 +328,8 @@ public final class AgentController: ObservableObject {
         case .clear: "clear"
         case .timedOut(let id): "timedOut \(AgentLog.short(id))"
         case .response: "unexpected response"
+        case .statusQuery: "status query"
+        case .status: "unexpected status"
         }
     }
 
@@ -325,7 +362,7 @@ extension WireMessage {
     fileprivate var wantsNotification: Bool {
         switch self {
         case .request, .notify: true
-        case .clear, .timedOut, .response: false
+        case .clear, .timedOut, .response, .statusQuery, .status: false
         }
     }
 }

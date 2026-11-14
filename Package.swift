@@ -15,8 +15,9 @@ let package = Package(
         .target(name: "HookKit", dependencies: ["HookMeUpCore", "HookMeUpIPC"]),
         .target(name: "AgentKit", dependencies: ["HookMeUpCore", "HookMeUpIPC"]),
         .target(name: "SetupKit", dependencies: ["HookMeUpCore"]),
+        .target(name: "DoctorKit", dependencies: ["HookMeUpCore", "HookMeUpIPC", "SetupKit"]),
         .executableTarget(name: "hook-me-up", dependencies: ["HookKit"]),
-        .executableTarget(name: "hook-me-up-setup", dependencies: ["SetupKit", "HookMeUpCore"]),
+        .executableTarget(name: "hook-me-up-setup", dependencies: ["SetupKit", "DoctorKit", "HookMeUpCore"]),
         // AppKit and UserNotifications adapters only; the logic lives in AgentKit.
         .executableTarget(name: "HookMeUp", dependencies: ["AgentKit", "HookMeUpCore", "HookMeUpIPC"]),
         .testTarget(name: "HookMeUpCoreTests", dependencies: ["HookMeUpCore"]),
@@ -24,6 +25,7 @@ let package = Package(
         .testTarget(name: "HookKitTests", dependencies: ["HookKit", "HookMeUpIPC", "HookMeUpCore"]),
         .testTarget(name: "AgentKitTests", dependencies: ["AgentKit", "HookMeUpCore"]),
         .testTarget(name: "SetupKitTests", dependencies: ["SetupKit", "HookMeUpCore"]),
+        .testTarget(name: "DoctorKitTests", dependencies: ["DoctorKit", "HookMeUpCore", "HookMeUpIPC"]),
         .testTarget(name: "HookMeUpTests", dependencies: ["HookMeUp", "HookMeUpCore"]),
     ]
 )

@@ -145,6 +145,13 @@ private func response(_ id: UUID, _ outcome: ResponseOutcome) -> WireMessage {
         let id = UUID()
         #expect(core.receive(response(id, .decided(.approve)), from: 4, now: t0) == [.close(4)])
         #expect(core.store.entries.isEmpty)
+        // The agent answers status queries itself; one that reaches the core is a stray.
+        #expect(core.receive(.statusQuery, from: 5, now: t0) == [.close(5)])
+        let status = AgentStatus(
+            version: "1", build: "1", notifications: NotificationAuthorization(status: .authorized, alertStyle: .alert),
+            paused: false, pendingCount: 0)
+        #expect(core.receive(.status(status), from: 6, now: t0) == [.close(6)])
+        #expect(core.store.entries.isEmpty)
     }
 
     @Test func notifyBecomesEntryWithText() {

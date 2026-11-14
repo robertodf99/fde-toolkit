@@ -4,7 +4,7 @@ import Foundation
 /// agent and the installer.
 public enum HookMeUpPaths {
     /// The agent's socket for the user whose home folder is `home`.
-    static func socketURL(home: URL) -> URL {
+    public static func socketURL(home: URL) -> URL {
         home.appendingPathComponent("Library/Application Support/hook-me-up/agent.sock")
     }
 

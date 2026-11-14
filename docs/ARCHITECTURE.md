@@ -12,13 +12,15 @@ over a Unix socket. Everything else is libraries, so the logic is tested without
 | `HookMeUpIPC` | library | Socket transport: `SocketServer`, `SocketClient`, `Connection` and the file-system/peer checks. |
 | `HookKit` | library | The hook runner `runHook`: parse, summarise, ask the agent, encode the decision. |
 | `AgentKit` | library | The agent runtime `AgentController`: socket ↔ `AgentCore` ↔ notifications, behind the protocols `NotificationPresenting`, `TerminalActivating` and `WallClock`. |
-| `SetupKit` | library | The installer: `SettingsMerger` (add/remove our hooks) and `SettingsFile` (backup, atomic write). |
+| `SetupKit` | library | The installer: `SettingsMerger` (add/remove our hooks, and `inspect`: which of them a settings file has) and `SettingsFile` (backup, atomic write). |
+| `DoctorKit` | library | `hook-me-up-setup doctor`: `Doctor` evaluates an installation (app, LaunchAgent, running agent, hooks, notification settings) through the `DoctorProbe` protocol and prints a fix for each problem; `AgentClient` asks the agent for its status over the socket. |
 | `hook-me-up` | executable | Reads stdin, calls `runHook`, prints its output; always exits 0. |
-| `hook-me-up-setup` | executable | `install` / `uninstall` command line around SetupKit. |
+| `hook-me-up-setup` | executable | `install` / `uninstall` around SetupKit, `doctor` around DoctorKit. |
 | `HookMeUp` | app | AppKit and UserNotifications adapters only: `AppDelegate`, `StatusMenu`, `UserNotificationPresenter`, `TerminalActivator`. |
 
 Dependencies point inward: `HookMeUpCore` ← `HookMeUpIPC` ← `HookKit`, `AgentKit`;
-`HookMeUpCore` ← `SetupKit`; the executables sit at the edge. Each module has a test
+`HookMeUpCore` ← `SetupKit`; `HookMeUpIPC`, `SetupKit` ← `DoctorKit`; the executables
+sit at the edge. Each module has a test
 target with the same name plus `Tests`.
 
 ## Data flow
@@ -39,7 +41,12 @@ target with the same name plus `Tests`.
    `DecisionEncoder`, prints it and exits. Claude Code applies the decision.
 
 Heads-ups (`notify` for waiting/finished, `clear` when the session moves on) are
-fire-and-forget. When the user answers in the terminal instead, Claude Code stops the
+fire-and-forget. `hook-me-up-setup doctor` sends a `statusQuery` on the same socket (same
+client, UID check and framing); the agent answers with one `status` (its version and
+build, the notification authorization and style, whether it is paused, how many entries
+wait; never request content) and closes the connection. An agent from before status
+queries can't decode the message and closes the connection without answering, which the
+doctor reports as an agent too old to answer. When the user answers in the terminal instead, Claude Code stops the
 hook; the agent sees the connection close and removes the entry and its notification.
 
 ## Security model

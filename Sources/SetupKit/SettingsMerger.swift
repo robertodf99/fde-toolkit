@@ -118,6 +118,99 @@ public enum SettingsMerger {
         return .object(root)
     }
 
+    /// The suffix of every copy of the hook executable, wherever the app is.
+    static let hookExecutableSuffix = "/Contents/MacOS/hook-me-up"
+
+    /// Which of our hooks `settings` has. A handler is a hook-me-up handler when its
+    /// command's program (first shell word) ends in `/Contents/MacOS/hook-me-up`; it is
+    /// ours when that path, through `canonicalPath` (e.g. resolving symlinks), equals
+    /// `hookPath`'s, and an event counts as installed only with the arguments `install`
+    /// writes (any permission timeout). Reads nothing but `settings`.
+    public static func inspect(
+        settings: JSONValue, hookPath: String, canonicalPath: (String) -> String = { $0 }
+    ) -> HookInspection {
+        let ours = canonicalPath(hookPath)
+        let expected = specs(permissionTimeout: 0)
+        var installed = Set<String>()
+        var duplicated: [String] = []
+        var otherPaths = Set<String>()
+        let hooks = settings["hooks"]?.objectValue ?? [:]
+        for event in hooks.keys.sorted() {
+            var handlers = 0
+            for group in hooks[event]?.arrayValue ?? [] {
+                for handler in group["hooks"]?.arrayValue ?? [] {
+                    guard let command = handler["command"]?.stringValue, let parsed = splitCommand(command),
+                        parsed.program.hasSuffix(hookExecutableSuffix)
+                    else { continue }
+                    handlers += 1
+                    if canonicalPath(parsed.program) != ours {
+                        otherPaths.insert(parsed.program)
+                    } else if let spec = expected.first(where: { $0.event == event }),
+                        matches(parsed.arguments, spec.arguments)
+                    {
+                        installed.insert(event)
+                    }
+                }
+            }
+            if handlers > 1 { duplicated.append(event) }
+        }
+        let events = expected.map(\.event)
+        return HookInspection(
+            installed: events.filter { installed.contains($0) }, missing: events.filter { !installed.contains($0) },
+            duplicated: duplicated, otherPaths: otherPaths.sorted(),
+            allHooksDisabled: settings["disableAllHooks"]?.boolValue == true)
+    }
+
+    /// Whether a handler's arguments are the ones `install` writes; the permission
+    /// timeout may be any number of seconds.
+    private static func matches(_ arguments: String, _ expected: String) -> Bool {
+        let words = arguments.split(separator: " ")
+        if expected.hasPrefix("permission --timeout ") {
+            return words.count == 3 && words[0] == "permission" && words[1] == "--timeout" && Int(words[2]) != nil
+        }
+        return words.joined(separator: " ") == expected
+    }
+
+    /// A hook command's program, unquoted as the shell would (single quotes, double
+    /// quotes, backslashes), and the rest of the command. Nil when it can't be read.
+    static func splitCommand(_ command: String) -> (program: String, arguments: String)? {
+        var rest = Substring(command.drop(while: { $0.isWhitespace }))
+        var program = ""
+        while let char = rest.first, !char.isWhitespace {
+            rest.removeFirst()
+            switch char {
+            case "'":
+                guard let end = rest.firstIndex(of: "'") else { return nil }
+                program += rest[..<end]
+                rest = rest[rest.index(after: end)...]
+            case "\"":
+                var closed = false
+                while let next = rest.first {
+                    rest.removeFirst()
+                    if next == "\"" {
+                        closed = true
+                        break
+                    }
+                    if next == "\\", let escaped = rest.first {
+                        rest.removeFirst()
+                        program.append(escaped)
+                    } else {
+                        program.append(next)
+                    }
+                }
+                guard closed else { return nil }
+            case "\\":
+                guard let escaped = rest.first else { return nil }
+                rest.removeFirst()
+                program.append(escaped)
+            default:
+                program.append(char)
+            }
+        }
+        guard !program.isEmpty else { return nil }
+        return (program, rest.trimmingCharacters(in: .whitespaces))
+    }
+
     /// Line diff of the two documents as they would be written ("+ " added, "- "
     /// removed, "  " context, two lines around each change). A comma that only appears
     /// because a sibling was added is not shown as a change.

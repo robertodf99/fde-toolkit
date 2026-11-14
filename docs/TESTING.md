@@ -10,6 +10,12 @@ make test-install  # install.sh and uninstall.sh against a throwaway HOME
 make signing-check # ad-hoc and identity signing, in a temporary folder
 ```
 
+`DoctorKitTests` run every doctor check against a fake `DoctorProbe` (each failure with
+its fix and the exit code) and the real `AgentClient` against a socket server that
+answers, closes without answering (an older agent) or never answers. `make test-install`
+also runs `hook-me-up-setup doctor --home <throwaway HOME>`: app, LaunchAgent and hooks
+are checked; launchd and the running agent are skipped there.
+
 CI runs `lint`, `test`, `selftest` and `test-install` on every push and pull request.
 
 ## End-to-end checklist
@@ -44,6 +50,13 @@ said otherwise, so that permission prompts actually appear.
 6. The menu bar shows ✻ (with the number of waiting entries, ⏸ while paused).
 7. The first click on a notification with Terminal or iTerm2 asks once for Automation
    permission: allow it.
+8. `~/Applications/"Hook Me Up.app"/Contents/MacOS/hook-me-up-setup doctor`: every line
+   PASS (Pause may be INFO), exit status 0. Then, one at a time, and run the doctor after
+   each (undo it afterwards): set the style to Banners (WARN, exit 0); turn notifications
+   off (FAIL, exit 1, fix names System Settings); Pause for 30 minutes (INFO); quit from
+   the menu (Agent process FAIL with `launchctl kickstart`; Agent FAIL). Before upgrading
+   from 0.1.x, `make build && .build/release/hook-me-up-setup doctor` against the old agent
+   says it is too old to answer status questions (Agent WARN, exit 0).
 
 ## 1. Requests
 
