@@ -529,3 +529,16 @@ private let likes = question("Which do you like?", ["Blue", "Orange", "Green", "
         #expect(NativeNotification.changes(before: [a], after: [a]) == NotificationChanges(post: [], remove: []))
     }
 }
+
+@Suite struct TestNotificationTests {
+    @Test func theTestNotificationHasAFixedIdAndNothingToAnswer() {
+        let alert = NativeNotification.testSpec(alertStyle: .alert)
+        #expect(alert.identifier == "hook-me-up-test")
+        #expect(alert.categoryIdentifier.isEmpty)
+        #expect(alert.actions.isEmpty)
+        #expect(alert.title == "Hook Me Up")
+        #expect(!alert.body.contains("Alerts"))
+        #expect(NativeNotification.testSpec(alertStyle: .banner).body.contains("Set the style to Alerts"))
+        #expect(UUID(uuidString: alert.identifier) == nil)  // can never be an entry's id
+    }
+}

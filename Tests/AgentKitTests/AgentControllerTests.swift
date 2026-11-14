@@ -436,4 +436,44 @@ private struct Harness {
         #expect(h.controller.store.entries.isEmpty)
         #expect(h.presenter.visible.isEmpty)
     }
+
+    // MARK: Test notification (hook-me-up-setup notifications --test)
+
+    @Test func aTestNotificationIsPostedOutsideTheEntriesAndTheConnectionCloses() async {
+        let h = Harness()
+        h.presenter.current = NotificationAuthorization(status: .authorized, alertStyle: .banner)
+        let (connection, id) = await h.send(.testNotification)
+        #expect(connection.sent.isEmpty)
+        #expect(connection.isClosed)
+        #expect(h.presenter.posted == [NativeNotification.testSpec(alertStyle: .banner)])
+        #expect(h.presenter.posted.first?.identifier == "hook-me-up-test")
+        #expect(h.controller.store.entries.isEmpty)
+        #expect(h.log.lines.last == "connection \(id): test notification posted")
+
+        // The ledger doesn't know it: requests coming and going never remove it.
+        let r = request()
+        _ = await h.send(.request(r))
+        await h.respond(.action("approve"), to: r.id)
+        #expect(!h.presenter.removed.contains("hook-me-up-test"))
+        #expect(h.presenter.visible["hook-me-up-test"] != nil)
+
+        // Clicking it answers nothing and changes nothing.
+        let before = h.presenter.posted.count
+        h.controller.handle(.defaultClick, identifier: "hook-me-up-test", categoryIdentifier: "")
+        await h.controller.settle()
+        #expect(h.terminal.opened.isEmpty)
+        #expect(h.presenter.posted.count == before)
+    }
+
+    @Test func noTestNotificationWithoutPermission() async {
+        let h = Harness()
+        h.presenter.current = NotificationAuthorization(status: .denied, alertStyle: .none)
+        let (connection, id) = await h.send(.testNotification)
+        #expect(connection.isClosed)
+        #expect(h.presenter.posted.isEmpty)
+        #expect(h.log.lines.last == "connection \(id): test notification skipped (notifications are off)")
+        h.presenter.current = NotificationAuthorization(status: .notDetermined, alertStyle: .none)
+        _ = await h.send(.testNotification)
+        #expect(h.presenter.posted.isEmpty)
+    }
 }

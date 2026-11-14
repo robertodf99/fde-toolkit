@@ -151,6 +151,7 @@ private func response(_ id: UUID, _ outcome: ResponseOutcome) -> WireMessage {
             version: "1", build: "1", notifications: NotificationAuthorization(status: .authorized, alertStyle: .alert),
             paused: false, pendingCount: 0)
         #expect(core.receive(.status(status), from: 6, now: t0) == [.close(6)])
+        #expect(core.receive(.testNotification, from: 7, now: t0) == [.close(7)])
         #expect(core.store.entries.isEmpty)
     }
 

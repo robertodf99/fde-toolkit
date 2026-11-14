@@ -71,6 +71,7 @@ private func header(_ length: UInt32) -> Data {
             .timedOut(id: id),
             .response(ResponseEnvelope(id: id, outcome: .paused)),
             .statusQuery,
+            .testNotification,
             .status(
                 AgentStatus(
                     version: "0.2.0", build: "0.2.0-beta.1",

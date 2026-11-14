@@ -101,9 +101,10 @@ public struct AgentCore: Sendable {
             store.markTimedOut(id: id)
             return []
 
-        case .response, .statusQuery, .status:
+        case .response, .statusQuery, .status, .testNotification:
             // Never sent to the core: hooks don't send responses, and the agent answers
-            // status queries itself. Anything else that arrives here is a confused peer.
+            // status queries and test notifications itself. Anything else that arrives
+            // here is a confused peer.
             return [.close(connection)]
         }
     }

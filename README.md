@@ -33,10 +33,16 @@ Requirements: macOS 14 or later, and [Claude Code](https://docs.claude.com/en/do
 
 ### First run
 
+Once the agent runs, the installer waits (up to a minute in a terminal, 10 seconds
+without one) for you to answer macOS's question about notifications, shows a test
+notification, and tells you what is left to do:
+
 1. Allow notifications for **Hook Me Up** when macOS asks (or in System Settings →
    Notifications → Hook Me Up).
 2. In the same place, set the style to **Alerts**, so requests stay on screen until
-   you answer them.
+   you answer them. On a first install, the installer opens System Settings at
+   Notifications when the style isn't Alerts yet; on an upgrade, only when
+   notifications are off.
 3. Restart Claude Code sessions that were already running, so they load the hooks.
 
 ## What you'll see
@@ -167,6 +173,7 @@ The installer and uninstaller read these environment variables:
 | `HOOK_ME_UP_VERSION=v1.2.3` | Install that release instead of the latest |
 | `HOOK_ME_UP_YES=1` | Change `~/.claude/settings.json` without asking (non-interactive installs) |
 | `HOOK_ME_UP_ZIP=<path>` | Install a local package (its `.sha256` must sit next to it) |
+| `HOOK_ME_UP_NO_ONBOARDING=1` | Skip the notification check after starting the agent (no waiting, no test notification, System Settings stays closed) |
 
 Example: `curl -fsSL …/install.sh | HOOK_ME_UP_YES=1 bash`. Without a terminal and
 without `HOOK_ME_UP_YES=1`, the installer changes nothing in your settings and prints
