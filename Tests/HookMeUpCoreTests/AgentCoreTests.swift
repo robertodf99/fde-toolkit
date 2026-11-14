@@ -94,14 +94,17 @@ private func response(_ id: UUID, _ outcome: ResponseOutcome) -> WireMessage {
         _ = core.receive(.request(r), from: 1, now: t0)
         #expect(
             core.resolve(id: r.id, .openInTerminal, now: later) == [
-                .send(1, response(r.id, .decided(.openInTerminal))), .close(1), .activateTerminal(r.terminal),
+                .send(1, response(r.id, .decided(.openInTerminal))), .close(1),
+                .openSession(SessionPlace(terminal: r.terminal, folder: nil)),
             ])
         #expect(core.store.entries.isEmpty)
 
         _ = core.receive(notify(.finished), from: 2, now: later + 1)
         let finished = core.store.entries[0]
         #expect(
-            core.resolve(id: finished.id, .openInTerminal, now: later + 10) == [.activateTerminal(finished.terminal)])
+            core.resolve(id: finished.id, .openInTerminal, now: later + 10) == [
+                .openSession(SessionPlace(terminal: finished.terminal, folder: nil))
+            ])
         #expect(core.store.entries.isEmpty)
     }
 
@@ -304,5 +307,31 @@ private func response(_ id: UUID, _ outcome: ResponseOutcome) -> WireMessage {
         #expect(core.setNotificationsAllowed(false) == [])  // only once
         #expect(core.resolve(id: first.id, .approve, now: t0) == [])  // no second answer
         #expect(core.connectionClosed(1, now: t0) == [])
+    }
+
+    /// Opening a session hands over where it runs: its terminal and its project folder (the
+    /// git root, else the working folder outside git).
+    @Test func openingASessionNamesItsFolder() {
+        var core = AgentCore()
+        var inRepository = questionRequest()
+        inRepository.project = ProjectInfo(
+            name: "acme-api", gitRoot: "/home/dev/projects/acme-api", branch: "main", worktree: nil)
+        _ = core.receive(.request(inRepository), from: 1, now: t0)
+        #expect(
+            core.resolve(id: inRepository.id, .openInTerminal, now: t0).last
+                == .openSession(SessionPlace(terminal: inRepository.terminal, folder: "/home/dev/projects/acme-api")))
+
+        _ = core.receive(
+            .notify(
+                NotifyEnvelope(
+                    sessionID: "s9",
+                    project: ProjectInfo(
+                        name: "scratch", gitRoot: nil, branch: nil, worktree: nil, folder: "/home/dev/scratch"),
+                    kind: .finished, message: "Done", terminal: TerminalHint(ancestorPIDs: [], tty: nil))),
+            from: 2, now: t0)
+        let finished = core.store.entries[0]
+        #expect(
+            core.resolve(id: finished.id, .openInTerminal, now: t0)
+                == [.openSession(SessionPlace(terminal: finished.terminal, folder: "/home/dev/scratch"))])
     }
 }

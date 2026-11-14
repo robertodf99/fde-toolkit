@@ -78,7 +78,8 @@ said otherwise, so that permission prompts actually appear.
 
 | # | Check | Expected |
 |---|---|---|
-| 18 | Click a notification from Terminal, iTerm2, Ghostty, VS Code, Cursor, Claude desktop | Terminal / iTerm2: the exact tab is selected. Others: the app comes forward. |
+| 18 | Click a notification from Terminal, iTerm2, Ghostty, VS Code, Cursor, Claude desktop | Terminal / iTerm2: the exact tab is selected. VS Code / Cursor: the window of that session's project comes forward. Others: the app comes forward. The log says what happened (`open session: …` and the frontmost app). |
+| 18b | With two VS Code windows open (two projects), run Claude Code in each and click a notification from each | Each click focuses the window of that session's project, not just VS Code. |
 | 19 | Subagent permission request | Title ends with "· subagent". |
 | 20 | Your usual permission mode (e.g. auto) for a while | Note which tool names reach the notifications. |
 

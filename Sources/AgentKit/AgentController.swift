@@ -266,8 +266,8 @@ public final class AgentController: ObservableObject {
                 }
             case .close(let connection):
                 connections.removeValue(forKey: connection)?.close()
-            case .activateTerminal(let hint):
-                terminal.activate(hint)
+            case .openSession(let place):
+                terminal.open(place)
             }
         }
         syncNotifications()

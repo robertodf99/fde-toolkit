@@ -22,8 +22,8 @@ public struct AgentCore: Sendable {
         case send(ConnectionID, WireMessage)
         /// Close a connection (the hook sees EOF).
         case close(ConnectionID)
-        /// Bring a session's terminal forward.
-        case activateTerminal(TerminalHint)
+        /// Bring a session forward (its terminal or editor window).
+        case openSession(SessionPlace)
     }
 
     /// The entries waiting for the user.
@@ -130,7 +130,8 @@ public struct AgentCore: Sendable {
                 ]
             }
             store.remove(id: id)
-            return effects + [.activateTerminal(entry.terminal)]
+            let place = SessionPlace(terminal: entry.terminal, folder: entry.project.gitRoot ?? entry.project.folder)
+            return effects + [.openSession(place)]
 
         case .approve, .approveForSession, .deny, .answer, .approvePlan, .requestChanges:
             // Only a still-pending entry with a live hook can be decided, once.

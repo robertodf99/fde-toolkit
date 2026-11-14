@@ -14,6 +14,10 @@ public enum TerminalApp: Equatable, Sendable {
     case vsCode
     /// Cursor (integrated terminal).
     case cursor
+    /// Windsurf (integrated terminal).
+    case windsurf
+    /// Zed (integrated terminal).
+    case zed
     /// The Claude desktop app.
     case claudeDesktop
 
@@ -26,6 +30,8 @@ public enum TerminalApp: Equatable, Sendable {
         case "dev.warp.Warp-Stable", "dev.warp.Warp", "dev.warp.Warp-Preview": self = .warp
         case "com.microsoft.VSCode", "com.microsoft.VSCodeInsiders": self = .vsCode
         case "com.todesktop.230313mzl4w4u92": self = .cursor
+        case "com.exafunction.windsurf": self = .windsurf
+        case "dev.zed.Zed", "dev.zed.Zed-Preview": self = .zed
         case "com.anthropic.claudefordesktop": self = .claudeDesktop
         default: return nil
         }
@@ -34,4 +40,7 @@ public enum TerminalApp: Equatable, Sendable {
     /// Terminal and iTerm2 can select the exact tab by tty via AppleScript; the others
     /// get app-level activation only.
     public var selectsTabByTTY: Bool { self == .appleTerminal || self == .iTerm2 }
+
+    /// Editors that bring forward the window of a folder when asked to open it.
+    public var opensFolders: Bool { [.vsCode, .cursor, .windsurf, .zed].contains(self) }
 }

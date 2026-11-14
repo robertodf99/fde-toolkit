@@ -23,10 +23,10 @@ final class FakeConnection: AgentConnection {
 
 @MainActor
 final class FakeTerminal: TerminalActivating {
-    private(set) var activated: [TerminalHint] = []
+    private(set) var opened: [SessionPlace] = []
 
-    func activate(_ hint: TerminalHint) {
-        activated.append(hint)
+    func open(_ place: SessionPlace) {
+        opened.append(place)
     }
 }
 
@@ -307,7 +307,7 @@ private struct Harness {
         let (connection, _) = await h.send(.request(r))
         await h.respond(.defaultClick, to: r.id)
         #expect(connection.sent == [decided(r.id, .openInTerminal)])
-        #expect(h.terminal.activated == [hint])
+        #expect(h.terminal.opened == [SessionPlace(terminal: hint, folder: nil)])
         #expect(h.presenter.visible.isEmpty)
     }
 

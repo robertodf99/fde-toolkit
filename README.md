@@ -47,8 +47,10 @@ Requirements: macOS 14 or later, and [Claude Code](https://docs.claude.com/en/do
 | wants a plan approved | `project · Plan to approve`, with the first lines of the plan | Approve plan, Request changes… (your text goes back to Claude) |
 | finishes a turn, or waits for a reply | `project · Finished` / `Waiting for your reply` | none |
 
-- **Clicking a notification opens its session** (Terminal and iTerm2 select the exact
-  tab) and hands the request to Claude Code's terminal dialog: nothing is approved or
+- **Clicking a notification opens its session**: Terminal and iTerm2 select the exact
+  tab; VS Code, Cursor, Windsurf and Zed bring forward the window of the session's
+  project; other apps come to the front. It hands the request to Claude Code's terminal
+  dialog: nothing is approved or
   answered from the click. In a multi-question flow, the answers given so far are
   dropped and the terminal asks all the questions again.
 - macOS shows the **first action as a button** and the others under **Options** when
