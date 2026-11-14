@@ -41,7 +41,9 @@ func runNotifications(_ arguments: [String]) -> Never {
         }
     }
     let outcome = NotificationOnboarding.run(
-        NotificationOnboarding.Options(wait: wait, test: test, openSettings: openSettings),
+        NotificationOnboarding.Options(
+            wait: wait, test: test, openSettings: openSettings,
+            setupCommand: Doctor.quoted(Bundle.main.executablePath ?? "hook-me-up-setup")),
         io: SystemOnboardingIO(socket: socket))
     if let resultFile {
         try? Data((outcome.rawValue + "\n").utf8).write(to: URL(fileURLWithPath: resultFile), options: .atomic)

@@ -51,12 +51,17 @@ public enum NotificationOnboarding {
         public var test: Bool
         /// When to open System Settings.
         public var openSettings: OpenSettings
+        /// How to run this `hook-me-up-setup` (its full path, quoted), for the hints.
+        public var setupCommand: String
 
         /// Creates options.
-        public init(wait: TimeInterval, test: Bool, openSettings: OpenSettings) {
+        public init(
+            wait: TimeInterval, test: Bool, openSettings: OpenSettings, setupCommand: String = "hook-me-up-setup"
+        ) {
             self.wait = wait
             self.test = test
             self.openSettings = openSettings
+            self.setupCommand = setupCommand
         }
     }
 
@@ -109,7 +114,8 @@ public enum NotificationOnboarding {
                 io.say("The agent that runs is too old to report its notification settings.")
                 return .oldAgent
             }
-            io.say("The agent didn't answer, so notifications weren't checked. Run: hook-me-up-setup doctor")
+            io.say("The agent didn't answer, so notifications weren't checked. Check with:")
+            io.say("  \(options.setupCommand) doctor")
             return .noAgent
         }
         let authorization = status.notifications
@@ -121,15 +127,21 @@ public enum NotificationOnboarding {
                 io.say("Notifications are on, style Alerts: requests stay on screen until you answer them.")
                 outcome = .ready
             } else {
+                let style =
+                    switch authorization.alertStyle {
+                    case .banner: "Banners"
+                    case .none: "None"
+                    case .alert, .unknown: "not Alerts"
+                    }
                 io.say(
-                    "Notifications are on, but their style is \(authorization.alertStyle == .banner ? "Banners" : "None"): "
-                        + "requests won't stay on screen. Set it to Alerts in \(settings).")
+                    "Notifications are on, but their style is \(style): requests won't stay on screen. "
+                        + "Set it to Alerts in \(settings).")
                 outcome = .notAlerts
             }
         case .denied:
             io.say("Notifications are off for Hook Me Up, so requests go to the terminal. Turn them on in \(settings).")
             outcome = .off
-        case .notDetermined:
+        case .notDetermined, .unknown:
             io.say(
                 "macOS is still waiting for your answer: allow notifications from Hook Me Up, or turn them on in \(settings)."
             )

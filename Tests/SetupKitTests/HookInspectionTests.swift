@@ -143,6 +143,90 @@ private func dropping(_ event: String, from settings: JSONValue) -> JSONValue {
         #expect(result.duplicated.isEmpty)
     }
 
+    @Test func aHandlerSetUpDifferentlyIsReportedButCounts() throws {
+        let q = "'\(hook)'"
+        let settings = try json(
+            #"""
+            {"hooks": {
+              "PermissionRequest": [{"matcher": "Bash", "hooks": [{"type": "command", "command": "\#(q) permission --timeout 600"}]}],
+              "Notification": [{"matcher": "", "hooks": [{"type": "command", "command": "\#(q) notify"}]}],
+              "Stop": [{"hooks": [{"type": "prompt", "command": "\#(q) finished"}]}],
+              "UserPromptSubmit": [{"matcher": "*", "hooks": [{"type": "command", "command": "\#(q) clear"}]}],
+              "SessionEnd": [{"matcher": "logout", "hooks": [{"command": "\#(q) clear"}]}]
+            }}
+            """#)
+        let result = SettingsMerger.inspect(settings: settings, hookPath: hook)
+        #expect(result.missing.isEmpty)
+        #expect(
+            result.differences == [
+                .init(event: "PermissionRequest", detail: #"matcher "Bash", not "" (every tool)"#),
+                .init(event: "Notification", detail: #"matcher "", not "elicitation_dialog""#),
+                .init(event: "Stop", detail: #"type "prompt", not "command""#),
+                .init(event: "SessionEnd", detail: #"type missing, not "command""#),
+            ])
+        // As install writes them, or "*" / no matcher for the match-everything events: no differences.
+        #expect(SettingsMerger.inspect(settings: try installed(), hookPath: hook).differences.isEmpty)
+    }
+
+    @Test func aCorrectCopyOfAnEventHidesAnOddOne() throws {
+        var settings = try installed()
+        let odd = try json(
+            #"{"matcher": "", "hooks": [{"type": "command", "command": "'\#(hook)' notify"}]}"#)
+        if var root = settings.objectValue, var hooks = root["hooks"]?.objectValue,
+            var groups = hooks["Notification"]?.arrayValue
+        {
+            groups.append(odd)
+            hooks["Notification"] = .array(groups)
+            root["hooks"] = .object(hooks)
+            settings = .object(root)
+        }
+        let result = SettingsMerger.inspect(settings: settings, hookPath: hook)
+        #expect(result.differences.isEmpty)
+        #expect(result.duplicated == ["Notification"])
+    }
+
+    @Test func installReplacesOurHookSpelledThroughASymlink() throws {
+        let opt = "/opt/homebrew/opt/hook-me-up/Hook Me Up.app/Contents/MacOS/hook-me-up"
+        let keg = "/opt/homebrew/Cellar/hook-me-up/0.2.0/Hook Me Up.app/Contents/MacOS/hook-me-up"
+        let resolve: (String) -> String = {
+            $0.replacingOccurrences(of: "/opt/hook-me-up/", with: "/Cellar/hook-me-up/0.2.0/")
+        }
+        let viaOpt = try installed(at: opt)
+        let again = try SettingsMerger.install(
+            into: viaOpt, hookPath: keg, permissionTimeout: 600, canonicalPath: resolve)
+        let result = SettingsMerger.inspect(settings: again, hookPath: keg, canonicalPath: resolve)
+        #expect(result.duplicated.isEmpty)
+        #expect(result.missing.isEmpty)
+        #expect(!again.pretty().contains("/opt/hook-me-up/"))
+        // Without the canonicalizer they are different hooks, and both stay.
+        let both = try SettingsMerger.install(into: viaOpt, hookPath: keg, permissionTimeout: 600)
+        #expect(SettingsMerger.inspect(settings: both, hookPath: keg).duplicated.count == 5)
+    }
+
+    @Test func uninstallRemovesOurHookHoweverItIsQuoted() throws {
+        let other = "/Users/me/Old Copy/HookMeUp.app/Contents/MacOS/hook-me-up"
+        let settings = try json(
+            #"""
+            {"hooks": {
+              "Stop": [{"hooks": [
+                {"type": "command", "command": "\"\#(other)\" finished"},
+                {"type": "command", "command": "say done"}
+              ]}],
+              "SessionEnd": [{"hooks": [{"type": "command", "command": "/Users/me/Old\\ Copy/HookMeUp.app/Contents/MacOS/hook-me-up clear"}]}],
+              "UserPromptSubmit": [{"hooks": [{"type": "command", "command": "'\#(other)'"}]}]
+            }}
+            """#)
+        let removed = SettingsMerger.uninstall(from: settings, hookPath: other)
+        #expect(
+            removed
+                == (try json(
+                    #"{"hooks": {"Stop": [{"hooks": [{"type": "command", "command": "say done"}]}]}}"#)))
+        // A program that only starts with the same path is someone else's.
+        let longer = try json(
+            #"{"hooks": {"Stop": [{"hooks": [{"type": "command", "command": "'\#(other)-wrapper' finished"}]}]}}"#)
+        #expect(SettingsMerger.uninstall(from: longer, hookPath: other) == longer)
+    }
+
     @Test func commandsSplitLikeTheShell() {
         #expect(SettingsMerger.splitCommand("'/a b/hook-me-up' notify")! == ("/a b/hook-me-up", "notify"))
         #expect(SettingsMerger.splitCommand(#"'/it'\''s/hook-me-up' clear"#)! == ("/it's/hook-me-up", "clear"))
