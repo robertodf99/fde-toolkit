@@ -137,6 +137,22 @@ private func onboard(
         #expect(short.slept == 3)
     }
 
+    @Test func theDoctorHintNamesThisProgram() {
+        let io = FakeOnboardingIO([.noSocket])
+        let setup = "'/Users/me/Applications/Hook Me Up.app/Contents/MacOS/hook-me-up-setup'"
+        let outcome = NotificationOnboarding.run(
+            .init(wait: 0, test: false, openSettings: .never, setupCommand: setup), io: io)
+        #expect(outcome == .noAgent)
+        #expect(io.lines.last == "  \(setup) doctor")
+    }
+
+    @Test func aStateFromANewerAgentIsTreatedAsUndecided() {
+        let io = FakeOnboardingIO([agent(.unknown, .unknown)])
+        #expect(onboard(io, open: .whenOff) == .undecided)
+        #expect(io.queries == 1)  // nothing to wait for
+        #expect(io.opened == 1)
+    }
+
     @Test func anOlderAgentIsLeftAlone() {
         let io = FakeOnboardingIO([.closedWithoutAnswer])
         #expect(onboard(io) == .oldAgent)

@@ -54,24 +54,12 @@ public enum Doctor {
             let home = home ?? realHome
             let isRealHome = probe.canonicalPath(home) == probe.canonicalPath(realHome)
             let app =
-                app ?? executablePath.flatMap { appContaining(probe.canonicalPath($0)) }
+                app ?? executablePath.flatMap { AppLocation.appContaining(probe.canonicalPath($0)) }
                 ?? home + "/Applications/Hook Me Up.app"
             return Options(
                 home: home, isRealHome: isRealHome, app: app, settings: settings ?? home + "/.claude/settings.json",
                 socket: socket ?? (isRealHome ? HookMeUpPaths.socketURL(home: URL(fileURLWithPath: home)).path : nil),
                 uid: uid)
-        }
-
-        /// The app bundle that has `executable` in its `Contents/MacOS`, if any.
-        static func appContaining(_ executable: String) -> String? {
-            let macOS = (executable as NSString).deletingLastPathComponent
-            let contents = (macOS as NSString).deletingLastPathComponent
-            let app = (contents as NSString).deletingLastPathComponent
-            guard (macOS as NSString).lastPathComponent == "MacOS",
-                (contents as NSString).lastPathComponent == "Contents",
-                app.hasSuffix(".app")
-            else { return nil }
-            return app
         }
     }
 
@@ -87,11 +75,8 @@ public enum Doctor {
 
         init(app: String, probe: some DoctorProbe) {
             self.app = app
-            let canonical = probe.canonicalPath(app)
-            if let keg = canonical.range(of: "/Cellar/hook-me-up/") {
-                // <prefix>/Cellar/hook-me-up/<version>/Hook Me Up.app -> <prefix>/opt/hook-me-up/Hook Me Up.app
-                let inKeg = canonical[keg.upperBound...].drop { $0 != "/" }
-                let opt = String(canonical[..<keg.lowerBound]) + "/opt/hook-me-up" + inKeg
+            // <prefix>/Cellar/hook-me-up/<version>/Hook Me Up.app -> <prefix>/opt/hook-me-up/Hook Me Up.app
+            if let opt = AppLocation.homebrewOptPath(for: probe.canonicalPath(app)) {
                 isHomebrew = true
                 stableApp = probe.exists(opt) ? opt : app
             } else {
@@ -301,6 +286,15 @@ public enum Doctor {
         } else {
             checks.append(DoctorCheck("Hooks", .pass, "all five events run \(install.hookPath)"))
         }
+        if !found.differences.isEmpty {
+            let details = found.differences.map { "\($0.event): \($0.detail)" }
+            checks.append(
+                DoctorCheck(
+                    "Hooks set up differently", .warn,
+                    details.joined(separator: "; ") + " (requests may be missed or notified twice)",
+                    fix: "Install them again; that rewrites them as the installer writes them:\n"
+                        + installCommand(install, options)))
+        }
         if found.allHooksDisabled {
             checks.append(
                 DoctorCheck(
@@ -348,6 +342,10 @@ public enum Doctor {
                     "Notifications", .warn, "macOS hasn't asked yet, or the question still waits for your answer",
                     fix: "Click Allow when macOS asks about Hook Me Up, or turn them on in \(notificationSettings)."
                         + openIt)
+            case .unknown:
+                DoctorCheck(
+                    "Notifications", .warn, "the agent reports a state this version of the doctor doesn't know",
+                    fix: "Check \(notificationSettings), and update Hook Me Up.")
             }
         guard authorization.allowsNotifications else {
             return [allow, DoctorCheck("Notification style", .skipped, "notifications are not allowed")]
@@ -364,6 +362,9 @@ public enum Doctor {
                 DoctorCheck(
                     "Notification style", .fail, "None: requests never show on screen, only in Notification Center",
                     fix: toAlerts)
+            case .unknown:
+                DoctorCheck(
+                    "Notification style", .warn, "a style this version of the doctor doesn't know", fix: toAlerts)
             }
         return [allow, style]
     }

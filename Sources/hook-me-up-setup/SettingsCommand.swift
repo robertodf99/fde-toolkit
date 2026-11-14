@@ -10,7 +10,11 @@ import SetupKit
 func runSettingsCommand(_ command: String, _ arguments: [String]) -> Never {
     var arguments = arguments
     var settingsURL = HookMeUpPaths.claudeSettingsURL
-    var hookPath = HookMeUpPaths.installedHookPath
+    // Without --hook: the hook next to this program (Homebrew's opt path for its keg),
+    // else where the installer puts it.
+    var hookPath = AppLocation.defaultHookPath(
+        setupExecutable: Bundle.main.executablePath, canonicalPath: AppLocation.resolvingSymlinks,
+        isExecutable: FileManager.default.isExecutableFile(atPath:), fallback: HookMeUpPaths.installedHookPath)
     var timeout = 600
     var statePath = HookMeUpPaths.defaultSocketURL
         .deletingLastPathComponent().appendingPathComponent("setup-state.json").path
@@ -65,15 +69,19 @@ func runSettingsCommand(_ command: String, _ arguments: [String]) -> Never {
             attributes: [.posixPermissions: 0o700])
         try? SettingsFile.render(.object(state)).write(to: url, options: .atomic)
     }
-    let hadHooksObject = SettingsMerger.hasHooksObject(SettingsMerger.uninstall(from: old, hookPath: hookPath))
+    let canonical = AppLocation.resolvingSymlinks
+    let hadHooksObject = SettingsMerger.hasHooksObject(
+        SettingsMerger.uninstall(from: old, hookPath: hookPath, canonicalPath: canonical))
     let keepEmptyHooks = loadState(statePath)[stateKey]?["hadHooksObject"]?.boolValue ?? false
 
     let new: JSONValue
     do {
         new =
             command == "install"
-            ? try SettingsMerger.install(into: old, hookPath: hookPath, permissionTimeout: timeout)
-            : SettingsMerger.uninstall(from: old, hookPath: hookPath, keepEmptyHooks: keepEmptyHooks)
+            ? try SettingsMerger.install(
+                into: old, hookPath: hookPath, permissionTimeout: timeout, canonicalPath: canonical)
+            : SettingsMerger.uninstall(
+                from: old, hookPath: hookPath, keepEmptyHooks: keepEmptyHooks, canonicalPath: canonical)
     } catch {
         fail("refusing to touch \(settingsURL.path): unexpected settings shape (\(error))")
     }
@@ -140,8 +148,7 @@ func runSettingsCommand(_ command: String, _ arguments: [String]) -> Never {
 /// each request would then be notified twice: say so, and how to remove them.
 private func warnAboutOtherInstallations(in settings: JSONValue, settingsURL: URL, hookPath: String) {
     let found = SettingsMerger.inspect(
-        settings: settings, hookPath: hookPath,
-        canonicalPath: { URL(fileURLWithPath: $0).resolvingSymlinksInPath().path })
+        settings: settings, hookPath: hookPath, canonicalPath: AppLocation.resolvingSymlinks)
     guard !found.otherPaths.isEmpty else { return }
     let setup = Doctor.quoted(Bundle.main.executablePath ?? "hook-me-up-setup")
     let removals = found.otherPaths.map {

@@ -301,7 +301,31 @@ private func run(_ probe: FakeProbe, _ options: Doctor.Options = realHome) -> Do
         #expect(report.exitCode == 1)
     }
 
+    @Test func hooksSetUpDifferentlyWarnWithTheInstallCommand() {
+        let probe = healthy()
+        let text = String(decoding: hooks(at: "\(app)/Contents/MacOS/hook-me-up"), as: UTF8.self)
+        probe.files[settingsPath] = Data(
+            text.replacingOccurrences(of: #""matcher": "elicitation_dialog""#, with: #""matcher": """#).utf8)
+        let report = run(probe)
+        #expect(report.check("Hooks")?.result == .pass)
+        let check = report.check("Hooks set up differently")
+        #expect(check?.result == .warn)
+        #expect(check?.detail.hasPrefix(#"Notification: matcher "", not "elicitation_dialog""#) == true)
+        #expect(check?.fix?.contains("hook-me-up-setup' install --settings") == true)
+        #expect(report.exitCode == 0)
+    }
+
     // MARK: Notifications and pause
+
+    @Test func stateFromANewerAgentWarns() {
+        let probe = healthy()
+        probe.reply = .status(status(.unknown, .unknown))
+        let report = run(probe)
+        #expect(report.check("Notifications")?.result == .warn)
+        #expect(report.check("Notification style")?.result == .skipped)
+        probe.reply = .status(status(.authorized, .unknown))
+        #expect(run(probe).check("Notification style")?.result == .warn)
+    }
 
     @Test func notificationsTurnedOffFail() {
         let probe = healthy()

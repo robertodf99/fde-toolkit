@@ -35,9 +35,16 @@ public enum SettingsMerger {
         "'" + text.replacingOccurrences(of: "'", with: #"'\''"#) + "'"
     }
 
-    /// Settings with our hooks (re-installing replaces ours, so it is idempotent).
-    public static func install(into settings: JSONValue, hookPath: String, permissionTimeout: Int) throws -> JSONValue {
-        guard var root = uninstall(from: settings, hookPath: hookPath).objectValue else {
+    /// Settings with our hooks (re-installing replaces ours, so it is idempotent). Ours
+    /// are the handlers that run `hookPath`, however the command spells it: compared
+    /// through `canonicalPath` (e.g. resolving symlinks, so Homebrew's opt path and its
+    /// keg are the same hook).
+    public static func install(
+        into settings: JSONValue, hookPath: String, permissionTimeout: Int,
+        canonicalPath: (String) -> String = { $0 }
+    ) throws -> JSONValue {
+        guard var root = uninstall(from: settings, hookPath: hookPath, canonicalPath: canonicalPath).objectValue
+        else {
             throw SettingsMergerError.notAnObject
         }
         var hooks: [String: JSONValue] = [:]
@@ -76,15 +83,22 @@ public enum SettingsMerger {
         settings["hooks"]?.objectValue != nil
     }
 
-    /// Settings without our hooks. Only containers that our removal emptied are
-    /// dropped; anything with an unexpected shape is left exactly as it is. An emptied
-    /// `hooks` object is kept when `keepEmptyHooks` (it existed before install).
-    public static func uninstall(from settings: JSONValue, hookPath: String, keepEmptyHooks: Bool = false) -> JSONValue
-    {
+    /// Settings without our hooks: the handlers whose command runs `hookPath`, quoted in
+    /// any way the shell reads, compared through `canonicalPath`. Only containers that our
+    /// removal emptied are dropped; anything with an unexpected shape is left exactly as
+    /// it is. An emptied `hooks` object is kept when `keepEmptyHooks` (it existed before
+    /// install).
+    public static func uninstall(
+        from settings: JSONValue, hookPath: String, keepEmptyHooks: Bool = false,
+        canonicalPath: (String) -> String = { $0 }
+    ) -> JSONValue {
         guard var root = settings.objectValue, let hooks = root["hooks"]?.objectValue else { return settings }
-        let prefix = shellQuote(hookPath) + " "
+        let ours = canonicalPath(hookPath)
         func isOurs(_ handler: JSONValue) -> Bool {
-            handler["command"]?.stringValue?.hasPrefix(prefix) == true
+            guard let command = handler["command"]?.stringValue, let parsed = splitCommand(command) else {
+                return false
+            }
+            return parsed.program == hookPath || canonicalPath(parsed.program) == ours
         }
 
         var newHooks = hooks
@@ -132,6 +146,8 @@ public enum SettingsMerger {
         let ours = canonicalPath(hookPath)
         let expected = specs(permissionTimeout: 0)
         var installed = Set<String>()
+        var exact = Set<String>()
+        var differences: [String: HookInspection.Difference] = [:]
         var duplicated: [String] = []
         var otherPaths = Set<String>()
         let hooks = settings["hooks"]?.objectValue ?? [:]
@@ -149,6 +165,11 @@ public enum SettingsMerger {
                         matches(parsed.arguments, spec.arguments)
                     {
                         installed.insert(event)
+                        if let difference = difference(group: group, handler: handler, spec: spec) {
+                            differences[event] = differences[event] ?? difference
+                        } else {
+                            exact.insert(event)
+                        }
                     }
                 }
             }
@@ -158,7 +179,27 @@ public enum SettingsMerger {
         return HookInspection(
             installed: events.filter { installed.contains($0) }, missing: events.filter { !installed.contains($0) },
             duplicated: duplicated, otherPaths: otherPaths.sorted(),
-            allHooksDisabled: settings["disableAllHooks"]?.boolValue == true)
+            allHooksDisabled: settings["disableAllHooks"]?.boolValue == true,
+            differences: events.filter { !exact.contains($0) }.compactMap { differences[$0] })
+    }
+
+    /// How a handler of ours, or its group, differs from what `install` writes: a type
+    /// other than `command` (Claude Code then doesn't run the command), or another
+    /// matcher (Notification must be `elicitation_dialog`; the others match everything).
+    private static func difference(group: JSONValue, handler: JSONValue, spec: Spec) -> HookInspection.Difference? {
+        let type = handler["type"]?.stringValue
+        guard type == "command" else {
+            return .init(event: spec.event, detail: "type \(type.map { "\"\($0)\"" } ?? "missing"), not \"command\"")
+        }
+        let matcher = group["matcher"]?.stringValue
+        let matchesAll = matcher == nil || matcher == "" || matcher == "*"
+        let ok = spec.matcher.map { $0.isEmpty ? matchesAll : matcher == $0 } ?? matchesAll
+        guard ok else {
+            let found = matcher.map { "\"\($0)\"" } ?? "none"
+            let wanted = spec.matcher.map { $0.isEmpty ? "\"\" (every tool)" : "\"\($0)\"" } ?? "none"
+            return .init(event: spec.event, detail: "matcher \(found), not \(wanted)")
+        }
+        return nil
     }
 
     /// Whether a handler's arguments are the ones `install` writes; the permission

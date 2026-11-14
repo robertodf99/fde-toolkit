@@ -7,6 +7,14 @@ public struct NotificationAuthorization: Codable, Equatable, Sendable, CustomStr
         case denied
         case authorized
         case provisional
+        /// A value from a newer agent that this version doesn't know.
+        case unknown
+
+        /// Decodes any string: a value this version doesn't know becomes `unknown`, so a
+        /// newer agent's status still reads.
+        public init(from decoder: any Decoder) throws {
+            self = Status(rawValue: try decoder.singleValueContainer().decode(String.self)) ?? .unknown
+        }
     }
 
     /// How notifications appear ("Alerts" stay on screen until answered).
@@ -14,6 +22,13 @@ public struct NotificationAuthorization: Codable, Equatable, Sendable, CustomStr
         case none
         case banner
         case alert
+        /// A value from a newer agent that this version doesn't know.
+        case unknown
+
+        /// Decodes any string: a value this version doesn't know becomes `unknown`.
+        public init(from decoder: any Decoder) throws {
+            self = AlertStyle(rawValue: try decoder.singleValueContainer().decode(String.self)) ?? .unknown
+        }
     }
 
     /// The user's answer to the permission prompt.

@@ -6,9 +6,10 @@ import HookMeUpIPC
 /// `hook-me-up-setup`'s side of the agent socket: the same client, UID check and framing
 /// as the hook.
 public enum AgentClient {
-    /// Asks the agent for its status: connect, send `statusQuery`, wait for `status`.
-    /// Each step gets at most `timeout`.
+    /// Asks the agent for its status: connect, send `statusQuery`, wait for `status`, all
+    /// within `timeout`.
     public static func status(socketPath: URL, timeout: TimeInterval) -> AgentReply {
+        let deadline = Date().addingTimeInterval(timeout)
         let connection: Connection
         switch connect(socketPath, timeout: timeout) {
         case .connected(let connected): connection = connected
@@ -17,7 +18,7 @@ public enum AgentClient {
         defer { connection.close() }
         do {
             try connection.send(.statusQuery)
-            switch try connection.receive(timeout: timeout) {
+            switch try connection.receive(timeout: max(0, deadline.timeIntervalSinceNow)) {
             case .status(let status)?: return .status(status)
             case nil: return .closedWithoutAnswer
             case .some: return .failed("the agent answered something else")
@@ -32,14 +33,15 @@ public enum AgentClient {
     }
 
     /// Asks the agent to show its test notification and waits until it closes the
-    /// connection (it has then posted it, or decided not to). False when the message
-    /// couldn't be delivered.
+    /// connection (it has then posted it, or decided not to), all within `timeout`. False
+    /// when the message couldn't be delivered or nothing came back in time.
     public static func sendTestNotification(socketPath: URL, timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
         guard case .connected(let connection) = connect(socketPath, timeout: timeout) else { return false }
         defer { connection.close() }
         do {
             try connection.send(.testNotification)
-            _ = try connection.receive(timeout: timeout)  // nil: closed once handled
+            _ = try connection.receive(timeout: max(0, deadline.timeIntervalSinceNow))  // nil: closed once handled
             return true
         } catch {
             return false

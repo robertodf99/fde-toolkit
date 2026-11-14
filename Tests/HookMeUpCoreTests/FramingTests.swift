@@ -144,6 +144,27 @@ private func header(_ length: UInt32) -> Data {
         #expect(object["notifications"] as? [String: String] == ["status": "denied", "alertStyle": "none"])
     }
 
+    /// A newer agent may report a permission state or a style this version doesn't know:
+    /// its status still decodes, with those values as `unknown`.
+    @Test func unknownNotificationValuesStillDecode() throws {
+        let json =
+            #"{"status": {"_0": {"version": "9.0.0", "build": "9", "paused": false, "pendingCount": 0,"#
+            + #" "notifications": {"status": "ephemeralPlus", "alertStyle": "floating"}}}}"#
+        var buffer = Data()
+        let payload = Data(json.utf8)
+        buffer.append(contentsOf: [0, 0, UInt8(payload.count >> 8), UInt8(payload.count & 0xFF)])
+        buffer.append(payload)
+        guard case .status(let status)? = try Framing.decode(&buffer) else {
+            Issue.record("not a status")
+            return
+        }
+        #expect(status.notifications == NotificationAuthorization(status: .unknown, alertStyle: .unknown))
+        #expect(!status.notifications.allowsNotifications)
+        let known = try JSONDecoder().decode(
+            NotificationAuthorization.self, from: Data(#"{"status": "authorized", "alertStyle": "alert"}"#.utf8))
+        #expect(known == NotificationAuthorization(status: .authorized, alertStyle: .alert))
+    }
+
     @Test func garbagePayloadThrows() {
         let payload = Data("not json".utf8)
         var buffer = header(UInt32(payload.count)) + payload
