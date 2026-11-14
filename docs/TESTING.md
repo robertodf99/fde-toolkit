@@ -79,6 +79,20 @@ said otherwise, so that permission prompts actually appear.
    from 0.1.x, `make build && .build/release/hook-me-up-setup doctor` against the old agent
    says it is too old to answer status questions (Agent WARN, exit 0).
 
+### Homebrew (once the tap is published)
+
+1. `brew install robertodf99/tap/hook-me-up`: the caveats show the `hook-me-up-setup
+   install --hook "…/opt/hook-me-up/Hook Me Up.app/Contents/MacOS/hook-me-up"` command,
+   `brew services start hook-me-up` and `hook-me-up-setup doctor`.
+2. `xattr -r -p com.apple.quarantine "$(brew --prefix hook-me-up)/Hook Me Up.app"`
+   prints nothing (not quarantined), and the agent starts with `brew services start`.
+3. With the hooks added at the opt path, `hook-me-up-setup doctor` passes: App says
+   "installed with Homebrew", LaunchAgent `homebrew.mxcl.hook-me-up starts this app`,
+   Hooks name the opt path. With the curl installer's copy installed too, it warns
+   "Two installations" (and "Other installation" if both have hooks).
+4. `brew upgrade hook-me-up && brew services restart hook-me-up`: the doctor still
+   passes (the hooks at the opt path follow the upgrade).
+
 ## 1. Requests
 
 | # | Check | Expected |
