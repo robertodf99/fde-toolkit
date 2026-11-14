@@ -12,8 +12,10 @@ make plugin-check  # the Claude Code plugin's JSON manifests and skills
 ```
 
 `DoctorKitTests` run every doctor check against a fake `DoctorProbe` (each failure with
-its fix and the exit code) and the real `AgentClient` against a socket server that
-answers, closes without answering (an older agent) or never answers. `make test-install`
+its fix and the exit code), the installer's notification check against a scripted
+`OnboardingIO` (waiting, test notification, when System Settings opens), and the real
+`AgentClient` against a socket server that answers, closes without answering (an older
+agent) or never answers. `make test-install`
 also runs `hook-me-up-setup doctor --home <throwaway HOME>`: app, LaunchAgent and hooks
 are checked; launchd and the running agent are skipped there.
 
