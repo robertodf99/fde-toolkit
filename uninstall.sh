@@ -11,7 +11,8 @@
 # Environment:
 #   HOOK_ME_UP_YES=1         change ~/.claude/settings.json without asking
 #   HOOK_ME_UP_DRY_LAUNCH=1  do not use launchctl (tests)
-#   HOOK_ME_UP_NO_TTY=1      behave as if there were no terminal to ask (tests)
+#   HOOK_ME_UP_NO_TTY=1      behave as if there were no terminal to ask (tests, and the
+#                            Claude Code plugin, which asks in the chat instead)
 #
 # Everything runs from main(), called on the last line, so a download cut short runs
 # nothing.

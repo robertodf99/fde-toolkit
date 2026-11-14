@@ -15,7 +15,7 @@ endif
 SWIFT ?= swift
 FORMAT_PATHS := Package.swift Sources Tests scripts
 
-.PHONY: build test app dist signing-check selftest format lint install-dry-run install uninstall test-install clean
+.PHONY: build test app dist signing-check selftest format lint install-dry-run install uninstall test-install plugin-check clean
 
 # Where `make app` puts the bundle.
 APP_DIR ?= .build
@@ -82,6 +82,10 @@ uninstall:
 # install.sh and uninstall.sh against a throwaway HOME (never the real one).
 test-install:
 	./scripts/test-install.sh
+
+# The Claude Code plugin's manifests and skills, without the claude CLI.
+plugin-check:
+	./scripts/check-plugin.sh
 
 clean:
 	$(SWIFT) package clean

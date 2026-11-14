@@ -8,6 +8,7 @@ make selftest      # the built hook with no agent: prints nothing, exits 0, quic
 make lint          # swift format lint
 make test-install  # install.sh and uninstall.sh against a throwaway HOME
 make signing-check # ad-hoc and identity signing, in a temporary folder
+make plugin-check  # the Claude Code plugin's JSON manifests and skills
 ```
 
 `DoctorKitTests` run every doctor check against a fake `DoctorProbe` (each failure with
@@ -16,7 +17,11 @@ answers, closes without answering (an older agent) or never answers. `make test-
 also runs `hook-me-up-setup doctor --home <throwaway HOME>`: app, LaunchAgent and hooks
 are checked; launchd and the running agent are skipped there.
 
-CI runs `lint`, `test`, `selftest` and `test-install` on every push and pull request.
+CI runs `lint`, `test`, `selftest`, `test-install` and `plugin-check` on every push and
+pull request. With the claude CLI installed, `claude plugin validate .` and
+`claude plugin validate ./plugins/hook-me-up` check the plugin further (expected: passed,
+with a warning that no version is set; the version is left out on purpose, so users
+get the plugin as it is on `main`).
 
 ## End-to-end checklist
 
