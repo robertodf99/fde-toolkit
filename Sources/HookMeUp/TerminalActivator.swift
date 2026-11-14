@@ -59,7 +59,11 @@ struct TerminalActivator: TerminalActivating {
             [URL(fileURLWithPath: folder, isDirectory: true)], withApplicationAt: URL(fileURLWithPath: owner.appPath),
             configuration: configuration
         ) { _, error in
-            let failure = error.map { String(describing: $0) }
+            // Only the error's domain and code: its description may contain the folder.
+            let failure = error.map { error -> String in
+                let error = error as NSError
+                return "\(error.domain) \(error.code)"
+            }
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     if let failure {

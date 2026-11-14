@@ -17,6 +17,16 @@ private struct FakeFileSystem: FileSystem {
     func contents(atPath path: String) -> Data? { nil }
 }
 
+/// A file system on which every path is an existing folder.
+private struct EverythingIsAFolder: FileSystem {
+    func fileExists(atPath path: String, isDirectory: UnsafeMutablePointer<ObjCBool>?) -> Bool {
+        isDirectory?.pointee = true
+        return true
+    }
+
+    func contents(atPath path: String) -> Data? { nil }
+}
+
 private let disk = FakeFileSystem(
     folders: ["/home/dev/projects/acme-api", "/home/dev/projects/acme-web"], files: ["/home/dev/notes.txt"])
 
@@ -35,7 +45,7 @@ private func plan(_ bundleID: String?, tty: String? = nil, folder: String? = nil
 
     @Test(arguments: [
         "com.microsoft.VSCode", "com.microsoft.VSCodeInsiders", "com.todesktop.230313mzl4w4u92",
-        "com.exafunction.windsurf", "dev.zed.Zed",
+        "com.exafunction.windsurf", "dev.zed.Zed", "dev.zed.Zed-Preview",
     ])
     func editorsOpenTheSessionsFolder(_ bundleID: String) {
         #expect(
@@ -53,6 +63,18 @@ private func plan(_ bundleID: String?, tty: String? = nil, folder: String? = nil
     @Test(arguments: [nil, "", "projects/acme-api", "/home/dev/projects/missing", "/home/dev/notes.txt"])
     func editorsWithoutAUsableFolderAreBroughtForward(_ folder: String?) {
         #expect(plan("com.microsoft.VSCode", folder: folder) == .activateApp)
+    }
+
+    /// A relative folder is refused even when the disk would call it a folder.
+    @Test func aRelativeFolderIsNeverOpened() {
+        #expect(
+            SessionActivation.plan(
+                ownerBundleID: "com.microsoft.VSCode", tty: nil, folder: "projects/acme-api",
+                fileSystem: EverythingIsAFolder()) == .activateApp)
+        #expect(
+            SessionActivation.plan(
+                ownerBundleID: "com.microsoft.VSCode", tty: nil, folder: "/projects/acme-api",
+                fileSystem: EverythingIsAFolder()) == .openFolder("/projects/acme-api"))
     }
 
     @Test(arguments: [
