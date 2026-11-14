@@ -12,7 +12,7 @@ over a Unix socket. Everything else is libraries, so the logic is tested without
 | `HookMeUpIPC` | library | Socket transport: `SocketServer`, `SocketClient`, `Connection` and the file-system/peer checks. |
 | `HookKit` | library | The hook runner `runHook`: parse, summarise, ask the agent, encode the decision. |
 | `AgentKit` | library | The agent runtime `AgentController`: socket ↔ `AgentCore` ↔ notifications, behind the protocols `NotificationPresenting`, `TerminalActivating` and `WallClock`. |
-| `SetupKit` | library | The installer: `SettingsMerger` (add/remove our hooks, and `inspect`: which of them a settings file has) and `SettingsFile` (backup, atomic write). |
+| `SetupKit` | library | The installer: `SettingsMerger` (add/remove our hooks, matched by the binary their command runs, and `inspect`: which of them a settings file has and how they differ from what install writes), `SettingsFile` (backup, atomic write) and `AppLocation` (the app around an executable, Homebrew's opt path, the default `--hook`). |
 | `DoctorKit` | library | `hook-me-up-setup doctor`: `Doctor` evaluates an installation (app, LaunchAgent, running agent, hooks, notification settings) through the `DoctorProbe` protocol and prints a fix for each problem; `AgentClient` asks the agent for its status over the socket; `NotificationOnboarding` (behind `OnboardingIO`) is the installer's notification check. |
 | `hook-me-up` | executable | Reads stdin, calls `runHook`, prints its output; always exits 0. |
 | `hook-me-up-setup` | executable | `install` / `uninstall` around SetupKit, `doctor` and `notifications` around DoctorKit. |
