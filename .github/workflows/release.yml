@@ -1,0 +1,80 @@
+name: Release
+
+# Pushing a tag such as v1.0.0 builds the universal app, checks it and publishes a
+# GitHub release with hook-me-up-<version>-macos.zip and its .sha256, which install.sh
+# downloads. The package is signed ad-hoc and carries the ✻ icon: install.sh applies
+# the official Claude icon locally when the Claude app is installed.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Selects the toolchain with xcode-select; DEVELOPER_DIR stays unset.
+      - name: Select the latest stable Xcode
+        uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
+        with:
+          xcode-version: latest-stable
+
+      - name: Test
+        run: make test
+
+      - name: Build the universal package (ad-hoc signed, ✻ icon)
+        run: make dist VERSION="$GITHUB_REF_NAME" UNIVERSAL=1 CODESIGN_IDENTITY=- CLAUDE_APP=-
+
+      - name: Check the package
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          name="hook-me-up-${version}-macos.zip"
+          (cd .build/dist && shasum -a 256 -c "$name.sha256")
+          for executable in HookMeUp hook-me-up hook-me-up-setup; do
+            archs="$(lipo -archs ".build/dist/HookMeUp.app/Contents/MacOS/$executable")"
+            echo "$executable: $archs"
+            case "$archs" in *arm64*) ;; *) exit 1 ;; esac
+            case "$archs" in *x86_64*) ;; *) exit 1 ;; esac
+          done
+          check="$(mktemp -d)"
+          unzip -q ".build/dist/$name" -d "$check"
+          codesign --verify --strict --deep "$check/HookMeUp.app"
+          HOOK_ME_UP_ZIP="$PWD/.build/dist/$name" ./scripts/test-install.sh
+
+      - name: Keep the package for the publish job
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: package
+          path: |
+            .build/dist/*.zip
+            .build/dist/*.zip.sha256
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: package
+          path: dist
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          (cd dist && sha256sum -c "hook-me-up-${version}-macos.zip.sha256")
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+            "dist/hook-me-up-${version}-macos.zip" \
+            "dist/hook-me-up-${version}-macos.zip.sha256" \
+            --title "Hook Me Up $GITHUB_REF_NAME" --generate-notes

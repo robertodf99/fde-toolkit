@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Selects the toolchain with xcode-select; DEVELOPER_DIR is left unset so the
+      # Makefile uses that selection as is.
+      - name: Select the latest stable Xcode
+        uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
+        with:
+          xcode-version: latest-stable
+
+      - name: Toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Lint
+        run: make lint
+
+      - name: Test
+        run: make test
+
+      - name: "Hook self-test (no agent: prints nothing, exits 0)"
+        run: make selftest
+
+      - name: "install.sh and uninstall.sh against a throwaway HOME"
+        run: make test-install
