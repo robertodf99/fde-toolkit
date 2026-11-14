@@ -7,6 +7,8 @@ approve the plan or ask for changes. Click the notification to jump to the sessi
 It is built on Claude Code's hooks and fails open: if anything is off, Claude Code
 simply shows its usual terminal dialog.
 
+![Answering a multiple-choice question from a notification, then clicking a notification to jump back to the session](docs/images/demo.gif)
+
 ## Install
 
 ```sh
