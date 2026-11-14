@@ -238,6 +238,54 @@ private func dropping(_ event: String, from settings: JSONValue) -> JSONValue {
         #expect(SettingsMerger.splitCommand(#""open"#) == nil)
     }
 
+    /// Unquoting follows bash: inside double quotes a backslash goes only before $, `,
+    /// ", \ or a newline; outside quotes before anything; backslash-newline continues.
+    @Test func commandsUnquoteExactlyLikeBash() {
+        func program(_ command: String) -> String? { SettingsMerger.splitCommand(command)?.program }
+        #expect(program(#""/a/MacOS/hook\-me-up" x"#) == #"/a/MacOS/hook\-me-up"#)  // kept inside quotes
+        #expect(program(#"/a/MacOS/hook\-me-up x"#) == "/a/MacOS/hook-me-up")  // removed outside
+        #expect(program(#""/a/\$HOME/\`x\`/\\/\"q\"""#) == #"/a/$HOME/`x`/\/"q""#)
+        #expect(program("\"/a/hoo\\\nk-me-up\" x") == "/a/hook-me-up")  // continuation in quotes
+        #expect(program("/a/hoo\\\nk-me-up x") == "/a/hook-me-up")  // and outside
+        #expect(program("\\\n /a/b x") == "/a/b")  // before the word
+        #expect(program(#"/a/b\"#) == "/a/b")  // bash drops a backslash at the very end
+        #expect(program("/a/b;echo x") == "/a/b")
+        #expect(program("/a/b|cat") == "/a/b")
+        #expect(program("# /a/b finished") == nil)
+        #expect(program("; /a/b") == nil)
+        #expect(program(#""""#) == nil)
+        #expect(SettingsMerger.splitCommand("/a/b \\\n  finished\n")?.arguments == "finished")
+    }
+
+    @Test func aBackslashKeptInsideDoubleQuotesIsAnotherProgram() throws {
+        let escaped = hook.replacingOccurrences(of: "hook-me-up", with: #"hook\\-me-up"#)
+        let settings = try json(
+            #"{"hooks": {"Stop": [{"hooks": [{"type": "command", "command": "\"\#(escaped)\" finished"}]}]}}"#)
+        let result = SettingsMerger.inspect(settings: settings, hookPath: hook)
+        #expect(result.installed.isEmpty)
+        #expect(result.otherPaths.isEmpty)  // not even a hook-me-up handler
+        #expect(SettingsMerger.uninstall(from: settings, hookPath: hook) == settings)
+    }
+
+    @Test func aProgramThatIsNotAnAbsolutePathIsNeverOurs() throws {
+        let everythingIsOurs: (String) -> String = { _ in hook }
+        let relative = try json(
+            #"""
+            {"hooks": {
+              "Stop": [{"hooks": [{"type": "command", "command": "hook-me-up finished"}]}],
+              "SessionEnd": [{"hooks": [{"type": "command", "command": "Hook\\ Me\\ Up.app/Contents/MacOS/hook-me-up clear"}]}]
+            }}
+            """#)
+        #expect(SettingsMerger.uninstall(from: relative, hookPath: hook, canonicalPath: everythingIsOurs) == relative)
+        let result = SettingsMerger.inspect(settings: relative, hookPath: hook, canonicalPath: everythingIsOurs)
+        #expect(result.installed.isEmpty)
+        #expect(result.otherPaths == ["Hook Me Up.app/Contents/MacOS/hook-me-up"])
+        // install adds ours next to them and leaves them alone.
+        let added = try SettingsMerger.install(
+            into: relative, hookPath: hook, permissionTimeout: 600, canonicalPath: everythingIsOurs)
+        #expect(added["hooks"]?["Stop"]?.arrayValue?.count == 2)
+    }
+
     @Test func aPathWithAQuoteRoundTrips() throws {
         let odd = "/Users/o'brien/Applications/Hook Me Up.app/Contents/MacOS/hook-me-up"
         #expect(SettingsMerger.inspect(settings: try installed(at: odd), hookPath: odd).missing.isEmpty)

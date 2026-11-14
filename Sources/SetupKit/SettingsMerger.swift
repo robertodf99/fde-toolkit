@@ -98,6 +98,9 @@ public enum SettingsMerger {
             guard let command = handler["command"]?.stringValue, let parsed = splitCommand(command) else {
                 return false
             }
+            // A program that isn't an absolute path depends on the folder Claude Code runs
+            // in: never ours.
+            guard parsed.program.hasPrefix("/") else { return false }
             return parsed.program == hookPath || canonicalPath(parsed.program) == ours
         }
 
@@ -159,7 +162,8 @@ public enum SettingsMerger {
                         parsed.program.hasSuffix(hookExecutableSuffix)
                     else { continue }
                     handlers += 1
-                    if canonicalPath(parsed.program) != ours {
+                    // A program that isn't an absolute path is never ours (see uninstall).
+                    if !parsed.program.hasPrefix("/") || canonicalPath(parsed.program) != ours {
                         otherPaths.insert(parsed.program)
                     } else if let spec = expected.first(where: { $0.event == event }),
                         matches(parsed.arguments, spec.arguments)
@@ -212,12 +216,30 @@ public enum SettingsMerger {
         return words.joined(separator: " ") == expected
     }
 
-    /// A hook command's program, unquoted as the shell would (single quotes, double
-    /// quotes, backslashes), and the rest of the command. Nil when it can't be read.
+    /// A hook command's program, unquoted as bash reads it, and the rest of the command;
+    /// nil when it can't be read. Single quotes keep everything; inside double quotes a
+    /// backslash is removed only before `$`, `` ` ``, `"`, `\` or a newline; outside quotes
+    /// it is removed before any character; a backslash-newline is a line continuation in
+    /// both. An unquoted blank or one of `;&|<>()` ends the word. `$` and `` ` `` are
+    /// taken literally (nothing is expanded), so such a program is never ours.
     static func splitCommand(_ command: String) -> (program: String, arguments: String)? {
-        var rest = Substring(command.drop(while: { $0.isWhitespace }))
+        var rest = Substring(command)
         var program = ""
-        while let char = rest.first, !char.isWhitespace {
+        var started = false
+        while let char = rest.first {
+            let next = rest.dropFirst().first
+            if char == "\\", next == "\n" {  // line continuation, removed wherever it is
+                rest.removeFirst(2)
+                continue
+            }
+            if char == " " || char == "\t" || char == "\n" {
+                if started { break }
+                rest.removeFirst()
+                continue
+            }
+            if started, ";&|<>()".contains(char) { break }
+            if !started, char == "#" || ";&|<>()".contains(char) { return nil }  // a comment, or no word
+            started = true
             rest.removeFirst()
             switch char {
             case "'":
@@ -226,30 +248,35 @@ public enum SettingsMerger {
                 rest = rest[rest.index(after: end)...]
             case "\"":
                 var closed = false
-                while let next = rest.first {
+                while let inner = rest.first {
                     rest.removeFirst()
-                    if next == "\"" {
+                    if inner == "\"" {
                         closed = true
                         break
                     }
-                    if next == "\\", let escaped = rest.first {
+                    if inner == "\\", let escaped = rest.first, "$`\"\\\n".contains(escaped) {
                         rest.removeFirst()
-                        program.append(escaped)
+                        if escaped != "\n" { program.append(escaped) }
                     } else {
-                        program.append(next)
+                        program.append(inner)
                     }
                 }
                 guard closed else { return nil }
             case "\\":
-                guard let escaped = rest.first else { return nil }
-                rest.removeFirst()
-                program.append(escaped)
+                // Before any character, removed; at the very end, bash drops it too.
+                if let escaped = rest.first {
+                    rest.removeFirst()
+                    program.append(escaped)
+                }
             default:
                 program.append(char)
             }
         }
         guard !program.isEmpty else { return nil }
-        return (program, rest.trimmingCharacters(in: .whitespaces))
+        // The arguments as written, without line continuations (ours are plain words).
+        return (
+            program, rest.replacingOccurrences(of: "\\\n", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+        )
     }
 
     /// Line diff of the two documents as they would be written ("+ " added, "- "

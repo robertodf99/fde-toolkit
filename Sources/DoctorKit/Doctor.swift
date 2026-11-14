@@ -309,8 +309,11 @@ public enum Doctor {
                     fix: "Keep one hook-me-up entry per event in \(settings)."))
         }
         if !found.otherPaths.isEmpty {
+            // uninstall needs an absolute path; a relative one only by hand.
             let removals = found.otherPaths.map {
-                "\(quoted(install.setupPath)) uninstall --settings \(quoted(settings)) --hook \(quoted($0))"
+                $0.hasPrefix("/")
+                    ? "\(quoted(install.setupPath)) uninstall --settings \(quoted(settings)) --hook \(quoted($0))"
+                    : "(by hand) the entries that run \($0), a path relative to where Claude Code runs"
             }
             checks.append(
                 DoctorCheck(

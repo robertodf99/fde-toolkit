@@ -3,7 +3,9 @@ name: Release
 # Pushing a tag such as v1.0.0 builds the universal app, checks it and publishes a
 # GitHub release with hook-me-up-<version>-macos.zip and its .sha256, which install.sh
 # downloads. The package is signed ad-hoc; install.sh installs it unchanged. The zip
-# gets a build provenance attestation (gh attestation verify <zip> --repo <owner/repo>).
+# gets a build provenance attestation:
+#   gh attestation verify <zip> --repo robertodf99/hook-me-up \
+#     --signer-workflow robertodf99/hook-me-up/.github/workflows/release.yml
 on:
   push:
     tags: ["v*"]

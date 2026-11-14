@@ -190,11 +190,12 @@ public struct SystemOnboardingIO: OnboardingIO {
     }
 
     /// `open` with Hook Me Up's notification settings, else the Notifications pane.
+    /// `open` is looked up on PATH, so the install tests can stand in for it.
     public func openNotificationSettings() -> Bool {
         NotificationOnboarding.settingsURLs.contains { url in
             let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-            process.arguments = [url]
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+            process.arguments = ["open", url]
             process.standardInput = FileHandle.nullDevice
             process.standardOutput = FileHandle.nullDevice
             process.standardError = FileHandle.nullDevice
