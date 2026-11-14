@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Feedback & ideas
+    url: https://github.com/robertodf99/hook-me-up/discussions/1
+    about: Tried Hook Me Up? Tell me what worked, what broke and what's missing.
+  - name: Questions
+    url: https://github.com/robertodf99/hook-me-up/discussions/categories/q-a
+    about: Ask how something works or how to set it up.

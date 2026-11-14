@@ -49,7 +49,8 @@ Homebrew doesn't change your settings by itself. After `brew upgrade hook-me-up`
 `brew services restart hook-me-up`. To remove it, run the `hook-me-up-setup uninstall
 --hook …` command with the same path first, then `brew services stop hook-me-up` and
 `brew uninstall hook-me-up`. Use Homebrew or the installer above, not both: only one
-agent can run, and two sets of hooks notify twice (the doctor warns about it).
+agent can run, and two sets of hooks notify twice (the installer stops when it finds
+Homebrew's copy, and the doctor warns about it).
 
 ### Install from Claude Code
 
@@ -197,7 +198,8 @@ repository ([Building from source](#building-from-source)).
 
   ```sh
   gh release download v0.2.0 --repo robertodf99/hook-me-up --pattern '*.zip'
-  gh attestation verify hook-me-up-0.2.0-macos.zip --repo robertodf99/hook-me-up
+  gh attestation verify hook-me-up-0.2.0-macos.zip --repo robertodf99/hook-me-up \
+    --signer-workflow robertodf99/hook-me-up/.github/workflows/release.yml
   # Compare it with the installed app:
   ditto -x -k hook-me-up-0.2.0-macos.zip unpacked
   diff -r unpacked/HookMeUp.app ~/Applications/"Hook Me Up.app"
@@ -216,6 +218,7 @@ The installer and uninstaller read these environment variables:
 | `HOOK_ME_UP_VERSION=v1.2.3` | Install that release instead of the latest |
 | `HOOK_ME_UP_YES=1` | Change `~/.claude/settings.json` without asking (non-interactive installs) |
 | `HOOK_ME_UP_ZIP=<path>` | Install a local package (its `.sha256` must sit next to it) |
+| `HOOK_ME_UP_IGNORE_HOMEBREW=1` | Install even though Hook Me Up is installed with Homebrew (the installer stops otherwise: only one copy's agent can run, and two sets of hooks notify twice) |
 | `HOOK_ME_UP_NO_ONBOARDING=1` | Skip the notification check after starting the agent (no waiting, no test notification, System Settings stays closed) |
 
 Example: `curl -fsSL …/install.sh | HOOK_ME_UP_YES=1 bash`. Without a terminal and
@@ -273,6 +276,14 @@ problem (it changes nothing itself):
 - **Clicking a notification doesn't select the tab.** The first time, macOS asks to let
   Hook Me Up control Terminal or iTerm2; allow it in System Settings → Privacy &
   Security → Automation.
+
+## Feedback
+
+Tried it? Tell me what worked and what broke in
+[Feedback & ideas](https://github.com/robertodf99/hook-me-up/discussions/1); questions go to
+[Q&A](https://github.com/robertodf99/hook-me-up/discussions/categories/q-a). For a bug,
+[open an issue](https://github.com/robertodf99/hook-me-up/issues/new/choose) with the output
+of `hook-me-up-setup doctor`.
 
 ## Credits
 
