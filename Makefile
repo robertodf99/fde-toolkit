@@ -44,7 +44,7 @@ app:
 	APP_DIR="$(APP_DIR)" CODESIGN_IDENTITY="$(CODESIGN_IDENTITY)" ./scripts/build-app.sh
 
 # Release package: .build/dist/hook-me-up-$(VERSION)-macos.zip and its .sha256.
-# The release workflow runs: make dist VERSION=<tag> UNIVERSAL=1 CODESIGN_IDENTITY=- CLAUDE_APP=-
+# The release workflow runs: make dist VERSION=<tag> UNIVERSAL=1 CODESIGN_IDENTITY=-
 VERSION ?= dev
 dist:
 	VERSION="$(VERSION)" CODESIGN_IDENTITY="$(CODESIGN_IDENTITY)" ./scripts/package.sh

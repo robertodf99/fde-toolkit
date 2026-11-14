@@ -68,19 +68,8 @@ for executable in HookMeUp hook-me-up hook-me-up-setup; do
   cp "$BIN/$executable" "$APP/Contents/MacOS/$executable"
 done
 
-# App icon, generated into the bundle only (no image is committed): the installed
-# Claude app's own icon, else a drawn spark from its tray icon, else the ✻ glyph.
-# CLAUDE_APP picks another Claude.app ("-" forces the drawn icon).
-CLAUDE_APP_PATH="${CLAUDE_APP:-}"
-if [ -z "$CLAUDE_APP_PATH" ]; then
-  for candidate in "/Applications/Claude.app" "$HOME/Applications/Claude.app"; do
-    if [ -d "$candidate" ]; then
-      CLAUDE_APP_PATH="$candidate"
-      break
-    fi
-  done
-fi
-"$BIN/hook-me-up-setup" icon "${CLAUDE_APP_PATH:--}" "$APP/Contents/Resources/AppIcon.icns"
+# App icon, drawn from the committed symbol path (see THIRD_PARTY_NOTICES.md).
+xcrun swift scripts/make-icon.swift Resources/icon/claude-symbol.svg "$APP/Contents/Resources/AppIcon.icns"
 
 # Inner executables first, then the bundle (which seals Contents/MacOS/HookMeUp).
 codesign --force --sign "$IDENTITY" --timestamp=none --identifier io.github.robertodf99.hook-me-up.hook \

@@ -1,6 +1,5 @@
 // hook-me-up-setup install|uninstall [--settings <path>] [--hook <path>] [--state <path>]
 //                    [--timeout <seconds>] [--dry-run] [--yes]
-// hook-me-up-setup icon <Claude.app or -> <output.icns>
 //
 // Adds (or removes) Hook Me Up's hooks in a Claude Code settings file, leaving every
 // other key and hook untouched. Always shows the diff first; writes only after "y" (or
@@ -17,23 +16,9 @@ func fail(_ message: String) -> Never {
 let usage = """
     usage: hook-me-up-setup install|uninstall [--settings <path>] [--hook <path>] [--state <path>] \
     [--timeout <seconds>] [--dry-run] [--yes]
-           hook-me-up-setup icon <Claude.app or -> <output.icns>
     """
 var arguments = Array(CommandLine.arguments.dropFirst())
 
-// `icon`: the app icon for a build or an install (the installed Claude app's own icon
-// when there is one).
-if arguments.first == "icon" {
-    guard arguments.count == 3 else { fail(usage) }
-    do {
-        let source = try AppIcon.write(
-            claudeApp: arguments[1] == "-" ? nil : arguments[1], to: URL(fileURLWithPath: arguments[2]))
-        print("Icon: \(source)")
-        exit(0)
-    } catch {
-        fail("\(error)")
-    }
-}
 guard let command = arguments.first, command == "install" || command == "uninstall" else { fail(usage) }
 arguments.removeFirst()
 

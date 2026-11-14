@@ -105,9 +105,8 @@ check "install succeeds" "true"
 check "app installed" '[ -x "$APP/Contents/MacOS/HookMeUp" ] && [ -x "$APP/Contents/MacOS/hook-me-up" ]'
 check "app signature valid" 'codesign --verify --strict --deep "$APP" 2>/dev/null'
 check "icon present" '[ -s "$APP/Contents/Resources/AppIcon.icns" ]'
-if [ -d /Applications/Claude.app ] || [ -d "$FAKE/Applications/Claude.app" ]; then
-  check "official Claude icon applied" 'grep -q "Icon: the official icon" "$LOGS/install-1.txt"'
-fi
+ditto -x -k "$ZIP" "$WORKDIR/package"
+check "app installed exactly as packaged (signature intact)" 'diff -r -q "$WORKDIR/package/HookMeUp.app" "$APP"'
 check "LaunchAgent written and valid" 'plutil -lint -s "$PLIST"'
 check "support folder is private" '[ "$(stat -f %Lp "$FAKE/Library/Application Support/hook-me-up")" = 700 ]'
 check "settings untouched without consent" 'cmp -s "$WORKDIR/original.json" "$SETTINGS"'

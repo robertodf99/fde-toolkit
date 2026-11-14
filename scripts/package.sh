@@ -2,9 +2,7 @@
 # Packages a release: .build/dist/hook-me-up-<version>-macos.zip holding HookMeUp.app
 # (whose Contents/MacOS also holds both CLIs, hook-me-up and hook-me-up-setup) and the
 # zip's .sha256. VERSION defaults to "dev"; a leading "v" is dropped. Other settings
-# (UNIVERSAL, CODESIGN_IDENTITY) go to scripts/build-app.sh. A package never carries
-# the local Claude icon (CLAUDE_APP defaults to "-"): install.sh applies it on the
-# user's own Mac.
+# (UNIVERSAL, CODESIGN_IDENTITY) go to scripts/build-app.sh.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -17,7 +15,7 @@ fi
 NAME="hook-me-up-$VERSION-macos.zip"
 
 mkdir -p .build/dist
-APP_DIR=.build/dist APP_VERSION="$VERSION" CLAUDE_APP="${CLAUDE_APP:--}" ./scripts/build-app.sh
+APP_DIR=.build/dist APP_VERSION="$VERSION" ./scripts/build-app.sh
 rm -f ".build/dist/$NAME" ".build/dist/$NAME.sha256"
 (
   cd .build/dist

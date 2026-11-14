@@ -14,7 +14,7 @@ over a Unix socket. Everything else is libraries, so the logic is tested without
 | `AgentKit` | library | The agent runtime `AgentController`: socket ↔ `AgentCore` ↔ notifications, behind the protocols `NotificationPresenting`, `TerminalActivating` and `WallClock`. |
 | `SetupKit` | library | The installer: `SettingsMerger` (add/remove our hooks) and `SettingsFile` (backup, atomic write). |
 | `hook-me-up` | executable | Reads stdin, calls `runHook`, prints its output; always exits 0. |
-| `hook-me-up-setup` | executable | `install` / `uninstall` command line around SetupKit, and `icon` (the app icon from the installed Claude app, else ✻). |
+| `hook-me-up-setup` | executable | `install` / `uninstall` command line around SetupKit. |
 | `HookMeUp` | app | AppKit and UserNotifications adapters only: `AppDelegate`, `StatusMenu`, `UserNotificationPresenter`, `TerminalActivator`. |
 
 Dependencies point inward: `HookMeUpCore` ← `HookMeUpIPC` ← `HookKit`, `AgentKit`;
@@ -89,9 +89,11 @@ hook; the agent sees the connection close and removes the entry and its notifica
   `Contents/MacOS` (`UNIVERSAL=1` for arm64 + x86_64); `make dist` packages it as
   `hook-me-up-<version>-macos.zip` with a `.sha256`.
 - A `v*` tag runs `.github/workflows/release.yml`: tests, a universal ad-hoc-signed
-  package with the ✻ icon, checks, and a GitHub release with the zip and checksum.
+  package, checks, and a GitHub release with the zip and checksum. The app icon is drawn
+  at build time by `scripts/make-icon.swift` from the committed symbol path
+  (`Resources/icon/claude-symbol.svg`).
 - `install.sh` downloads that release (checksum verified), installs
-  `~/Applications/Hook Me Up.app`, applies the installed Claude app's icon locally,
+  `~/Applications/Hook Me Up.app` exactly as packaged (its signature intact),
   adds the hooks only with consent (asked on `/dev/tty`, or `HOOK_ME_UP_YES=1`), and
   starts the agent with a LaunchAgent. `uninstall.sh` reverses it and keeps the
   settings backups. `scripts/test-install.sh` runs both against a throwaway HOME.

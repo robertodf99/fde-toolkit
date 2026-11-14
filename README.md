@@ -7,9 +7,6 @@ approve the plan or ask for changes. Click the notification to jump to the sessi
 It is built on Claude Code's hooks and fails open: if anything is off, Claude Code
 simply shows its usual terminal dialog.
 
-> Not affiliated with Anthropic. "Claude" and "Claude Code" are trademarks of
-> Anthropic, PBC. This repository contains no Anthropic artwork; see [App icon](#app-icon).
-
 ## Install
 
 ```sh
@@ -112,7 +109,6 @@ The installer and uninstaller read these environment variables:
 | `HOOK_ME_UP_VERSION=v1.2.3` | Install that release instead of the latest |
 | `HOOK_ME_UP_YES=1` | Change `~/.claude/settings.json` without asking (non-interactive installs) |
 | `HOOK_ME_UP_ZIP=<path>` | Install a local package (its `.sha256` must sit next to it) |
-| `HOOK_ME_UP_CLAUDE_APP=<path>` | Take the icon from this Claude app; `-` keeps the ✻ icon |
 
 Example: `curl -fsSL …/install.sh | HOOK_ME_UP_YES=1 bash`. Without a terminal and
 without `HOOK_ME_UP_YES=1`, the installer changes nothing in your settings and prints
@@ -132,7 +128,7 @@ make lint       # swift format lint (make format to apply)
 make app        # .build/HookMeUp.app
 make install    # package this checkout and run install.sh with it
 make uninstall  # run uninstall.sh
-make dist VERSION=1.2.3 UNIVERSAL=1   # .build/dist/hook-me-up-1.2.3-macos.zip and .sha256 (✻ icon)
+make dist VERSION=1.2.3 UNIVERSAL=1   # .build/dist/hook-me-up-1.2.3-macos.zip and .sha256
 ```
 
 [docs/TESTING.md](docs/TESTING.md) lists the automated checks and a manual end-to-end
@@ -145,7 +141,7 @@ checklist. Pushing a `v*` tag publishes a release with GitHub Actions.
   turn them on.
 - **Nothing happens at all.** Make sure the agent runs (✻ in the menu bar; else run the
   installer again) and restart your Claude Code sessions so they load the hooks.
-- **The icon is out of date** after an install or upgrade. macOS caches it:
+- **The icon is out of date** after an upgrade. macOS caches it:
 
   ```sh
   /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f ~/Applications/"Hook Me Up.app"
@@ -157,12 +153,10 @@ checklist. Pushing a `v*` tag publishes a release with GitHub Actions.
   Hook Me Up control Terminal or iTerm2; allow it in System Settings → Privacy &
   Security → Automation.
 
-## App icon
+## Credits
 
-The release packages use a ✻ icon. When the Claude app is installed on your Mac, the
-installer gives Hook Me Up the Claude app's own icon, copied from your installation
-into your installation only. No Anthropic artwork is stored in or distributed by this
-repository.
+The app icon is drawn from the Claude symbol on Wikimedia Commons (CC0 1.0); see
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## License
 

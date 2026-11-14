@@ -2,8 +2,7 @@ name: Release
 
 # Pushing a tag such as v1.0.0 builds the universal app, checks it and publishes a
 # GitHub release with hook-me-up-<version>-macos.zip and its .sha256, which install.sh
-# downloads. The package is signed ad-hoc and carries the ✻ icon: install.sh applies
-# the official Claude icon locally when the Claude app is installed.
+# downloads. The package is signed ad-hoc; install.sh installs it unchanged.
 on:
   push:
     tags: ["v*"]
@@ -29,8 +28,8 @@ jobs:
       - name: Test
         run: make test
 
-      - name: Build the universal package (ad-hoc signed, ✻ icon)
-        run: make dist VERSION="$GITHUB_REF_NAME" UNIVERSAL=1 CODESIGN_IDENTITY=- CLAUDE_APP=-
+      - name: Build the universal package (ad-hoc signed)
+        run: make dist VERSION="$GITHUB_REF_NAME" UNIVERSAL=1 CODESIGN_IDENTITY=-
 
       - name: Check the package
         run: |

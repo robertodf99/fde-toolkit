@@ -10,7 +10,6 @@
 #   HOOK_ME_UP_VERSION=vX.Y.Z   install that release instead of the latest
 #   HOOK_ME_UP_YES=1            change ~/.claude/settings.json without asking
 #   HOOK_ME_UP_ZIP=<path>       install a local package (its .sha256 must sit next to it)
-#   HOOK_ME_UP_CLAUDE_APP=<path> Claude.app to take the icon from ("-": keep the ✻ icon)
 #   HOOK_ME_UP_DRY_LAUNCH=1     do not use launchctl or start the app (tests)
 #   HOOK_ME_UP_NO_TTY=1         behave as if there were no terminal to ask (tests)
 #
@@ -51,7 +50,7 @@ on_exit() {
   fi
   if [ -n "${WORK:-}" ] && [ -d "$WORK" ]; then
     rm -rf "$WORK/unpacked"
-    rm -f "$WORK/package.zip" "$WORK/package.zip.sha256" "$WORK/AppIcon.icns"
+    rm -f "$WORK/package.zip" "$WORK/package.zip.sha256"
     rmdir "$WORK" 2>/dev/null || true
   fi
 }
@@ -134,29 +133,6 @@ main() {
   REPLACING=1
   local stage="$APPS/.Hook Me Up.app.installing"
   ditto "$new" "$stage"
-
-  # The official Claude icon, when the Claude app is installed; else the ✻ icon.
-  local claude_app="${HOOK_ME_UP_CLAUDE_APP:-}" candidate
-  if [ -z "$claude_app" ]; then
-    for candidate in "/Applications/Claude.app" "$HOME/Applications/Claude.app"; do
-      if [ -d "$candidate" ]; then
-        claude_app="$candidate"
-        break
-      fi
-    done
-  fi
-  if [ -n "$claude_app" ] && [ "$claude_app" != "-" ]; then
-    if "$stage/Contents/MacOS/hook-me-up-setup" icon "$claude_app" "$WORK/AppIcon.icns" >/dev/null &&
-      cp "$WORK/AppIcon.icns" "$stage/Contents/Resources/AppIcon.icns" &&
-      codesign --force --deep --sign - "$stage" 2>/dev/null &&
-      codesign --verify --strict --deep "$stage" 2>/dev/null; then
-      say "Icon: the official icon of the installed Claude app"
-    else
-      warn "could not apply the Claude icon; keeping the ✻ icon."
-      rm -rf "$APPS/.Hook Me Up.app.installing"
-      ditto "$new" "$stage"
-    fi
-  fi
 
   if [ -e "$APP" ]; then mv "$APP" "$APPS/.Hook Me Up.app.previous"; fi
   if [ "${HOOK_ME_UP_TEST_FAIL_AFTER_BACKUP:-0}" = "1" ]; then die "test failure after moving the previous version aside"; fi

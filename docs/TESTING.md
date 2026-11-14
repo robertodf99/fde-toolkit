@@ -35,8 +35,8 @@ said otherwise, so that permission prompts actually appear.
 3. macOS asks once to allow notifications from **Hook Me Up**: Allow.
 4. System Settings → Notifications → Hook Me Up: Allow notifications on, **style set
    to Alerts** (they stay on screen until you answer), sounds on. The log says
-   `notifications: authorized, style alert`. With the Claude app installed, the icon
-   is the Claude icon; otherwise ✻.
+   `notifications: authorized, style alert`. Notifications show the app icon: a white
+   spark on a clay rounded square.
 5. The menu bar shows ✻ (with the number of waiting entries, ⏸ while paused).
 6. The first click on a notification with Terminal or iTerm2 asks once for Automation
    permission: allow it.
