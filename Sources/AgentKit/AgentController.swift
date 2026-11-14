@@ -179,6 +179,10 @@ public final class AgentController: ObservableObject {
                 await controller.answerStatusQuery(on: connection)
                 return
             }
+            if message == .testNotification {
+                await controller.postTestNotification(for: connection)
+                return
+            }
             if message.wantsNotification {
                 await controller.refreshAuthorization()
             }
@@ -212,6 +216,20 @@ public final class AgentController: ObservableObject {
             log("send on connection \(connection) failed: \(error)")
         }
         log("connection \(connection): status query")
+        closeLocally(connection)
+    }
+
+    /// Shows the installer's test notification when notifications are allowed, outside
+    /// the entries and the ledger (nothing can be answered from it, and it stays until
+    /// dismissed), then closes the connection. Without permission it does nothing.
+    private func postTestNotification(for connection: ConnectionID) async {
+        let authorization = await presenter.authorization()
+        if authorization.allowsNotifications {
+            presenter.post(NativeNotification.testSpec(alertStyle: authorization.alertStyle))
+            log("connection \(connection): test notification posted")
+        } else {
+            log("connection \(connection): test notification skipped (notifications are off)")
+        }
         closeLocally(connection)
     }
 
@@ -249,6 +267,8 @@ public final class AgentController: ObservableObject {
     }
 
     private func process(_ response: NotificationResponse, identifier: String, categoryIdentifier: String) {
+        // The test notification has nothing to answer.
+        guard identifier != NativeNotification.testIdentifier else { return }
         guard let id = UUID(uuidString: identifier), let entry = core.store.entries.first(where: { $0.id == id }) else {
             log("response to a notification that is no longer waiting")
             return
@@ -330,6 +350,7 @@ public final class AgentController: ObservableObject {
         case .response: "unexpected response"
         case .statusQuery: "status query"
         case .status: "unexpected status"
+        case .testNotification: "test notification"
         }
     }
 
@@ -362,7 +383,7 @@ extension WireMessage {
     fileprivate var wantsNotification: Bool {
         switch self {
         case .request, .notify: true
-        case .clear, .timedOut, .response, .statusQuery, .status: false
+        case .clear, .timedOut, .response, .statusQuery, .status, .testNotification: false
         }
     }
 }

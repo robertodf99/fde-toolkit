@@ -45,7 +45,8 @@ final class UserNotificationPresenter: NSObject, NotificationPresenting {
 
     func post(_ spec: NotificationSpec) {
         current[spec.identifier] = spec
-        if registered[spec.categoryIdentifier] != spec.actions {
+        // A notification without a category (the installer's test) registers none.
+        if !spec.categoryIdentifier.isEmpty, registered[spec.categoryIdentifier] != spec.actions {
             registered[spec.categoryIdentifier] = spec.actions
             registerCategories()
         }

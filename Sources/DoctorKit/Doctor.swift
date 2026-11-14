@@ -130,7 +130,7 @@ public enum Doctor {
         let noStatus = options.socket == nil ? notHome : "not checked: the agent didn't answer"
         checks.append(versionCheck(status, install, skipped: noStatus))
         checks += hookChecks(install, options, probe)
-        checks += notificationChecks(status, skipped: noStatus)
+        checks += notificationChecks(status, install, skipped: noStatus)
         checks.append(pauseCheck(status, skipped: noStatus))
         return DoctorReport(checks: checks)
     }
@@ -328,7 +328,8 @@ public enum Doctor {
         return checks
     }
 
-    static func notificationChecks(_ status: AgentStatus?, skipped: String) -> [DoctorCheck] {
+    static func notificationChecks(_ status: AgentStatus?, _ install: Installation, skipped: String) -> [DoctorCheck] {
+        let openIt = "\nTo open it: \(quoted(install.setupPath)) notifications --open-settings"
         guard let authorization = status?.notifications else {
             return [
                 DoctorCheck("Notifications", .skipped, skipped), DoctorCheck("Notification style", .skipped, skipped),
@@ -341,16 +342,17 @@ public enum Doctor {
             case .denied:
                 DoctorCheck(
                     "Notifications", .fail, "turned off for Hook Me Up, so every request goes to the terminal",
-                    fix: "Turn on Allow notifications in \(notificationSettings).")
+                    fix: "Turn on Allow notifications in \(notificationSettings)." + openIt)
             case .notDetermined:
                 DoctorCheck(
                     "Notifications", .warn, "macOS hasn't asked yet, or the question still waits for your answer",
-                    fix: "Click Allow when macOS asks about Hook Me Up, or turn them on in \(notificationSettings).")
+                    fix: "Click Allow when macOS asks about Hook Me Up, or turn them on in \(notificationSettings)."
+                        + openIt)
             }
         guard authorization.allowsNotifications else {
             return [allow, DoctorCheck("Notification style", .skipped, "notifications are not allowed")]
         }
-        let toAlerts = "Set the style to Alerts in \(notificationSettings)."
+        let toAlerts = "Set the style to Alerts in \(notificationSettings)." + openIt
         let style =
             switch authorization.alertStyle {
             case .alert: DoctorCheck("Notification style", .pass, "Alerts: requests stay on screen until you answer")

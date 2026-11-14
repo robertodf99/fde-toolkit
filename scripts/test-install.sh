@@ -2,10 +2,12 @@
 # Runs install.sh and uninstall.sh against a throwaway HOME, the way `curl | bash` runs
 # them (script on stdin), with a locally built package and without launchctl. Checks:
 # the hooks are added (and only with consent), `hook-me-up-setup doctor --home` reports
-# them (and the app and LaunchAgent), a second install changes nothing, a
-# truncated download or a failed install leaves everything as it was, uninstall
-# restores the original settings and leaves the backups, a declined uninstall leaves
-# the agent installed, and the real HOME is never touched.
+# them (and the app and LaunchAgent), the notification check is skipped without
+# launchctl, when opted out or when the package's hook-me-up-setup is too old to have
+# it, a second install changes nothing, a truncated download or a failed install leaves
+# everything as it was, uninstall restores the original settings and leaves the
+# backups, a declined uninstall leaves the agent installed, and the real HOME is never
+# touched.
 #
 # Usage: scripts/test-install.sh   (HOOK_ME_UP_ZIP=<zip> to reuse a package)
 set -euo pipefail
@@ -126,6 +128,12 @@ check "doctor passes the app and its LaunchAgent" \
   'grep -q "^PASS  App: " "$LOGS/doctor-1.txt" && grep -q "^PASS  LaunchAgent: io.github.robertodf99.hook-me-up starts this app" "$LOGS/doctor-1.txt"'
 check "doctor skips launchd and the agent for another home" \
   'grep -q "^SKIP  Agent process: " "$LOGS/doctor-1.txt" && grep -q "^SKIP  Agent: " "$LOGS/doctor-1.txt"'
+check "no notification check without launchctl" \
+  'grep -q "^Notification check skipped (HOOK_ME_UP_DRY_LAUNCH=1)" "$LOGS/install-1.txt"'
+check "System Settings not opened" '! grep -qi "opened system settings" "$LOGS/install-1.txt"'
+check "next steps: allow notifications, Alerts, restart sessions; and the doctor" \
+  'grep -q "Allow notifications for \"Hook Me Up\"" "$LOGS/install-1.txt" && grep -q "\"Alerts\"" "$LOGS/install-1.txt" \
+   && grep -q "Restart the Claude Code sessions" "$LOGS/install-1.txt" && grep -q "hook-me-up-setup\" doctor$" "$LOGS/install-1.txt"'
 
 echo "--- install with HOOK_ME_UP_YES=1"
 run install.sh HOOK_ME_UP_YES=1 >"$LOGS/install-2.txt" 2>&1
@@ -154,6 +162,9 @@ check "second install leaves the settings as they were" 'cmp -s "$WORKDIR/after-
 check "second install reports no changes" 'grep -q "No changes" "$LOGS/install-3.txt"'
 check "app still installed" '[ -x "$APP/Contents/MacOS/HookMeUp" ]'
 check "no staging folders left" '! ls -a "$FAKE/Applications" | grep -q "^\.Hook Me Up"'
+run install.sh HOOK_ME_UP_YES=1 HOOK_ME_UP_NO_ONBOARDING=1 >"$LOGS/install-no-onboarding.txt" 2>&1
+check "HOOK_ME_UP_NO_ONBOARDING=1 skips the notification check" \
+  'grep -q "^Notification check skipped (HOOK_ME_UP_NO_ONBOARDING=1)" "$LOGS/install-no-onboarding.txt"'
 
 echo "--- a failed install leaves the installed app as it was"
 INSTALLED_STATE="$(tree_state)"
@@ -196,6 +207,38 @@ check "LaunchAgent removed" '[ ! -e "$PLIST" ]'
 check "backups left in place" 'ls "$FAKE/.claude" | grep -q "^settings.json.bak-"'
 run uninstall.sh HOOK_ME_UP_YES=1 >"$LOGS/uninstall-3.txt" 2>&1
 check "uninstalling again is harmless" 'json_equal "$WORKDIR/original.json" "$SETTINGS"'
+
+echo "--- a package whose hook-me-up-setup has no notifications command (0.1.x)"
+# The same package with hook-me-up-setup replaced by a stand-in for 0.1.x: install and
+# uninstall only (it hands them to the real one), anything else is a usage error.
+OLD="$WORKDIR/old"
+mkdir -p "$OLD"
+ditto -x -k "$ZIP" "$OLD/unpacked"
+OLD_MACOS="$OLD/unpacked/HookMeUp.app/Contents/MacOS"
+mv "$OLD_MACOS/hook-me-up-setup" "$OLD_MACOS/hook-me-up-setup-current"
+cat >"$OLD_MACOS/hook-me-up-setup" <<'STUB'
+#!/bin/bash
+case "${1:-}" in
+  install | uninstall) exec "$(dirname "$0")/hook-me-up-setup-current" "$@" ;;
+esac
+echo "hook-me-up-setup: usage: hook-me-up-setup install|uninstall [--settings <path>] [--hook <path>] [--state <path>] [--timeout <seconds>] [--dry-run] [--yes]" >&2
+exit 1
+STUB
+chmod +x "$OLD_MACOS/hook-me-up-setup"
+(cd "$OLD/unpacked" && ditto -c -k --keepParent HookMeUp.app "$OLD/hook-me-up-old-macos.zip")
+(cd "$OLD" && shasum -a 256 hook-me-up-old-macos.zip >hook-me-up-old-macos.zip.sha256)
+if run install.sh HOOK_ME_UP_YES=1 HOOK_ME_UP_ZIP="$OLD/hook-me-up-old-macos.zip" >"$LOGS/install-old.txt" 2>&1; then
+  status=0
+else
+  status=$?
+fi
+check "an older package installs" '[ "$status" = 0 ] && [ -x "$APP/Contents/MacOS/hook-me-up-setup-current" ]'
+check "its missing notifications command is detected" \
+  'grep -q "^Notification check skipped (this version.s hook-me-up-setup has no notifications command)" "$LOGS/install-old.txt"'
+check "no doctor hint for a setup without doctor" '! grep -q "\" doctor" "$LOGS/install-old.txt"'
+check "its hooks are added" 'grep -q "Hooks in ~/.claude/settings.json: added" "$LOGS/install-old.txt"'
+run uninstall.sh HOOK_ME_UP_YES=1 >"$LOGS/uninstall-old.txt" 2>&1
+check "and uninstalled" 'json_equal "$WORKDIR/original.json" "$SETTINGS" && [ ! -e "$APP" ]'
 
 check "the real HOME was not touched" '[ "$BEFORE" = "$(fingerprint)" ]'
 

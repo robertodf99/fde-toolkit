@@ -41,13 +41,16 @@ target with the same name plus `Tests`.
    `DecisionEncoder`, prints it and exits. Claude Code applies the decision.
 
 Heads-ups (`notify` for waiting/finished, `clear` when the session moves on) are
-fire-and-forget. `hook-me-up-setup doctor` sends a `statusQuery` on the same socket (same
-client, UID check and framing); the agent answers with one `status` (its version and
-build, the notification authorization and style, whether it is paused, how many entries
-wait; never request content) and closes the connection. An agent from before status
-queries can't decode the message and closes the connection without answering, which the
-doctor reports as an agent too old to answer. When the user answers in the terminal instead, Claude Code stops the
+fire-and-forget. When the user answers in the terminal instead, Claude Code stops the
 hook; the agent sees the connection close and removes the entry and its notification.
+
+`hook-me-up-setup doctor` and `hook-me-up-setup notifications` send a `statusQuery` on
+the same socket (same client, UID check and framing). The agent answers with one
+`status` (its version and build, the notification authorization and style, whether it
+is paused, how many entries wait; never request content) and closes the connection,
+without touching the entries. An agent from before status queries can't decode the
+message and closes the connection without answering, which they report as an agent too
+old to answer.
 
 ## Security model
 
@@ -103,5 +106,11 @@ hook; the agent sees the connection close and removes the entry and its notifica
 - `install.sh` downloads that release (checksum verified), installs
   `~/Applications/Hook Me Up.app` exactly as packaged (its signature intact),
   adds the hooks only with consent (asked on `/dev/tty`, or `HOOK_ME_UP_YES=1`), and
-  starts the agent with a LaunchAgent. `uninstall.sh` reverses it and keeps the
-  settings backups. `scripts/test-install.sh` runs both against a throwaway HOME.
+  starts the agent with a LaunchAgent. Then it runs `hook-me-up-setup notifications`
+  (when the package's setup has it, launchctl started the agent and
+  `HOOK_ME_UP_NO_ONBOARDING` isn't set): status queries until macOS's notification
+  question is answered, a `testNotification` (posted outside the entries, id
+  `hook-me-up-test`, no buttons), and System Settings opened when notifications need
+  changing. It never reads stdin and never fails the install. `uninstall.sh` reverses
+  it and keeps the settings backups. `scripts/test-install.sh` runs both against a
+  throwaway HOME.

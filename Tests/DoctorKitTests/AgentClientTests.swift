@@ -64,6 +64,22 @@ private let sample = AgentStatus(
         #expect(Date().timeIntervalSince(started) < 2)
     }
 
+    @Test func aTestNotificationIsDeliveredAndTheAgentClosesTheConnection() throws {
+        let dir = try ShortDir()
+        #expect(!AgentClient.sendTestNotification(socketPath: dir.socket, timeout: 1))  // no agent
+        let server = SocketServer(path: dir.socket)
+        let received = Received()
+        try server.start { connection in
+            connection.startReading(queue: .global()) { message in
+                received.add(message)
+                connection.close()
+            }
+        }
+        defer { server.stop() }
+        #expect(AgentClient.sendTestNotification(socketPath: dir.socket, timeout: 2))
+        #expect(received.messages == [.testNotification])
+    }
+
     @Test func noSocketAndAStaleSocketAreToldApart() throws {
         let dir = try ShortDir()
         #expect(AgentClient.status(socketPath: dir.socket, timeout: 1) == .noSocket)
@@ -97,5 +113,17 @@ private final class HeldConnections: @unchecked Sendable {
 
     func keep(_ connection: Connection) {
         lock.withLock { connections.append(connection) }
+    }
+}
+
+/// Messages a test server received, from its reading queue.
+private final class Received: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: [WireMessage] = []
+
+    var messages: [WireMessage] { lock.withLock { stored } }
+
+    func add(_ message: WireMessage) {
+        lock.withLock { stored.append(message) }
     }
 }

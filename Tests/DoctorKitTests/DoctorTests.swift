@@ -334,7 +334,9 @@ private func run(_ probe: FakeProbe, _ options: Doctor.Options = realHome) -> Do
         probe.reply = .status(status(.authorized, .banner))
         let banner = run(probe).check("Notification style")
         #expect(banner?.result == .warn)
-        #expect(banner?.fix == "Set the style to Alerts in System Settings > Notifications > Hook Me Up.")
+        #expect(
+            banner?.fix == "Set the style to Alerts in System Settings > Notifications > Hook Me Up.\n"
+                + "To open it: '\(app)/Contents/MacOS/hook-me-up-setup' notifications --open-settings")
         #expect(run(probe).exitCode == 0)
         probe.reply = .status(status(.authorized, .none))
         #expect(run(probe).check("Notification style")?.result == .fail)

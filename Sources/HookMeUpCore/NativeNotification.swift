@@ -322,6 +322,24 @@ public enum NativeNotification {
         return question.multiSelect || question.options.count > maxOptionActions ? .numbered : .buttons
     }
 
+    // MARK: Test notification
+
+    /// The identifier of the installer's test notification; it is never an entry's.
+    public static let testIdentifier = "hook-me-up-test"
+
+    /// The installer's test notification (`hook-me-up-setup notifications --test`): no
+    /// category and no buttons, so nothing can be answered from it. With a style other
+    /// than Alerts it says to change it.
+    public static func testSpec(alertStyle: NotificationAuthorization.AlertStyle) -> NotificationSpec {
+        NotificationSpec(
+            identifier: testIdentifier, threadIdentifier: testIdentifier, categoryIdentifier: "",
+            title: "Hook Me Up",
+            body: alertStyle == .alert
+                ? "Notifications work. Claude Code's requests will show up like this."
+                : "Notifications work. Set the style to Alerts so requests stay on screen.",
+            actions: [])
+    }
+
     // MARK: Store -> post / remove
 
     /// Post what is new or changed (e.g. the next question, a hint); remove what is gone

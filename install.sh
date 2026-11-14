@@ -10,6 +10,7 @@
 #   HOOK_ME_UP_VERSION=vX.Y.Z   install that release instead of the latest
 #   HOOK_ME_UP_YES=1            change ~/.claude/settings.json without asking
 #   HOOK_ME_UP_ZIP=<path>       install a local package (its .sha256 must sit next to it)
+#   HOOK_ME_UP_NO_ONBOARDING=1  skip the notification check after starting the agent
 #   HOOK_ME_UP_DRY_LAUNCH=1     do not use launchctl or start the app (tests)
 #   HOOK_ME_UP_NO_TTY=1         behave as if there were no terminal to ask (tests)
 #
@@ -29,6 +30,14 @@ die() {
 }
 dry_launch() { [ "${HOOK_ME_UP_DRY_LAUNCH:-0}" = "1" ]; }
 has_tty() { [ "${HOOK_ME_UP_NO_TTY:-0}" != "1" ] && (exec </dev/tty) 2>/dev/null; }
+# Whether this hook-me-up-setup has the command $2 (older releases only have install and
+# uninstall): its usage lists the commands it knows.
+setup_has() {
+  local usage
+  usage="$("$1" --help 2>&1 </dev/null)" || true
+  case "$usage" in *"hook-me-up-setup $2"*) return 0 ;; esac
+  return 1
+}
 
 # Quits a Hook Me Up started outside launchd (e.g. with `open`): only processes whose
 # executable is exactly this installed app's.
@@ -51,7 +60,7 @@ on_exit() {
   fi
   if [ -n "${WORK:-}" ] && [ -d "$WORK" ]; then
     rm -rf "$WORK/unpacked"
-    rm -f "$WORK/package.zip" "$WORK/package.zip.sha256"
+    rm -f "$WORK/package.zip" "$WORK/package.zip.sha256" "$WORK/notifications"
     rmdir "$WORK" 2>/dev/null || true
   fi
 }
@@ -130,6 +139,8 @@ main() {
   if [ ! -e "$APP" ] && [ -e "$APPS/.Hook Me Up.app.previous" ]; then
     mv "$APPS/.Hook Me Up.app.previous" "$APP"
   fi
+  local fresh=1 # a first install, not an upgrade
+  if [ -e "$APP" ]; then fresh=0; fi
   rm -rf "$APPS/.Hook Me Up.app.installing" "$APPS/.Hook Me Up.app.previous"
   REPLACING=1
   local stage="$APPS/.Hook Me Up.app.installing"
@@ -201,27 +212,68 @@ main() {
 </plist>
 EOF
   plutil -lint -s "$plist" || die "the LaunchAgent file is invalid: $plist"
+  local started=0
   if dry_launch; then
     say "LaunchAgent written (not started: HOOK_ME_UP_DRY_LAUNCH=1)."
   elif launchctl bootstrap "gui/$(id -u)" "$plist"; then
+    started=1
     say "Started the Hook Me Up agent (it starts again at login)."
   else
     warn "launchctl could not start the agent; opening the app instead."
     open "$APP" || true
   fi
 
+  # --- Notifications ----------------------------------------------------------------
+  # Waits for macOS's notification question to be answered, reports the settings, shows
+  # a test notification and opens System Settings when something needs changing (on an
+  # upgrade, only when notifications are off). Never reads stdin; never fails the install.
+  local notifications="" skipped=""
+  if [ "${HOOK_ME_UP_NO_ONBOARDING:-0}" = "1" ]; then
+    skipped="HOOK_ME_UP_NO_ONBOARDING=1"
+  elif ! setup_has "$setup" notifications; then
+    skipped="this version's hook-me-up-setup has no notifications command"
+  elif dry_launch; then
+    skipped="HOOK_ME_UP_DRY_LAUNCH=1"
+  elif [ "$started" != "1" ]; then
+    skipped="the agent was not started by launchctl"
+  fi
+  if [ -n "$skipped" ]; then
+    say "Notification check skipped ($skipped)."
+  else
+    local wait=10 open_settings=--open-settings-if-off
+    if has_tty; then wait=60; fi
+    if [ "$fresh" = "1" ]; then open_settings=--open-settings; fi
+    say ""
+    "$setup" notifications --wait "$wait" --test "$open_settings" --result-file "$WORK/notifications" </dev/null || true
+    notifications="$(cat "$WORK/notifications" 2>/dev/null || true)"
+  fi
+
   # --- Next steps -------------------------------------------------------------------
+  local allow='  - Allow notifications for "Hook Me Up" when macOS asks
+    (or System Settings > Notifications > Hook Me Up).'
+  local alerts='  - In System Settings > Notifications > Hook Me Up, set the notification style to
+    "Alerts", so requests stay on screen until you answer them.'
+  local turn_on='  - Turn on notifications for "Hook Me Up" in System Settings > Notifications, with
+    the style set to "Alerts".'
+  local restart='  - Restart the Claude Code sessions that are already running, so they load the hooks.'
+  local steps
+  case "$notifications" in
+    ready) steps="$restart" ;;
+    not-alerts) steps="$alerts"$'\n'"$restart" ;;
+    off) steps="$turn_on"$'\n'"$restart" ;;
+    *) steps="$allow"$'\n'"$alerts"$'\n'"$restart" ;;
+  esac
+  local doctor=""
+  if setup_has "$setup" doctor; then
+    doctor=$'\n'"Something not working? Check the installation with:"$'\n'"  \"$setup\" doctor"$'\n'
+  fi
   cat <<EOF
 
 Hook Me Up is installed. Hooks in ~/.claude/settings.json: $hooks.
 
 Next steps:
-  1. Allow notifications for "Hook Me Up" when macOS asks
-     (or System Settings > Notifications > Hook Me Up).
-  2. In the same place, set the notification style to "Alerts", so requests stay
-     on screen until you answer them.
-  3. Restart the Claude Code sessions that are already running, so they load the hooks.
-
+$steps
+$doctor
 Run this installer again to upgrade. To uninstall:
   curl -fsSL https://raw.githubusercontent.com/$REPO/main/uninstall.sh | bash
 EOF

@@ -31,6 +31,21 @@ public enum AgentClient {
         }
     }
 
+    /// Asks the agent to show its test notification and waits until it closes the
+    /// connection (it has then posted it, or decided not to). False when the message
+    /// couldn't be delivered.
+    public static func sendTestNotification(socketPath: URL, timeout: TimeInterval) -> Bool {
+        guard case .connected(let connection) = connect(socketPath, timeout: timeout) else { return false }
+        defer { connection.close() }
+        do {
+            try connection.send(.testNotification)
+            _ = try connection.receive(timeout: timeout)  // nil: closed once handled
+            return true
+        } catch {
+            return false
+        }
+    }
+
     enum Connected {
         case connected(Connection)
         case failed(AgentReply)

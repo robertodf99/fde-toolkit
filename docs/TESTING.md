@@ -42,7 +42,23 @@ said otherwise, so that permission prompts actually appear.
    Up** with its icon (not "HookMeUp" with a generic icon), after a fresh install and
    after upgrading from 0.1.0. Optionally, `sfltool dumpbtm` shows the item with
    `io.github.robertodf99.hook-me-up` among its associated bundle identifiers.
-4. macOS asks once to allow notifications from **Hook Me Up**: Allow.
+4. macOS asks once to allow notifications from **Hook Me Up**. Meanwhile the installer
+   prints "Waiting up to 60 s for your answer to macOS…" (10 s when it runs without a
+   terminal). Allow → "Sent a test notification." and a "Hook Me Up" notification that
+   says notifications work (with Banners it also says to set Alerts); clicking it
+   opens nothing. On a first install with the style still Banners, System Settings
+   opens at Notifications. **Check by hand on macOS 14, 15 and 26** whether the link
+   (`x-apple.systempreferences:com.apple.Notifications-Settings.extension?id=io.github.robertodf99.hook-me-up`)
+   lands on Hook Me Up's own page or only on the Notifications list; note which.
+   Also note what macOS reports while its question is unanswered (the installer
+   expects "not determined" and keeps waiting; the doctor shows WARN).
+4b. Variants, each from a fresh install unless said otherwise: don't answer for a
+   minute → "macOS is still waiting for your answer", System Settings opens, Next
+   steps start with "Allow notifications". Upgrade with Banners → only the hint, no
+   System Settings. Upgrade with notifications off → System Settings opens.
+   `HOOK_ME_UP_NO_ONBOARDING=1` → "Notification check skipped". `HOOK_ME_UP_VERSION=v0.1.2`
+   → "Notification check skipped (this version's hook-me-up-setup has no notifications
+   command)" and the install completes.
 5. System Settings → Notifications → Hook Me Up: Allow notifications on, **style set
    to Alerts** (they stay on screen until you answer), sounds on. The log says
    `notifications: authorized, style alert`. Notifications show the app icon: a white

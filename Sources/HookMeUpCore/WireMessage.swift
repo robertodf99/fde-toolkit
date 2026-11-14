@@ -20,4 +20,7 @@ public enum WireMessage: Codable, Equatable, Sendable {
     case statusQuery
     /// Agent → `hook-me-up-setup`: the answer to `statusQuery`.
     case status(AgentStatus)
+    /// `hook-me-up-setup notifications --test` → agent: show a test notification if
+    /// notifications are allowed (never a request), then close the connection.
+    case testNotification
 }
