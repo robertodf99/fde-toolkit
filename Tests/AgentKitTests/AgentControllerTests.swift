@@ -118,10 +118,10 @@ private struct Harness {
     let log = LogRecorder()
     let controller: AgentController
 
-    init() {
+    init(version: String = "1.0", build: String = "7") {
         let log = self.log
         controller = AgentController(
-            presenter: presenter, terminal: terminal, clock: FixedClock(now: t0),
+            presenter: presenter, terminal: terminal, clock: FixedClock(now: t0), version: version, build: build,
             log: { log.record($0) })
     }
 
@@ -378,5 +378,62 @@ private struct Harness {
         let h = Harness()
         await h.controller.prepareNotifications()
         #expect(h.log.lines.contains("notifications: authorized, style alert"))
+    }
+
+    // MARK: Status queries (hook-me-up-setup doctor and notifications)
+
+    @Test func aStatusQueryGetsOneStatusAndTheConnectionCloses() async {
+        let h = Harness(version: "0.2.0", build: "0.2.0")
+        let r = request()
+        _ = await h.send(.request(r))
+        h.presenter.current = NotificationAuthorization(status: .authorized, alertStyle: .banner)
+        let entries = h.controller.store.entries
+        let posted = h.presenter.posted
+        let checks = h.presenter.authorizationChecks
+
+        let (connection, id) = await h.send(.statusQuery)
+        let expected = AgentStatus(
+            version: "0.2.0", build: "0.2.0",
+            notifications: NotificationAuthorization(status: .authorized, alertStyle: .banner), paused: false,
+            pendingCount: 1)
+        #expect(connection.sent == [.status(expected)])
+        #expect(connection.isClosed)
+        #expect(h.presenter.authorizationChecks == checks + 1)
+        // Read only: the entries and the notifications stay as they were.
+        #expect(h.controller.store.entries == entries)
+        #expect(h.presenter.posted == posted)
+        #expect(h.presenter.removed.isEmpty)
+        #expect(h.log.lines.last == "connection \(id): status query")
+    }
+
+    @Test func aStatusQueryReportsAPauseAndNotificationsOffWithoutReleasingAnything() async {
+        let h = Harness()
+        let r = request()
+        let (hook, _) = await h.send(.request(r))
+        h.presenter.current = NotificationAuthorization(status: .denied, alertStyle: .none)
+        h.controller.pause(minutes: 30)
+        let (connection, _) = await h.send(.statusQuery)
+        guard case .status(let status)? = connection.sent.first else {
+            Issue.record("no status: \(connection.sent)")
+            return
+        }
+        #expect(status.paused)
+        #expect(status.notifications.status == .denied)
+        #expect(status.pendingCount == 1)
+        #expect(hook.sent.isEmpty && !hook.isClosed)  // the waiting request is not touched
+        #expect(h.controller.store.entries.map(\.id) == [r.id])
+    }
+
+    @Test func aStatusQueryOnARequestConnectionEndsThatRequest() async {
+        // A confused peer: a request, then a status query on the same connection. Closing
+        // the connection ends the request, as when the hook goes away.
+        let h = Harness()
+        let r = request()
+        let (connection, id) = await h.send(.request(r))
+        h.controller.received(.statusQuery, from: id)
+        await h.controller.settle()
+        #expect(connection.isClosed)
+        #expect(h.controller.store.entries.isEmpty)
+        #expect(h.presenter.visible.isEmpty)
     }
 }

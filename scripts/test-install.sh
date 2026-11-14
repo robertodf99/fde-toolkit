@@ -1,7 +1,8 @@
 #!/bin/bash
 # Runs install.sh and uninstall.sh against a throwaway HOME, the way `curl | bash` runs
 # them (script on stdin), with a locally built package and without launchctl. Checks:
-# the hooks are added (and only with consent), a second install changes nothing, a
+# the hooks are added (and only with consent), `hook-me-up-setup doctor --home` reports
+# them (and the app and LaunchAgent), a second install changes nothing, a
 # truncated download or a failed install leaves everything as it was, uninstall
 # restores the original settings and leaves the backups, a declined uninstall leaves
 # the agent installed, and the real HOME is never touched.
@@ -114,6 +115,17 @@ check "LaunchAgent names the app (Login Items)" '[ "$(associated)" = "$BUNDLE_ID
 check "support folder is private" '[ "$(stat -f %Lp "$FAKE/Library/Application Support/hook-me-up")" = 700 ]'
 check "settings untouched without consent" 'cmp -s "$WORKDIR/original.json" "$SETTINGS"'
 check "says how to add the hooks" 'grep -q "HOOK_ME_UP_YES=1" "$LOGS/install-1.txt"'
+# doctor with --home: checks the app, its LaunchAgent and the hooks; skips launchd and the agent.
+doctor() { "$APP/Contents/MacOS/hook-me-up-setup" doctor --home "$FAKE" >"$1" 2>&1; }
+if doctor "$LOGS/doctor-1.txt"; then status=0; else status=$?; fi
+check "doctor fails while the hooks are missing" '[ "$status" = 1 ]'
+check "doctor names the missing hooks" 'grep -q "^FAIL  Hooks: .*has none of Hook Me Up" "$LOGS/doctor-1.txt"'
+check "doctor gives the command that adds them" \
+  'grep -q "Fix: Add them" "$LOGS/doctor-1.txt" && grep -F "$SETTINGS" "$LOGS/doctor-1.txt" | grep -q "hook-me-up-setup'"'"' install --settings"'
+check "doctor passes the app and its LaunchAgent" \
+  'grep -q "^PASS  App: " "$LOGS/doctor-1.txt" && grep -q "^PASS  LaunchAgent: io.github.robertodf99.hook-me-up starts this app" "$LOGS/doctor-1.txt"'
+check "doctor skips launchd and the agent for another home" \
+  'grep -q "^SKIP  Agent process: " "$LOGS/doctor-1.txt" && grep -q "^SKIP  Agent: " "$LOGS/doctor-1.txt"'
 
 echo "--- install with HOOK_ME_UP_YES=1"
 run install.sh HOOK_ME_UP_YES=1 >"$LOGS/install-2.txt" 2>&1
@@ -127,6 +139,11 @@ sys.exit(ours != {'PermissionRequest', 'Notification', 'Stop', 'UserPromptSubmit
 PY"
 check "a backup was made" 'ls "$FAKE/.claude" | grep -q "^settings.json.bak-"'
 cp "$SETTINGS" "$WORKDIR/after-install.json"
+if doctor "$LOGS/doctor-2.txt"; then status=0; else status=$?; fi
+check "doctor passes after the install" '[ "$status" = 0 ] && ! grep -q "^FAIL" "$LOGS/doctor-2.txt"'
+check "doctor passes the app, LaunchAgent and hooks" \
+  'grep -q "^PASS  App: " "$LOGS/doctor-2.txt" && grep -q "^PASS  LaunchAgent: " "$LOGS/doctor-2.txt" && grep -q "^PASS  Hooks: all five events" "$LOGS/doctor-2.txt"'
+check "doctor changes nothing" 'cmp -s "$WORKDIR/after-install.json" "$SETTINGS"'
 
 echo "--- install again (upgrade)"
 # An agent installed by an older version: its plist has no AssociatedBundleIdentifiers.

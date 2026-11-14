@@ -1,6 +1,9 @@
 import Foundation
 
 /// Everything that travels over the hook ↔ agent socket, one framed JSON message each.
+///
+/// The cases are synthesized `Codable`: an agent that does not know a case cannot decode
+/// it and closes the connection, which is how a client tells an older agent apart.
 public enum WireMessage: Codable, Equatable, Sendable {
     /// Hook → agent: a request that waits for a decision.
     case request(RequestEnvelope)
@@ -12,4 +15,9 @@ public enum WireMessage: Codable, Equatable, Sendable {
     case timedOut(id: UUID)
     /// Agent → hook: the answer to a request.
     case response(ResponseEnvelope)
+    /// `hook-me-up-setup` → agent: how are you? The agent answers with one `status` and
+    /// closes the connection.
+    case statusQuery
+    /// Agent → `hook-me-up-setup`: the answer to `statusQuery`.
+    case status(AgentStatus)
 }

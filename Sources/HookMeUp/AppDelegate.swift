@@ -21,7 +21,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         termSource = source
 
         let presenter = UserNotificationPresenter()
-        let controller = AgentController(presenter: presenter, terminal: TerminalActivator())
+        let info = Bundle.main.infoDictionary
+        let controller = AgentController(
+            presenter: presenter, terminal: TerminalActivator(),
+            version: info?["CFBundleShortVersionString"] as? String ?? "unknown",
+            build: info?["CFBundleVersion"] as? String ?? "unknown")
         presenter.onResponse = { [weak controller] response, identifier, category in
             controller?.handle(response, identifier: identifier, categoryIdentifier: category)
         }

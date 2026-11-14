@@ -194,6 +194,14 @@ checklist. Pushing a `v*` tag publishes a release with GitHub Actions.
 
 ## Troubleshooting
 
+Start with the doctor. It checks the app, the LaunchAgent, the running agent, the hooks in
+`~/.claude/settings.json` and the notification settings, and says how to fix each
+problem (it changes nothing itself):
+
+```sh
+~/Applications/"Hook Me Up.app"/Contents/MacOS/hook-me-up-setup doctor
+```
+
 - **No notifications.** Check System Settings → Notifications → Hook Me Up. While
   notifications are off, every request goes to the terminal and the log says how to
   turn them on.

@@ -1,7 +1,8 @@
 /// Whether macOS lets the agent show notifications, as System Settings reports it.
-public struct NotificationAuthorization: Equatable, Sendable, CustomStringConvertible {
+/// The agent reports it in its status (`hook-me-up-setup doctor`).
+public struct NotificationAuthorization: Codable, Equatable, Sendable, CustomStringConvertible {
     /// The user's answer to the permission prompt.
-    public enum Status: String, Sendable {
+    public enum Status: String, Codable, Sendable {
         case notDetermined
         case denied
         case authorized
@@ -9,7 +10,7 @@ public struct NotificationAuthorization: Equatable, Sendable, CustomStringConver
     }
 
     /// How notifications appear ("Alerts" stay on screen until answered).
-    public enum AlertStyle: String, Sendable {
+    public enum AlertStyle: String, Codable, Sendable {
         case none
         case banner
         case alert
