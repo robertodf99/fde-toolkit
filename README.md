@@ -31,6 +31,26 @@ the diff and asking), and removes the app. Your settings backups stay where they
 
 Requirements: macOS 14 or later, and [Claude Code](https://docs.claude.com/en/docs/claude-code/overview).
 
+### Install with Homebrew
+
+Available once the `robertodf99/homebrew-tap` repository is published:
+
+```sh
+brew install robertodf99/tap/hook-me-up
+# Add the hooks (shows the changes and asks first); the opt path survives upgrades.
+hook-me-up-setup install --hook "$(brew --prefix)/opt/hook-me-up/Hook Me Up.app/Contents/MacOS/hook-me-up"
+brew services start hook-me-up
+hook-me-up-setup doctor
+```
+
+It is a formula, not a cask, so the download isn't quarantined (see
+[Why macOS says "unidentified developer"](#why-macos-says-unidentified-developer)).
+Homebrew doesn't change your settings by itself. After `brew upgrade hook-me-up`, run
+`brew services restart hook-me-up`. To remove it, run the `hook-me-up-setup uninstall
+--hook …` command with the same path first, then `brew services stop hook-me-up` and
+`brew uninstall hook-me-up`. Use Homebrew or the installer above, not both: only one
+agent can run, and two sets of hooks notify twice (the doctor warns about it).
+
 ### Install from Claude Code
 
 Hook Me Up is also a Claude Code plugin with three commands that run the same installer
@@ -153,7 +173,8 @@ because of that:
 
 **Why the install isn't blocked.** Gatekeeper checks apps that carry the quarantine
 flag (`com.apple.quarantine`), which browsers and other apps add to what they download.
-`curl` doesn't add it, so the app the installer unpacks opens normally. The same zip
+`curl` doesn't add it, so the app the installer unpacks opens normally. Homebrew
+doesn't add it to what a formula downloads either (it does for casks). The same zip
 downloaded with a browser would be quarantined, and Gatekeeper would block the app from
 opening.
 
