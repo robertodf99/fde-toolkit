@@ -89,9 +89,10 @@ said otherwise, so that permission prompts actually appear.
    from 0.1.x, `make build && .build/release/hook-me-up-setup doctor` against the old agent
    says it is too old to answer status questions (Agent WARN, exit 0).
 
-### Homebrew (once the tap is published)
+### Homebrew
 
-1. `brew install robertodf99/tap/hook-me-up`: the caveats show the `hook-me-up-setup
+1. `brew tap robertodf99/tap`, `brew trust --tap robertodf99/tap` (recent Homebrew
+   refuses untrusted taps), then `brew install hook-me-up`: the caveats show the `hook-me-up-setup
    install --hook "…/opt/hook-me-up/Hook Me Up.app/Contents/MacOS/hook-me-up"` command,
    `brew services start hook-me-up` and `hook-me-up-setup doctor`.
 2. `xattr -r -p com.apple.quarantine "$(brew --prefix hook-me-up)/Hook Me Up.app"`

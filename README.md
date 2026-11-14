@@ -33,10 +33,10 @@ Requirements: macOS 14 or later, and [Claude Code](https://docs.claude.com/en/do
 
 ### Install with Homebrew
 
-Available once the `robertodf99/homebrew-tap` repository is published:
-
 ```sh
-brew install robertodf99/tap/hook-me-up
+brew tap robertodf99/tap
+brew trust --tap robertodf99/tap   # recent Homebrew asks you to trust third-party taps once
+brew install hook-me-up
 # Add the hooks (shows the changes and asks first); the opt path survives upgrades.
 hook-me-up-setup install --hook "$(brew --prefix)/opt/hook-me-up/Hook Me Up.app/Contents/MacOS/hook-me-up"
 brew services start hook-me-up
