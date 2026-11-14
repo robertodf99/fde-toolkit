@@ -22,6 +22,15 @@ with a backup.
    `sw_vers -productVersion` must be 14 or higher. Otherwise stop and say Hook Me Up
    runs on macOS 14 or later only.
 
+   Then check for a Homebrew copy: if `command -v brew` finds Homebrew, run
+   `brew list --versions hook-me-up`. If it prints a version, Hook Me Up is already
+   installed with Homebrew. Say so, and that two copies can't run side by side (only
+   one agent runs, and two sets of hooks notify twice). Offer the Homebrew way instead
+   (`brew upgrade hook-me-up && brew services restart hook-me-up`, then
+   `/hook-me-up:doctor`), and stop unless the user explicitly wants to switch to the
+   installer after removing the Homebrew copy. The installer refuses to run next to it
+   anyway, unless `HOOK_ME_UP_IGNORE_HOMEBREW=1` is set; don't set that on your own.
+
 2. Run the installer without a terminal, so it changes nothing in the settings and
    prints what it would change instead:
 
@@ -43,6 +52,7 @@ with a backup.
    - Otherwise it prints `Exact text changes to …settings.json` with a diff, and then
      `No terminal to ask, so ~/.claude/settings.json was not changed. To add the hooks,
      run:` followed by one command line.
+   - `already installed with Homebrew`: see step 1; stop.
    - If it failed (a checksum mismatch, no network, an unexpected settings shape),
      show the error and stop.
 
