@@ -17,7 +17,15 @@ its fix and the exit code), the installer's notification check against a scripte
 `AgentClient` against a socket server that answers, closes without answering (an older
 agent) or never answers. `make test-install`
 also runs `hook-me-up-setup doctor --home <throwaway HOME>`: app, LaunchAgent and hooks
-are checked; launchd and the running agent are skipped there.
+are checked; launchd and the running agent are skipped there. For the notification check
+it puts stand-ins for `launchctl`, `pgrep` and `open` first on `PATH` and replaces the
+package's `hook-me-up-setup notifications` with a stand-in that records its flags (and
+refuses unknown ones) and reports a given result: it checks the flags on a first install
+(`--open-settings`) and an upgrade (`--open-settings-if-off`), `/dev/null` as stdin, the
+next steps for ready, not-alerts, off and no-agent, and that the real command accepts
+the same flags. It also checks that install.sh stops when it finds Homebrew's copy
+(`HOOK_ME_UP_TEST_BREW_PREFIX` points it at a fake one) unless
+`HOOK_ME_UP_IGNORE_HOMEBREW=1`.
 
 CI runs `lint`, `test`, `selftest`, `test-install` and `plugin-check` on every push and
 pull request. With the claude CLI installed, `claude plugin validate .` and

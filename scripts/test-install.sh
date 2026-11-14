@@ -1,13 +1,15 @@
 #!/bin/bash
 # Runs install.sh and uninstall.sh against a throwaway HOME, the way `curl | bash` runs
-# them (script on stdin), with a locally built package and without launchctl. Checks:
-# the hooks are added (and only with consent), `hook-me-up-setup doctor --home` reports
-# them (and the app and LaunchAgent), the notification check is skipped without
-# launchctl, when opted out or when the package's hook-me-up-setup is too old to have
-# it, a second install changes nothing, a truncated download or a failed install leaves
-# everything as it was, uninstall restores the original settings and leaves the
-# backups, a declined uninstall leaves the agent installed, and the real HOME is never
-# touched.
+# them (script on stdin), with a locally built package and without the real launchctl.
+# Checks: the hooks are added (and only with consent); `hook-me-up-setup doctor --home`
+# reports them (and the app and LaunchAgent); the notification check is skipped without
+# launchctl, when opted out or when the package's hook-me-up-setup is too old to have it;
+# with stand-ins for launchctl and the check, the flags it gets on a first install and on
+# an upgrade, and the next steps for each result; install.sh refuses to install next to
+# Homebrew's copy unless told to; a second install changes nothing; a truncated download
+# or a failed install leaves everything as it was; uninstall restores the original
+# settings and leaves the backups; a declined uninstall leaves the agent installed; and
+# the real HOME is never touched.
 #
 # Usage: scripts/test-install.sh   (HOOK_ME_UP_ZIP=<zip> to reuse a package)
 set -euo pipefail
@@ -74,13 +76,14 @@ same_tree() { # expected state: on a difference, show it
 run() { # script, extra env... (the script arrives on stdin, as with curl | bash)
   local script="$1"
   shift
-  env HOME="$FAKE" HOOK_ME_UP_ZIP="$ZIP" HOOK_ME_UP_DRY_LAUNCH=1 HOOK_ME_UP_NO_TTY=1 "$@" bash <"$script"
+  env HOME="$FAKE" HOOK_ME_UP_ZIP="$ZIP" HOOK_ME_UP_DRY_LAUNCH=1 HOOK_ME_UP_NO_TTY=1 \
+    HOOK_ME_UP_TEST_BREW_PREFIX="$WORKDIR/no-homebrew" "$@" bash <"$script"
 }
 run_truncated() { # script, fraction of its lines to keep (e.g. 1/2)
   local lines
   lines="$(($(wc -l <"$1") * ${2%/*} / ${2#*/}))"
   head -n "$lines" "$1" | env HOME="$FAKE" HOOK_ME_UP_ZIP="$ZIP" HOOK_ME_UP_DRY_LAUNCH=1 HOOK_ME_UP_NO_TTY=1 \
-    HOOK_ME_UP_YES=1 bash
+    HOOK_ME_UP_TEST_BREW_PREFIX="$WORKDIR/no-homebrew" HOOK_ME_UP_YES=1 bash
 }
 json_equal() { /usr/bin/python3 -c 'import json,sys; sys.exit(json.load(open(sys.argv[1])) != json.load(open(sys.argv[2])))' "$1" "$2"; }
 
@@ -163,6 +166,12 @@ check "second install reports no changes" 'grep -q "No changes" "$LOGS/install-3
 check "app still installed" '[ -x "$APP/Contents/MacOS/HookMeUp" ]'
 check "no staging folders left" '! ls -a "$FAKE/Applications" | grep -q "^\.Hook Me Up"'
 run install.sh HOOK_ME_UP_YES=1 HOOK_ME_UP_NO_ONBOARDING=1 >"$LOGS/install-no-onboarding.txt" 2>&1
+# A Homebrew copy (its opt folder) next to this one.
+mkdir -p "$WORKDIR/homebrew/opt/hook-me-up/Hook Me Up.app"
+run install.sh HOOK_ME_UP_YES=1 HOOK_ME_UP_TEST_BREW_PREFIX="$WORKDIR/homebrew" HOOK_ME_UP_IGNORE_HOMEBREW=1 \
+  >"$LOGS/install-next-to-homebrew.txt" 2>&1
+check "HOOK_ME_UP_IGNORE_HOMEBREW=1 installs next to Homebrew's copy, with a warning" \
+  'grep -q "also installed with Homebrew" "$LOGS/install-next-to-homebrew.txt" && grep -q "^Installed " "$LOGS/install-next-to-homebrew.txt"'
 check "HOOK_ME_UP_NO_ONBOARDING=1 skips the notification check" \
   'grep -q "^Notification check skipped (HOOK_ME_UP_NO_ONBOARDING=1)" "$LOGS/install-no-onboarding.txt"'
 
@@ -186,6 +195,15 @@ else
   check "a failure after moving the old app aside fails" "true"
 fi
 check "the previous app is put back" 'same_tree "$INSTALLED_STATE"'
+if run install.sh HOOK_ME_UP_YES=1 HOOK_ME_UP_TEST_BREW_PREFIX="$WORKDIR/homebrew" >"$LOGS/install-homebrew.txt" 2>&1; then
+  check "with Homebrew's copy installed, install.sh refuses" "false"
+else
+  check "with Homebrew's copy installed, install.sh refuses" "true"
+fi
+check "and says why and what to do" \
+  'grep -q "already installed with Homebrew ($WORKDIR/homebrew/opt/hook-me-up)" "$LOGS/install-homebrew.txt" \
+   && grep -q "HOOK_ME_UP_IGNORE_HOMEBREW=1" "$LOGS/install-homebrew.txt"'
+check "and changes nothing" 'same_tree "$INSTALLED_STATE"'
 
 echo "--- uninstall without consent keeps everything working"
 for part in 1/2 3/4; do
@@ -238,6 +256,92 @@ check "its missing notifications command is detected" \
 check "no doctor hint for a setup without doctor" '! grep -q "\" doctor" "$LOGS/install-old.txt"'
 check "its hooks are added" 'grep -q "Hooks in ~/.claude/settings.json: added" "$LOGS/install-old.txt"'
 run uninstall.sh HOOK_ME_UP_YES=1 >"$LOGS/uninstall-old.txt" 2>&1
+check "and uninstalled" 'json_equal "$WORKDIR/original.json" "$SETTINGS" && [ ! -e "$APP" ]'
+
+echo "--- the notification check, with launchctl and hook-me-up-setup notifications stood in for"
+# launchctl, pgrep and open stand in on PATH, so the real launchd, agent and apps are never
+# touched; hook-me-up-setup's notifications command is a stand-in that records its
+# arguments (refusing any it doesn't know) and reports $STUB_RESULT; its other commands
+# go to the real one.
+STUBS="$WORKDIR/stubs"
+mkdir -p "$STUBS/bin"
+cat >"$STUBS/bin/launchctl" <<'STUB'
+#!/bin/bash
+echo "launchctl $*" >>"$STUB_LOG"
+if [ "${1:-}" = "bootstrap" ] && [ "${STUB_BOOTSTRAP_FAILS:-0}" = "1" ]; then exit 5; fi
+exit 0
+STUB
+printf '#!/bin/bash\nexit 1\n' >"$STUBS/bin/pgrep"
+printf '#!/bin/bash\necho "open $*" >>"$STUB_LOG"\n' >"$STUBS/bin/open"
+chmod +x "$STUBS/bin/launchctl" "$STUBS/bin/pgrep" "$STUBS/bin/open"
+ditto -x -k "$ZIP" "$STUBS/unpacked"
+STUB_MACOS="$STUBS/unpacked/HookMeUp.app/Contents/MacOS"
+mv "$STUB_MACOS/hook-me-up-setup" "$STUB_MACOS/hook-me-up-setup-current"
+cat >"$STUB_MACOS/hook-me-up-setup" <<'STUB'
+#!/bin/bash
+if [ "${1:-}" != "notifications" ]; then exec "$(dirname "$0")/hook-me-up-setup-current" "$@"; fi
+shift
+echo "notifications $*" >>"$STUB_LOG"
+# Never reads stdin: install.sh gives it /dev/null (a terminal would block it).
+if ! [ /dev/stdin -ef /dev/null ]; then echo "stdin is not /dev/null" >>"$STUB_LOG"; fi
+result=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --test | --open-settings | --open-settings-if-off) shift ;;
+    --wait | --socket) shift 2 || exit 2 ;;
+    --result-file) result="${2:-}"; shift 2 || exit 2 ;;
+    *) echo "unknown flag $1" >>"$STUB_LOG"; exit 2 ;;
+  esac
+done
+if [ -n "$result" ]; then printf '%s\n' "$STUB_RESULT" >"$result"; fi
+echo "(stand-in) notification check: $STUB_RESULT"
+STUB
+chmod +x "$STUB_MACOS/hook-me-up-setup"
+(cd "$STUBS/unpacked" && ditto -c -k --keepParent HookMeUp.app "$STUBS/hook-me-up-stub-macos.zip")
+(cd "$STUBS" && shasum -a 256 hook-me-up-stub-macos.zip >hook-me-up-stub-macos.zip.sha256)
+onboard() { # name, result, extra env...
+  local name="$1" result="$2"
+  shift 2
+  : >"$LOGS/stub-$name.txt"
+  run install.sh HOOK_ME_UP_YES=1 HOOK_ME_UP_DRY_LAUNCH=0 HOOK_ME_UP_ZIP="$STUBS/hook-me-up-stub-macos.zip" \
+    PATH="$STUBS/bin:$PATH" STUB_LOG="$LOGS/stub-$name.txt" STUB_RESULT="$result" "$@" >"$LOGS/install-$name.txt" 2>&1
+}
+next_steps() { sed -n '/^Next steps:/,/^Run this installer again/p' "$LOGS/install-$1.txt"; }
+check "no app before the first install" '[ ! -e "$APP" ]'
+onboard fresh ready
+check "first install: launchctl bootstrap, then the check" \
+  'grep -q "^launchctl bootstrap gui/" "$LOGS/stub-fresh.txt" && grep -q "^(stand-in) notification check: ready" "$LOGS/install-fresh.txt"'
+check "first install: --wait 10 (no terminal), --test, --open-settings, --result-file" \
+  'grep -qx "notifications --wait 10 --test --open-settings --result-file .*/notifications" "$LOGS/stub-fresh.txt"'
+check "the check gets no unknown flag, and /dev/null as stdin" \
+  '! grep -q -e "unknown flag" -e "stdin is not /dev/null" "$LOGS"/stub-*.txt'
+check "ready: next steps only restart the sessions" \
+  'next_steps fresh | grep -q "Restart the Claude Code sessions" && ! next_steps fresh | grep -q -e "Allow notifications" -e "notification style"'
+# The real hook-me-up-setup takes exactly these flags (no wait; a socket nobody listens on).
+args="$(sed -n 's/^notifications //p' "$LOGS/stub-fresh.txt" | sed -e 's/--wait 10/--wait 0/' -e 's/--result-file [^ ]*//')"
+read -r -a args <<<"$args"
+"$STUB_MACOS/hook-me-up-setup-current" notifications "${args[@]}" --socket "$WORKDIR/nobody.sock" \
+  --result-file "$WORKDIR/real-result" </dev/null >"$LOGS/real-notifications.txt" 2>&1
+check "the real notifications command takes the installer's flags" \
+  '[ "$(cat "$WORKDIR/real-result")" = no-agent ]'
+onboard upgrade-banners not-alerts
+check "upgrade: --open-settings-if-off" \
+  'grep -qx "notifications --wait 10 --test --open-settings-if-off --result-file .*/notifications" "$LOGS/stub-upgrade-banners.txt"'
+check "not Alerts: next steps set the style, then restart" \
+  'next_steps upgrade-banners | grep -q "set the notification style to" && next_steps upgrade-banners | grep -q "Restart" \
+   && ! next_steps upgrade-banners | grep -q "Allow notifications"'
+onboard upgrade-off off
+check "off: next steps turn notifications on, then restart" \
+  'next_steps upgrade-off | grep -q "Turn on notifications" && ! next_steps upgrade-off | grep -q "Allow notifications"'
+onboard upgrade-no-agent no-agent
+check "no agent: the full next steps" \
+  'next_steps upgrade-no-agent | grep -q "Allow notifications" && next_steps upgrade-no-agent | grep -q "notification style" \
+   && next_steps upgrade-no-agent | grep -q "Restart"'
+onboard bootstrap-fails ready STUB_BOOTSTRAP_FAILS=1
+check "launchctl failing: no check, the app is opened instead" \
+  'grep -q "^Notification check skipped (the agent was not started by launchctl)" "$LOGS/install-bootstrap-fails.txt" \
+   && ! grep -q "^notifications" "$LOGS/stub-bootstrap-fails.txt" && grep -q "^open .*Hook Me Up.app" "$LOGS/stub-bootstrap-fails.txt"'
+run uninstall.sh HOOK_ME_UP_YES=1 >"$LOGS/uninstall-stub.txt" 2>&1
 check "and uninstalled" 'json_equal "$WORKDIR/original.json" "$SETTINGS" && [ ! -e "$APP" ]'
 
 check "the real HOME was not touched" '[ "$BEFORE" = "$(fingerprint)" ]'
