@@ -24,7 +24,8 @@ public enum EditorWindows {
     public static let maxStorageBytes = 8 << 20
     /// A `.code-workspace` file is read only up to this size.
     public static let maxWorkspaceBytes = 1 << 20
-    /// At most this many recorded windows are looked at (each workspace window reads a file).
+    /// At most this many distinct recorded windows are looked at (each workspace window
+    /// reads a file).
     public static let maxWindows = 64
 
     /// The folder under Application Support where each editor keeps its state.
@@ -49,13 +50,17 @@ public enum EditorWindows {
     /// The windows recorded in storage.json, the last active one first: local folders that
     /// exist, and workspaces whose `.code-workspace` file can be read. Anything else (remote,
     /// untitled or empty windows, unreadable entries) is left out; nothing comes back when
-    /// `storage` is not JSON.
+    /// `storage` is not JSON. A window listed twice (VS Code lists the last active one again
+    /// among the open ones) is looked at once, before any file is read.
     public static func windows(storage: Data, fileSystem: some FileSystem) -> [EditorWindow] {
         guard let state = (try? JSONDecoder().decode(StorageFile.self, from: storage))?.windowsState else { return [] }
         var entries = state.lastActiveWindow.map { [$0] } ?? []
         entries += state.openedWindows ?? []
+        var seen: Set<String> = []
         var windows: [EditorWindow] = []
-        for entry in entries.prefix(maxWindows) {
+        for entry in entries {
+            guard let key = entry.key, seen.insert(key).inserted else { continue }
+            guard seen.count <= maxWindows else { break }
             guard let window = window(entry, fileSystem: fileSystem),
                 !windows.contains(where: { $0.target == window.target })
             else { continue }
@@ -68,21 +73,20 @@ public enum EditorWindows {
     /// whose folder is the closest enclosing folder (a worktree or subfolder of its project);
     /// else, as a last resort, the one whose folder is closest inside it. Ties go to the
     /// earlier window. Paths are compared by components after `resolve` (symbolic links) and
-    /// normalisation (`.`, `..`, trailing slashes, the `/private` prefix of /var, /tmp, /etc).
+    /// normalisation (`.`, `..`, trailing slashes, the `/private` prefix of /var, /tmp, /etc);
+    /// when nothing matches, the same rules run again ignoring case (macOS folders are
+    /// case-insensitive by default).
     public static func best(
         for folder: String, among windows: [EditorWindow], resolve: (String) -> String = { $0 }
     ) -> EditorWindow? {
         guard folder.hasPrefix("/") else { return nil }
         let session = components(resolve(folder))
-        var best: (window: EditorWindow, rank: Rank)?
-        for window in windows {
-            for root in window.roots where root.hasPrefix("/") {
-                guard let rank = rank(of: components(resolve(root)), for: session) else { continue }
-                if let current = best, current.rank >= rank { continue }
-                best = (window, rank)
-            }
-        }
-        return best?.window
+        let roots = windows.map { $0.roots.filter { $0.hasPrefix("/") }.map { components(resolve($0)) } }
+        let lowercased = { (parts: [String]) in parts.map { $0.lowercased() } }
+        let index =
+            bestIndex(for: session, among: roots)
+            ?? bestIndex(for: lowercased(session), among: roots.map { $0.map(lowercased) })
+        return index.map { windows[$0] }
     }
 
     // MARK: Matching
@@ -95,7 +99,20 @@ public enum EditorWindows {
         static func < (lhs: Rank, rhs: Rank) -> Bool { (lhs.tier, lhs.closeness) < (rhs.tier, rhs.closeness) }
     }
 
-    private static func rank(of root: [Substring], for session: [Substring]) -> Rank? {
+    /// The index of the window (given by its roots' components) that best holds `session`.
+    private static func bestIndex(for session: [String], among roots: [[[String]]]) -> Int? {
+        var best: (index: Int, rank: Rank)?
+        for (index, windowRoots) in roots.enumerated() {
+            for root in windowRoots {
+                guard let rank = rank(of: root, for: session) else { continue }
+                if let current = best, current.rank >= rank { continue }
+                best = (index, rank)
+            }
+        }
+        return best?.index
+    }
+
+    private static func rank(of root: [String], for session: [String]) -> Rank? {
         if root == session { return Rank(tier: 3, closeness: 0) }
         if root.count < session.count, Array(session.prefix(root.count)) == root {
             return Rank(tier: 2, closeness: root.count)  // the deeper the enclosing folder, the better
@@ -108,13 +125,13 @@ public enum EditorWindows {
 
     /// The components of an absolute path without `.`, `..` or empty ones, and without the
     /// `/private` prefix of /var, /tmp and /etc.
-    static func components(_ path: String) -> [Substring] {
-        var parts: [Substring] = []
+    static func components(_ path: String) -> [String] {
+        var parts: [String] = []
         for part in path.split(separator: "/") {
             switch part {
             case ".": continue
             case "..": if !parts.isEmpty { parts.removeLast() }
-            default: parts.append(part)
+            default: parts.append(String(part))
             }
         }
         if parts.count >= 2, parts[0] == "private", ["var", "tmp", "etc"].contains(parts[1]) {
@@ -196,22 +213,22 @@ private struct WindowsState: Decodable {
 }
 
 /// A recorded window: `folder` is a URI; a workspace window has its file's URI in
-/// `workspaceIdentifier.configURIPath` (what VS Code writes), or `workspace.configPath`.
+/// `workspaceIdentifier.configURIPath` (what VS Code writes; see its windowsStateHandler.ts).
 private struct WindowEntry: Decodable {
     let folder: String?
     let configPath: String?
 
-    private enum CodingKeys: String, CodingKey { case folder, workspaceIdentifier, workspace }
-    private enum WorkspaceKeys: String, CodingKey { case configURIPath, configPath }
+    /// What identifies the window, to look at each one once.
+    var key: String? { folder.map { "folder " + $0 } ?? configPath.map { "workspace " + $0 } }
+
+    private enum CodingKeys: String, CodingKey { case folder, workspaceIdentifier }
+    private enum WorkspaceKeys: String, CodingKey { case configURIPath }
 
     init(from decoder: Decoder) {
         let container = try? decoder.container(keyedBy: CodingKeys.self)
         folder = try? container?.decodeIfPresent(String.self, forKey: .folder)
         let identifier = try? container?.nestedContainer(keyedBy: WorkspaceKeys.self, forKey: .workspaceIdentifier)
-        let workspace = try? container?.nestedContainer(keyedBy: WorkspaceKeys.self, forKey: .workspace)
-        configPath =
-            (try? identifier?.decodeIfPresent(String.self, forKey: .configURIPath))
-            ?? (try? workspace?.decodeIfPresent(String.self, forKey: .configPath))
+        configPath = try? identifier?.decodeIfPresent(String.self, forKey: .configURIPath)
     }
 }
 

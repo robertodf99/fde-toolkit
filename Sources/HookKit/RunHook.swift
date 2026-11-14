@@ -106,7 +106,7 @@ private func fireAndForget(_ message: WireMessage, socketPath: URL) {
 }
 
 private func terminalHint() -> TerminalHint {
-    let ancestors = ProcessTree.ancestors(of: getpid())
+    let ancestors = ProcessTree.sessionAncestors(of: getpid())
     let tty = ancestors.lazy.compactMap { ProcessTree.controllingTTY(of: $0.pid) }.first
     return TerminalHint(ancestorPIDs: ancestors.map(\.pid), tty: tty)
 }

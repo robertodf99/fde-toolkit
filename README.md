@@ -50,9 +50,11 @@ Requirements: macOS 14 or later, and [Claude Code](https://docs.claude.com/en/do
 - **Clicking a notification opens its session**: Terminal and iTerm2 select the exact
   tab. VS Code and Cursor (and VS Code Insiders and Windsurf) focus the open window that
   contains the folder Claude Code was started in: that folder's window, the window of
-  the repository a worktree or subfolder belongs to, or a multi-root workspace that
-  includes it. A click never opens a new window: when no open window contains the
-  folder, the editor just comes to the front. Zed and other apps come to the front.
+  the repository a worktree or subfolder belongs to, or a saved `.code-workspace` that
+  includes it. While the session's window is open, a click opens no new window; when no
+  open window contains the folder, the editor just comes to the front. The editor keeps
+  its list of windows up to date with a delay, so right after you close windows a click
+  may just bring the editor to the front. Zed and other apps come to the front.
   The click hands the request to Claude Code's terminal dialog: nothing is
   approved or answered from it. In a multi-question flow, the answers given so far are
   dropped and the terminal asks all the questions again.

@@ -13,26 +13,48 @@ import HookMeUpCore
 /// and it yields to the target app. Logs say what really happened (the strategy, the
 /// result and the frontmost app shortly after), never a path. This is the only place the
 /// agent activates another app on purpose.
+///
+/// The app lookup and the plan (process, file and window-list reads) run off the main
+/// thread; opening and activating run on it.
 @MainActor
 struct TerminalActivator: TerminalActivating {
     func open(_ place: SessionPlace) {
-        guard let owner = TerminalLookup.owner(hint: place.terminal) else {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let decision = Self.decide(place)
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated { Self.carryOut(decision) }
+            }
+        }
+    }
+
+    /// The app that runs the session and how to bring it forward.
+    nonisolated private static func decide(
+        _ place: SessionPlace
+    ) -> (owner: TerminalMapping.Owner, plan: SessionActivation)? {
+        guard let owner = TerminalLookup.owner(hint: place.terminal) else { return nil }
+        let plan = SessionActivation.plan(
+            ownerBundleID: owner.bundleID, tty: place.terminal.tty, folder: place.folder,
+            home: HookMeUpPaths.homeDirectory.path, fileSystem: LocalFileSystem(),
+            resolve: LocalFileSystem.resolvingSymlinks,
+            sessionAlive: SessionProbe.isAlive(place.terminal.ancestorPIDs.first),
+            openWindowCount: { SessionProbe.normalWindowCount(of: owner.pid) })
+        return (owner, plan)
+    }
+
+    private static func carryOut(_ decision: (owner: TerminalMapping.Owner, plan: SessionActivation)?) {
+        guard let (owner, plan) = decision else {
             AgentLog.info("open session: no terminal app found in the process tree")
             return
         }
-        let plan = SessionActivation.plan(
-            ownerBundleID: owner.bundleID, tty: place.terminal.tty, folder: place.folder,
-            home: FileManager.default.homeDirectoryForCurrentUser.path, fileSystem: LocalFileSystem(),
-            resolve: LocalFileSystem.resolvingSymlinks)
         switch plan {
         case .selectTab(let app, let tty):
-            Self.selectTab(app, tty: tty, owner: owner)
+            selectTab(app, tty: tty, owner: owner)
         case .focusWindow(let target):
-            Self.focusWindow(target, owner: owner)
+            focusWindow(target, owner: owner)
         case .activateApp where EditorWindows.tracksWindows(bundleID: owner.bundleID):
-            Self.bringForward(owner, strategy: "no matching window; brought the editor forward")
+            bringForward(owner, strategy: "no matching window or no window state; brought the editor forward")
         case .activateApp, .none:
-            Self.bringForward(owner)
+            bringForward(owner)
         }
     }
 

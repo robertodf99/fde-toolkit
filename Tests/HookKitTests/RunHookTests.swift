@@ -487,6 +487,19 @@ private func run(
     @Test func unknownPIDHasNoAncestors() {
         #expect(ProcessTree.ancestors(of: 999_999).isEmpty)
     }
+
+    /// A shell that only ran the hook (`sh -c`) is left out, so the hint starts at the
+    /// session's own process; shells further up (the terminal's) stay.
+    @Test func theSessionsAncestorsStartAfterTheHooksShells() {
+        let tree: [(pid: pid_t, path: String)] = [
+            (40, "/bin/sh"), (41, "/bin/zsh"), (30, "/opt/homebrew/bin/node"), (20, "/bin/zsh"),
+            (10, "/Applications/Visual Studio Code.app/Contents/MacOS/Electron"),
+        ]
+        #expect(ProcessTree.droppingLeadingShells(tree).map(\.pid) == [30, 20, 10])
+        #expect(ProcessTree.droppingLeadingShells(Array(tree.dropFirst(2))).map(\.pid) == [30, 20, 10])
+        #expect(ProcessTree.droppingLeadingShells([(40, "/bin/sh"), (41, "/bin/bash")]).isEmpty)
+        #expect(ProcessTree.droppingLeadingShells([(50, ""), (40, "/bin/sh")]).map(\.pid) == [50, 40])
+    }
 }
 
 @Suite struct HookInvocationTests {

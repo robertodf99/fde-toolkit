@@ -20,8 +20,19 @@ public enum ProcessTree {
     /// The process that runs the hook for the session: the nearest ancestor that is not
     /// a shell (Claude Code may run hooks directly or through `sh -c`).
     public static func sessionProcess(of pid: pid_t) -> pid_t? {
+        sessionAncestors(of: pid).first?.pid
+    }
+
+    /// The ancestors from the session's process up: without the shells that only ran the
+    /// hook, which exit with it.
+    static func sessionAncestors(of pid: pid_t) -> [(pid: pid_t, path: String)] {
+        droppingLeadingShells(ancestors(of: pid))
+    }
+
+    /// `ancestors` without the shells at its start.
+    static func droppingLeadingShells(_ ancestors: [(pid: pid_t, path: String)]) -> [(pid: pid_t, path: String)] {
         let shells: Set<String> = ["sh", "bash", "zsh", "dash", "fish", "ksh", "tcsh", "csh"]
-        return ancestors(of: pid).first { !shells.contains(($0.path as NSString).lastPathComponent) }?.pid
+        return Array(ancestors.drop { shells.contains(($0.path as NSString).lastPathComponent) })
     }
 
     /// Controlling terminal name of a process ("ttys003"), if it has one.

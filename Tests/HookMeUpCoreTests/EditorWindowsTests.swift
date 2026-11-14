@@ -17,6 +17,23 @@ private struct FakeDisk: FileSystem {
     func contents(atPath path: String) -> Data? { files[path].map { Data($0.utf8) } }
 }
 
+/// A file system that counts the reads of each file.
+private final class CountingDisk: FileSystem {
+    let disk: FakeDisk
+    private(set) var reads: [String: Int] = [:]
+
+    init(_ disk: FakeDisk) { self.disk = disk }
+
+    func fileExists(atPath path: String, isDirectory: UnsafeMutablePointer<ObjCBool>?) -> Bool {
+        disk.fileExists(atPath: path, isDirectory: isDirectory)
+    }
+
+    func contents(atPath path: String) -> Data? {
+        reads[path, default: 0] += 1
+        return disk.contents(atPath: path)
+    }
+}
+
 /// A storage.json whose window state has `lastActive` and `opened` (JSON objects, as text).
 private func storage(lastActive: String? = nil, opened: [String] = []) -> Data {
     var members: [String] = []
@@ -33,11 +50,6 @@ private func folderEntry(_ uri: String) -> String {
 /// A workspace window as VS Code records it (`workspaceIdentifier.configURIPath`).
 private func workspaceEntry(_ uri: String) -> String {
     #"{"workspaceIdentifier": {"id": "abc", "configURIPath": "\#(uri)"}, "uiState": {"mode": 1}}"#
-}
-
-/// The same, in the `workspace.configPath` form, also accepted.
-private func legacyWorkspaceEntry(_ uri: String) -> String {
-    #"{"workspace": {"id": "abc", "configPath": "\#(uri)"}}"#
 }
 
 private func window(_ roots: String...) -> EditorWindow { EditorWindow(target: roots[0], roots: roots) }
@@ -97,6 +109,7 @@ private func best(_ folder: String, _ windows: [EditorWindow], resolve: (String)
                 "/Users/dev/Library/Application Support/Code/Workspaces/1/workspace.json":
                     #"{"folders": [{"path": "/Users/dev/acme-api"}]}"#,
                 "/Users/dev/notes.txt": "notes",
+                "/Users/dev/acme.code-workspace": #"{"folders": [{"path": "/Users/dev/acme-api"}]}"#,
             ])
         let data = storage(
             lastActive: folderEntry("vscode-remote://ssh-remote%2Bbox/home/dev/acme-api"),
@@ -110,6 +123,7 @@ private func best(_ folder: String, _ windows: [EditorWindow], resolve: (String)
                 #""a string""#,
                 #"{"workspace": {"id": "1"}}"#,
                 #"{"workspaceIdentifier": {"id": "1", "configURIPath": 7}}"#,
+                #"{"workspace": {"id": "2", "configPath": "file:///Users/dev/acme.code-workspace"}}"#,
                 workspaceEntry("file:///Users/dev/Library/Application%20Support/Code/Workspaces/1/workspace.json"),
                 workspaceEntry("file:///Users/dev/missing.code-workspace"),
                 #"{"emptyWindow": "1234"}"#,
@@ -157,11 +171,20 @@ private func best(_ folder: String, _ windows: [EditorWindow], resolve: (String)
                 """
             ])
         let roots = ["/Users/dev/acme/api", "/Users/dev/acme-web", "/srv/shared", "/opt/acme tools"]
-        for entry in [workspaceEntry, legacyWorkspaceEntry] {
-            let data = storage(lastActive: entry("file:///Users/dev/acme/acme.code-workspace"))
-            #expect(
-                EditorWindows.windows(storage: data, fileSystem: disk) == [EditorWindow(target: file, roots: roots)])
-        }
+        let data = storage(lastActive: workspaceEntry("file:///Users/dev/acme/acme.code-workspace"))
+        #expect(EditorWindows.windows(storage: data, fileSystem: disk) == [EditorWindow(target: file, roots: roots)])
+    }
+
+    /// Each recorded window is read once: VS Code lists the last active window twice.
+    @Test func eachWorkspaceFileIsReadOnce() {
+        let file = "/Users/dev/acme.code-workspace"
+        let disk = CountingDisk(FakeDisk(files: [file: #"{"folders": [{"path": "/srv/acme"}]}"#]))
+        let entry = workspaceEntry("file://" + file)
+        let data = storage(lastActive: entry, opened: [entry, folderEntry("file:///srv/other"), entry])
+        #expect(
+            EditorWindows.windows(storage: data, fileSystem: disk) == [EditorWindow(target: file, roots: ["/srv/acme"])]
+        )
+        #expect(disk.reads == [file: 1])
     }
 
     @Test(arguments: ["not json", #"{"folders": 3}"#, #"{"folders": []}"#, #"{"settings": {}}"#])
@@ -213,6 +236,20 @@ private func best(_ folder: String, _ windows: [EditorWindow], resolve: (String)
     @Test func aSimilarNameIsNotAMatch() {
         #expect(best("/Users/dev/acme-api", [window("/Users/dev/acme"), window("/Users/dev/acme-web")]) == nil)
         #expect(best("/Users/dev/acme", [window("/Users/dev/acme-api")]) == nil)
+        #expect(best("/Users/dev/acme-api/src", [window("/Users/dev/acme")]) == nil)
+        #expect(best("/Users/dev/acme", [window("/Users/dev/acme-api/src")]) == nil)
+    }
+
+    /// macOS folders are case-insensitive by default: when nothing matches with the exact
+    /// case, the same rules apply ignoring case.
+    @Test func caseIsIgnoredAsTheLastTier() {
+        #expect(best("/Users/dev/Acme/.worktrees/x", [window("/users/dev/acme")]) == "/users/dev/acme")
+        #expect(best("/users/dev/acme", [window("/Users/Dev/ACME")]) == "/Users/Dev/ACME")
+        #expect(best("/Users/dev/acme", [window("/Users/dev/ACME/api")]) == "/Users/dev/ACME/api")
+        // Any match with the exact case comes first, even a weaker one.
+        let windows = [window("/users/dev/acme/api"), window("/Users/dev/acme")]
+        #expect(best("/Users/dev/acme/api", windows) == "/Users/dev/acme")
+        #expect(best("/Users/dev/acme-api", [window("/users/dev/ACME")]) == nil)
     }
 
     @Test func noWindowNoMatch() {

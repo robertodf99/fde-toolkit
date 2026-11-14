@@ -50,9 +50,12 @@ private let disk: FakeFileSystem = {
 }()
 
 private func plan(
-    _ bundleID: String?, tty: String? = nil, folder: String? = nil, fileSystem: FakeFileSystem = disk
+    _ bundleID: String?, tty: String? = nil, folder: String? = nil, fileSystem: FakeFileSystem = disk,
+    sessionAlive: Bool = true, openWindows: Int = 2
 ) -> SessionActivation {
-    SessionActivation.plan(ownerBundleID: bundleID, tty: tty, folder: folder, home: home, fileSystem: fileSystem)
+    SessionActivation.plan(
+        ownerBundleID: bundleID, tty: tty, folder: folder, home: home, fileSystem: fileSystem,
+        sessionAlive: sessionAlive, openWindowCount: { openWindows })
 }
 
 private let vsCodeFamily = [
@@ -80,11 +83,36 @@ private let vsCodeFamily = [
         #expect(plan(bundleID, folder: "\(projects)/acme-web/src/") == .focusWindow("\(projects)/acme-web"))
     }
 
-    /// No open window holds the folder: the editor only comes forward, so a click never opens
-    /// a new window.
+    /// No open window holds the folder: the editor only comes forward, so the click opens no
+    /// new window.
     @Test(arguments: vsCodeFamily)
     func noMatchingWindowBringsTheEditorForward(_ bundleID: String) {
         #expect(plan(bundleID, folder: "\(projects)/scratch") == .activateApp)
+    }
+
+    /// The session's process is gone (its window was closed, say): the recorded window may be
+    /// gone too, so nothing is opened.
+    @Test(arguments: vsCodeFamily)
+    func aFinishedSessionOnlyBringsTheEditorForward(_ bundleID: String) {
+        #expect(plan(bundleID, folder: "\(projects)/acme-api", sessionAlive: false) == .activateApp)
+    }
+
+    /// The editor has no window open (VS Code still records the last one closed): nothing is
+    /// opened. Terminals don't count windows.
+    @Test(arguments: vsCodeFamily)
+    func anEditorWithNoWindowOpenIsOnlyBroughtForward(_ bundleID: String) {
+        #expect(plan(bundleID, folder: "\(projects)/acme-api", openWindows: 0) == .activateApp)
+        #expect(plan(bundleID, folder: "\(projects)/acme-api", openWindows: 1) == .focusWindow("\(projects)/acme-api"))
+        var counted = false
+        let terminal = SessionActivation.plan(
+            ownerBundleID: "com.apple.Terminal", tty: "ttys003", folder: "\(projects)/acme-api", home: home,
+            fileSystem: disk, sessionAlive: false,
+            openWindowCount: {
+                counted = true
+                return 0
+            })
+        #expect(terminal == .selectTab(.appleTerminal, tty: "ttys003"))
+        #expect(!counted)
     }
 
     @Test(arguments: [nil, Data("{\"windowsState\": ".utf8), Data("[]".utf8), Data()])

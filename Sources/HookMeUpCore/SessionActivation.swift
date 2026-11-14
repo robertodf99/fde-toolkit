@@ -17,12 +17,15 @@ public enum SessionActivation: Equatable, Sendable {
     /// The strategy for a session whose app has `ownerBundleID`, with controlling terminal
     /// `tty` and project `folder`. A folder is used only when it is an existing absolute
     /// directory (checked through `fileSystem`). An editor's open windows come from its
-    /// storage.json under `home` (size-capped); `resolve` resolves symbolic links. When no
-    /// open window holds the folder, or the window state can't be read, the editor is only
-    /// brought forward: a click never opens a new window.
+    /// storage.json under `home` (size-capped); `resolve` resolves symbolic links. The editor
+    /// is only brought forward, so that the click opens no new window, when no recorded window
+    /// holds the folder, the window state can't be read, the session's process has ended
+    /// (`sessionAlive`; its window may have closed since the state was saved) or the editor
+    /// has no window open (`openWindowCount`, asked only for these editors; VS Code keeps
+    /// recording the last window after it closes).
     public static func plan(
         ownerBundleID: String?, tty: String?, folder: String?, home: String, fileSystem: some FileSystem,
-        resolve: (String) -> String = { $0 }
+        resolve: (String) -> String = { $0 }, sessionAlive: Bool, openWindowCount: () -> Int
     ) -> SessionActivation {
         guard let ownerBundleID else { return .none }
         if let app = TerminalApp(bundleID: ownerBundleID), app.selectsTabByTTY, let tty,
@@ -30,8 +33,8 @@ public enum SessionActivation: Equatable, Sendable {
         {
             return .selectTab(app, tty: tty)
         }
-        if let storage = EditorWindows.storagePath(bundleID: ownerBundleID, home: home),
-            let folder = existingFolder(folder, fileSystem: fileSystem),
+        if let storage = EditorWindows.storagePath(bundleID: ownerBundleID, home: home), sessionAlive,
+            openWindowCount() > 0, let folder = existingFolder(folder, fileSystem: fileSystem),
             let data = fileSystem.contents(atPath: storage, limit: EditorWindows.maxStorageBytes),
             let window = EditorWindows.best(
                 for: folder, among: EditorWindows.windows(storage: data, fileSystem: fileSystem), resolve: resolve)
