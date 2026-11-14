@@ -19,6 +19,7 @@ set -euo pipefail
 
 REPO="robertodf99/hook-me-up"
 LABEL="io.github.robertodf99.hook-me-up"
+BUNDLE_ID="io.github.robertodf99.hook-me-up"
 
 say() { printf '%s\n' "$*"; }
 warn() { printf 'hook-me-up: %s\n' "$*" >&2; }
@@ -173,6 +174,10 @@ main() {
 <dict>
 	<key>Label</key>
 	<string>$LABEL</string>
+	<key>AssociatedBundleIdentifiers</key>
+	<array>
+		<string>$BUNDLE_ID</string>
+	</array>
 	<key>ProgramArguments</key>
 	<array>
 		<string>$(xml "$APP")/Contents/MacOS/HookMeUp</string>

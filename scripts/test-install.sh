@@ -108,6 +108,8 @@ check "icon present" '[ -s "$APP/Contents/Resources/AppIcon.icns" ]'
 ditto -x -k "$ZIP" "$WORKDIR/package"
 check "app installed exactly as packaged (signature intact)" 'diff -r -q "$WORKDIR/package/HookMeUp.app" "$APP"'
 check "LaunchAgent written and valid" 'plutil -lint -s "$PLIST"'
+associated() { /usr/libexec/PlistBuddy -c "Print :AssociatedBundleIdentifiers:0" "$PLIST" 2>/dev/null; }
+check "LaunchAgent names the app (Login Items)" '[ "$(associated)" = "io.github.robertodf99.hook-me-up" ]'
 check "support folder is private" '[ "$(stat -f %Lp "$FAKE/Library/Application Support/hook-me-up")" = 700 ]'
 check "settings untouched without consent" 'cmp -s "$WORKDIR/original.json" "$SETTINGS"'
 check "says how to add the hooks" 'grep -q "HOOK_ME_UP_YES=1" "$LOGS/install-1.txt"'
@@ -126,7 +128,10 @@ check "a backup was made" 'ls "$FAKE/.claude" | grep -q "^settings.json.bak-"'
 cp "$SETTINGS" "$WORKDIR/after-install.json"
 
 echo "--- install again (upgrade)"
+# An agent installed by an older version: its plist has no AssociatedBundleIdentifiers.
+/usr/libexec/PlistBuddy -c "Delete :AssociatedBundleIdentifiers" "$PLIST" 2>/dev/null || true
 run install.sh HOOK_ME_UP_YES=1 >"$LOGS/install-3.txt" 2>&1
+check "upgrade rewrites the LaunchAgent" '[ "$(associated)" = "io.github.robertodf99.hook-me-up" ] && plutil -lint -s "$PLIST"'
 check "second install leaves the settings as they were" 'cmp -s "$WORKDIR/after-install.json" "$SETTINGS"'
 check "second install reports no changes" 'grep -q "No changes" "$LOGS/install-3.txt"'
 check "app still installed" '[ -x "$APP/Contents/MacOS/HookMeUp" ]'

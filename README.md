@@ -149,6 +149,10 @@ checklist. Pushing a `v*` tag publishes a release with GitHub Actions.
   ```
 
   If it is still stale, log out and back in.
+- **Login Items shows "unidentified developer".** Releases are signed ad-hoc (there is
+  no paid Developer ID), so System Settings → General → Login Items lists Hook Me Up
+  that way. The item is safe to keep enabled; turning it off stops the agent from
+  starting at login.
 - **Clicking a notification doesn't select the tab.** The first time, macOS asks to let
   Hook Me Up control Terminal or iTerm2; allow it in System Settings → Privacy &
   Security → Automation.
