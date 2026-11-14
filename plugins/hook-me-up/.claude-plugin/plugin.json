@@ -1,0 +1,12 @@
+{
+  "name": "hook-me-up",
+  "description": "Install, check and uninstall Hook Me Up (answer Claude Code from native macOS notifications) from Claude Code. Commands only: the hooks themselves go in ~/.claude/settings.json, after you confirm.",
+  "author": {
+    "name": "robertodf99",
+    "url": "https://github.com/robertodf99"
+  },
+  "homepage": "https://github.com/robertodf99/hook-me-up",
+  "repository": "https://github.com/robertodf99/hook-me-up",
+  "license": "MIT",
+  "keywords": ["macos", "notifications", "hooks", "permissions"]
+}

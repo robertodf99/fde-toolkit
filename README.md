@@ -31,6 +31,28 @@ the diff and asking), and removes the app. Your settings backups stay where they
 
 Requirements: macOS 14 or later, and [Claude Code](https://docs.claude.com/en/docs/claude-code/overview).
 
+### Install from Claude Code
+
+Hook Me Up is also a Claude Code plugin with three commands that run the same installer
+and ask for your confirmation in the chat:
+
+```text
+/plugin marketplace add robertodf99/hook-me-up
+/plugin install hook-me-up@hook-me-up
+```
+
+(On Claude Code 2.1.275 or later, `/plugin install hook-me-up --marketplace robertodf99/hook-me-up`
+does both in one step.) Then:
+
+- `/hook-me-up:install` installs or upgrades Hook Me Up: it shows the changes to
+  `~/.claude/settings.json` and adds the hooks only after you say yes.
+- `/hook-me-up:doctor` checks the installation and explains how to fix what is off.
+- `/hook-me-up:uninstall` shows what would be removed and removes it after you say yes.
+
+The plugin has commands only, no hooks: the hooks live in `~/.claude/settings.json` as
+with the installer. Hooks inside the plugin would run in addition to those, and every
+request would be notified twice.
+
 ### First run
 
 Once the agent runs, the installer waits (up to a minute in a terminal, 10 seconds

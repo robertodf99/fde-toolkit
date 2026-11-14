@@ -44,3 +44,6 @@ jobs:
 
       - name: "install.sh and uninstall.sh against a throwaway HOME"
         run: make test-install
+
+      - name: Claude Code plugin manifests and skills
+        run: make plugin-check
