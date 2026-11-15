@@ -150,19 +150,26 @@ private func warnAboutOtherInstallations(in settings: JSONValue, settingsURL: UR
     let found = SettingsMerger.inspect(
         settings: settings, hookPath: hookPath, canonicalPath: AppLocation.resolvingSymlinks)
     guard !found.otherPaths.isEmpty else { return }
-    let setup = Doctor.quoted(Bundle.main.executablePath ?? "hook-me-up-setup")
-    let removals = found.otherPaths.map {
-        $0.hasPrefix("/")
-            ? "  \(setup) uninstall --settings \(Doctor.quoted(settingsURL.path)) --hook \(Doctor.quoted($0))"
-            : "  (by hand) the entries that run \($0), a path relative to where Claude Code runs"
+    let removals = Doctor.otherHookRemovals(
+        found.otherPaths, setup: Bundle.main.executablePath ?? "hook-me-up-setup", settings: settingsURL.path)
+    var lines = [
+        "Warning: \(settingsURL.path) also runs hook-me-up from another place:"
+    ]
+    lines += found.otherPaths.map { "  " + $0 }
+    lines += [
+        "That looks like another installation. Its hooks are left as they are, but with both,",
+        "every request is notified twice.",
+    ]
+    if !removals.commands.isEmpty {
+        lines.append("If that copy is gone or unused, remove its hooks with:")
+        lines += removals.commands.map { "  " + $0 }
     }
-    print(
-        """
-        Warning: \(settingsURL.path) also runs hook-me-up from another place:
-        \(found.otherPaths.map { "  " + $0 }.joined(separator: "\n"))
-        That looks like another installation. Its hooks are left as they are, but with both,
-        every request is notified twice. If that copy is gone or unused, remove its hooks with:
-        \(removals.joined(separator: "\n"))
-
-        """)
+    if !removals.byHand.isEmpty {
+        lines.append(
+            removals.commands.isEmpty
+                ? "If that copy is gone or unused, remove by hand from \(settingsURL.path):"
+                : "Remove by hand from \(settingsURL.path):")
+        lines += removals.byHand.map { "  " + $0 }
+    }
+    print(lines.joined(separator: "\n") + "\n")
 }

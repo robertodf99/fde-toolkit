@@ -286,6 +286,27 @@ private func dropping(_ event: String, from settings: JSONValue) -> JSONValue {
         #expect(added["hooks"]?["Stop"]?.arrayValue?.count == 2)
     }
 
+    /// `~/…` and `$HOME/…` are taken as written (nothing is expanded), so they are not
+    /// absolute paths either: reported, never ours, left alone.
+    @Test func homeRelativeProgramsAreNotAbsolutePaths() throws {
+        let everythingIsOurs: (String) -> String = { _ in hook }
+        let settings = try json(
+            #"""
+            {"hooks": {
+              "Stop": [{"hooks": [{"type": "command", "command": "~/Applications/Hook\\ Me\\ Up.app/Contents/MacOS/hook-me-up finished"}]}],
+              "SessionEnd": [{"hooks": [{"type": "command", "command": "\"$HOME/Applications/Hook Me Up.app/Contents/MacOS/hook-me-up\" clear"}]}]
+            }}
+            """#)
+        let result = SettingsMerger.inspect(settings: settings, hookPath: hook, canonicalPath: everythingIsOurs)
+        #expect(result.installed.isEmpty)
+        #expect(
+            result.otherPaths == [
+                "$HOME/Applications/Hook Me Up.app/Contents/MacOS/hook-me-up",
+                "~/Applications/Hook Me Up.app/Contents/MacOS/hook-me-up",
+            ])
+        #expect(SettingsMerger.uninstall(from: settings, hookPath: hook, canonicalPath: everythingIsOurs) == settings)
+    }
+
     @Test func aPathWithAQuoteRoundTrips() throws {
         let odd = "/Users/o'brien/Applications/Hook Me Up.app/Contents/MacOS/hook-me-up"
         #expect(SettingsMerger.inspect(settings: try installed(at: odd), hookPath: odd).missing.isEmpty)

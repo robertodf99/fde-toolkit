@@ -2,14 +2,15 @@
 # Runs install.sh and uninstall.sh against a throwaway HOME, the way `curl | bash` runs
 # them (script on stdin), with a locally built package and without the real launchctl.
 # Checks: the hooks are added (and only with consent); `hook-me-up-setup doctor --home`
-# reports them (and the app and LaunchAgent); the notification check is skipped without
-# launchctl, when opted out or when the package's hook-me-up-setup is too old to have it;
-# with stand-ins for launchctl and the check, the flags it gets on a first install and on
-# an upgrade, and the next steps for each result; install.sh refuses to install next to
-# Homebrew's copy unless told to; a second install changes nothing; a truncated download
-# or a failed install leaves everything as it was; uninstall restores the original
-# settings and leaves the backups; a declined uninstall leaves the agent installed; and
-# the real HOME is never touched.
+# reports them (and the app and LaunchAgent); install warns about another installation's
+# hooks (an uninstall command for an absolute path, by hand otherwise); the notification
+# check is skipped without launchctl, when opted out or when the package's
+# hook-me-up-setup is too old to have it; with stand-ins for launchctl and the check, the
+# flags it gets on a first install and on an upgrade, and the next steps for each result;
+# install.sh refuses to install next to Homebrew's copy unless told to; a second install
+# changes nothing; a truncated download or a failed install leaves everything as it was;
+# uninstall restores the original settings and leaves the backups; a declined uninstall
+# leaves the agent installed; and the real HOME is never touched.
 #
 # Usage: scripts/test-install.sh   (HOOK_ME_UP_ZIP=<zip> to reuse a package)
 set -euo pipefail
@@ -155,6 +156,33 @@ check "doctor passes after the install" '[ "$status" = 0 ] && ! grep -q "^FAIL" 
 check "doctor passes the app, LaunchAgent and hooks" \
   'grep -q "^PASS  App: " "$LOGS/doctor-2.txt" && grep -q "^PASS  LaunchAgent: " "$LOGS/doctor-2.txt" && grep -q "^PASS  Hooks: all five events" "$LOGS/doctor-2.txt"'
 check "doctor changes nothing" 'cmp -s "$WORKDIR/after-install.json" "$SETTINGS"'
+
+echo "--- the installer's warning about the hooks of another installation (dry runs)"
+dry_install() { # settings file
+  env HOME="$FAKE" "$APP/Contents/MacOS/hook-me-up-setup" install --settings "$1" \
+    --hook "$APP/Contents/MacOS/hook-me-up" --state "$WORKDIR/dry-state.json" --dry-run
+}
+cat >"$WORKDIR/other-mixed.json" <<'EOF'
+{"hooks": {"Stop": [{"hooks": [
+  {"type": "command", "command": "'/Users/someone/Old/Hook Me Up.app/Contents/MacOS/hook-me-up' finished"},
+  {"type": "command", "command": "~/Applications/Hook\\ Me\\ Up.app/Contents/MacOS/hook-me-up finished"}]}]}}
+EOF
+cat >"$WORKDIR/other-by-hand.json" <<'EOF'
+{"hooks": {"Stop": [{"hooks": [
+  {"type": "command", "command": "\"$HOME/Applications/Hook Me Up.app/Contents/MacOS/hook-me-up\" finished"}]}]}}
+EOF
+dry_install "$WORKDIR/other-mixed.json" >"$LOGS/warn-mixed.txt" 2>&1
+dry_install "$WORKDIR/other-by-hand.json" >"$LOGS/warn-by-hand.txt" 2>&1
+check "an absolute path gets the uninstall command, the rest are removed by hand" \
+  'grep -qx "If that copy is gone or unused, remove its hooks with:" "$LOGS/warn-mixed.txt" \
+   && grep -q " uninstall --settings .* --hook '"'"'/Users/someone/Old/Hook Me Up.app/Contents/MacOS/hook-me-up'"'"'$" "$LOGS/warn-mixed.txt" \
+   && grep -q "^Remove by hand from .*/other-mixed.json:$" "$LOGS/warn-mixed.txt" \
+   && grep -qxF "  the entries that run ~/Applications/Hook Me Up.app/Contents/MacOS/hook-me-up, which is not an absolute path" "$LOGS/warn-mixed.txt"'
+check "with no absolute path, only the by-hand removal" \
+  'grep -q "^If that copy is gone or unused, remove by hand from .*/other-by-hand.json:$" "$LOGS/warn-by-hand.txt" \
+   && grep -qxF "  the entries that run \$HOME/Applications/Hook Me Up.app/Contents/MacOS/hook-me-up, which is not an absolute path" "$LOGS/warn-by-hand.txt" \
+   && ! grep -q " uninstall --settings" "$LOGS/warn-by-hand.txt"'
+check "dry runs write nothing" '[ ! -e "$WORKDIR/dry-state.json" ] && cmp -s "$WORKDIR/after-install.json" "$SETTINGS"'
 
 echo "--- install again (upgrade)"
 # An agent installed by an older version: its plist has no AssociatedBundleIdentifiers.
@@ -345,9 +373,11 @@ onboard bootstrap-fails ready STUB_BOOTSTRAP_FAILS=1
 check "launchctl failing: no check, the app is opened instead" \
   'grep -q "^Notification check skipped (the agent was not started by launchctl)" "$LOGS/install-bootstrap-fails.txt" \
    && ! grep -q "^notifications" "$LOGS/stub-bootstrap-fails.txt" && grep -q "^open .*Hook Me Up.app" "$LOGS/stub-bootstrap-fails.txt"'
-check "all four checks got only known flags, and /dev/null as stdin" \
-  '[ "$(cat "$LOGS"/stub-{fresh,upgrade-banners,upgrade-off,upgrade-no-agent}.txt | grep -c "^notifications ")" = 4 ] \
-   && ! grep -q -e "unknown flag" -e "stdin is not /dev/null" "$LOGS"/stub-*.txt'
+for n in fresh upgrade-banners upgrade-off upgrade-no-agent; do
+  check "$n: the check ran exactly once" '[ "$(grep -c "^notifications " "$LOGS/stub-$n.txt")" = 1 ]'
+done
+check "every check got only known flags, and /dev/null as stdin" \
+  '! grep -q -e "unknown flag" -e "stdin is not /dev/null" "$LOGS"/stub-*.txt'
 run uninstall.sh HOOK_ME_UP_YES=1 >"$LOGS/uninstall-stub.txt" 2>&1
 check "and uninstalled" 'json_equal "$WORKDIR/original.json" "$SETTINGS" && [ ! -e "$APP" ]'
 
