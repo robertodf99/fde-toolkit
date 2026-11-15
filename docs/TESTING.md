@@ -98,9 +98,13 @@ said otherwise, so that permission prompts actually appear.
 2. `xattr -r -p com.apple.quarantine "$(brew --prefix hook-me-up)/Hook Me Up.app"`
    prints nothing (not quarantined), and the agent starts with `brew services start`.
 3. With the hooks added at the opt path, `hook-me-up-setup doctor` passes: App says
-   "installed with Homebrew", LaunchAgent `homebrew.mxcl.hook-me-up starts this app`,
-   Hooks name the opt path. With the curl installer's copy installed too, it warns
-   "Two installations" (and "Other installation" if both have hooks).
+   "installed with Homebrew", LaunchAgent `sh.brew.hook-me-up starts this app`
+   (`homebrew.mxcl.hook-me-up` before Homebrew 7), Agent process "running" (from
+   `launchctl print gui/$(id -u)/sh.brew.hook-me-up`), Hooks name the opt path. A leftover
+   `homebrew.mxcl.hook-me-up.plist` next to the `sh.brew` one is not a second
+   installation. With the curl installer's copy installed too, it warns "Two
+   installations" (and "Other installation" if both have hooks). Quit from the menu,
+   then the doctor: Agent process FAIL with `brew services restart hook-me-up`.
 4. `brew upgrade hook-me-up && brew services restart hook-me-up`: the doctor still
    passes (the hooks at the opt path follow the upgrade).
 

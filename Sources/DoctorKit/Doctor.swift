@@ -8,8 +8,12 @@ import SetupKit
 public enum Doctor {
     /// The installer's LaunchAgent label.
     public static let installerLabel = "io.github.robertodf99.hook-me-up"
-    /// The label `brew services` gives the Homebrew formula's service.
-    public static let homebrewLabel = "homebrew.mxcl.hook-me-up"
+    /// The labels `brew services` gives the Homebrew formula's service: `sh.brew.…` since
+    /// Homebrew 7, `homebrew.mxcl.…` before (a plist with the old label may be left over).
+    public static let homebrewLabels = ["sh.brew.hook-me-up", "homebrew.mxcl.hook-me-up"]
+
+    /// Whether `label` is one that `brew services` gives Hook Me Up's service.
+    public static func isHomebrew(label: String) -> Bool { homebrewLabels.contains(label) }
     /// How long the agent has to connect and to answer.
     public static let agentTimeout: TimeInterval = 2
     static let installer = "curl -fsSL https://raw.githubusercontent.com/robertodf99/hook-me-up/main/install.sh | bash"
@@ -151,7 +155,8 @@ public enum Doctor {
         _ install: Installation, _ options: Options, _ probe: some DoctorProbe
     ) -> LaunchAgentResult {
         let folder = options.home + "/Library/LaunchAgents"
-        let found = [installerLabel, homebrewLabel].compactMap { label -> (label: String, path: String, data: Data)? in
+        let found = ([installerLabel] + homebrewLabels).compactMap {
+            label -> (label: String, path: String, data: Data)? in
             let path = "\(folder)/\(label).plist"
             return probe.contents(of: path).map { (label, path, $0) }
         }
@@ -176,7 +181,9 @@ public enum Doctor {
                     fix: install.isHomebrew
                         ? "brew services restart hook-me-up" : "Run the installer again:\n\(installer)"))
         }
-        if found.count > 1 {
+        // Homebrew's current plist next to its own leftover is still one installation.
+        if found.contains(where: { $0.label == installerLabel }), found.contains(where: { isHomebrew(label: $0.label) })
+        {
             checks.append(
                 DoctorCheck(
                     "Two installations", .warn,
@@ -201,7 +208,7 @@ public enum Doctor {
     ) -> DoctorCheck {
         guard options.isRealHome else { return DoctorCheck("Agent process", .skipped, notHome) }
         guard let plist else { return DoctorCheck("Agent process", .skipped, "no LaunchAgent starts this app") }
-        let homebrew = plist.label == homebrewLabel
+        let homebrew = isHomebrew(label: plist.label)
         let service = "gui/\(options.uid)/\(plist.label)"
         switch probe.launchAgentState(label: plist.label) {
         case .running(let pid):
