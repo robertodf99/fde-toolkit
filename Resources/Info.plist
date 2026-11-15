@@ -27,7 +27,7 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSAppleEventsUsageDescription</key>
-	<string>Hook Me Up selects the Terminal or iTerm2 tab of a Claude Code session when you click a notification.</string>
+	<string>Hook Me Up brings the Terminal or iTerm2 tab, or the Ghostty terminal, of a Claude Code session forward when you click a notification.</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 </dict>

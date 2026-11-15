@@ -146,11 +146,27 @@ private let vsCodeFamily = [
         #expect(plan(bundleID, tty: "ttys003", folder: "\(projects)/acme-api") == .activateApp)
     }
 
-    @Test(arguments: [
-        "com.mitchellh.ghostty", "dev.warp.Warp-Stable", "com.anthropic.claudefordesktop", "org.example.app",
-    ])
+    @Test(arguments: ["dev.warp.Warp-Stable", "com.anthropic.claudefordesktop", "org.example.app"])
     func otherAppsAreBroughtForward(_ bundleID: String) {
         #expect(plan(bundleID, tty: "ttys003", folder: "\(projects)/acme-api") == .activateApp)
+    }
+
+    /// Ghostty focuses the terminal in the session's folder (normalised), whatever the tty;
+    /// the session's process and window count don't matter.
+    @Test func ghosttyLooksForTheTerminalInTheFolder() {
+        let ghostty = "com.mitchellh.ghostty"
+        #expect(
+            plan(ghostty, tty: "ttys003", folder: "\(projects)/acme-api")
+                == .focusTerminalByFolder(.ghostty, folder: "\(projects)/acme-api"))
+        #expect(
+            plan(ghostty, folder: "\(projects)/acme-web/src/", sessionAlive: false, openWindows: 0)
+                == .focusTerminalByFolder(.ghostty, folder: "\(projects)/acme-web/src"))
+    }
+
+    /// Without an existing absolute folder, Ghostty only comes forward.
+    @Test(arguments: [nil, "", "projects/acme-api", "\(projects)/missing", "\(home)/notes.txt"])
+    func ghosttyWithoutAUsableFolderIsBroughtForward(_ folder: String?) {
+        #expect(plan("com.mitchellh.ghostty", tty: "ttys003", folder: folder) == .activateApp)
     }
 
     @Test func noAppNoActivation() {
