@@ -1,5 +1,6 @@
 import Foundation
 import HookMeUpCore
+import HookMeUpIPC
 import Testing
 
 @testable import AgentKit
@@ -476,4 +477,78 @@ private struct Harness {
         _ = await h.send(.testNotification)
         #expect(h.presenter.posted.isEmpty)
     }
+
+    // MARK: The socket
+
+    @Test func socketChecksAreLoggedAndAYieldEndsTheAgent() throws {
+        let h = Harness()
+        var yields = 0
+        h.controller.socketChecked(.intact)
+        h.controller.socketChecked(.stopped)
+        #expect(h.log.lines.isEmpty)
+        h.controller.socketChecked(.rebound)
+        h.controller.socketChecked(.failed(.notASocket("/x/agent.sock")))
+        #expect(
+            h.log.lines == [
+                "socket was removed or replaced; listening again",
+                "could not listen again: /x/agent.sock is not a socket",
+            ])
+        h.controller.socketChecked(.yielded)  // before start: no handler yet
+        #expect(h.log.lines.last == "another agent is listening on the socket now; quitting")
+        let folder = ShortFolder()
+        try h.controller.start(socketPath: folder.socket, checkInterval: 3600) { yields += 1 }
+        defer { h.controller.stop() }
+        h.controller.socketChecked(.yielded)
+        #expect(yields == 1)
+    }
+
+    /// The socket is removed while the agent runs: it listens again and says so.
+    @Test func aRemovedSocketIsServedAgain() async throws {
+        let folder = ShortFolder()
+        let h = Harness()
+        var yields = 0
+        try h.controller.start(socketPath: folder.socket, checkInterval: 0.05) { yields += 1 }
+        defer { h.controller.stop() }
+        try FileManager.default.removeItem(atPath: folder.path)
+        #expect(await eventually { h.log.lines.contains("socket was removed or replaced; listening again") })
+        let client = try SocketClient.connect(path: folder.socket, timeout: 0.3)
+        client.close()
+        #expect(yields == 0)
+    }
+
+    /// Another agent's socket replaces this one's: it stops listening and the app is told to quit.
+    @Test func anotherAgentAtTheSocketMakesThisOneQuit() async throws {
+        let folder = ShortFolder()
+        let h = Harness()
+        var yields = 0
+        try h.controller.start(socketPath: folder.socket, checkInterval: 0.05) { yields += 1 }
+        let other = SocketServer(path: URL(fileURLWithPath: folder.path + "/other.sock"))
+        try other.start { _ in }
+        defer { other.stop() }
+        #expect(rename(folder.path + "/other.sock", folder.socket.path) == 0)  // in one step
+        #expect(await eventually { yields == 1 })
+        #expect(h.log.lines.last == "another agent is listening on the socket now; quitting")
+        h.controller.stop()
+        let client = try SocketClient.connect(path: folder.socket, timeout: 0.3)  // the other agent's
+        client.close()
+    }
+}
+
+/// A short folder under /tmp for a socket (its path must fit in 104 bytes), removed at the end.
+private final class ShortFolder {
+    let path = "/tmp/hmu-agent-" + UUID().uuidString.prefix(8).lowercased()
+    var socket: URL { URL(fileURLWithPath: path + "/agent.sock") }
+
+    deinit { try? FileManager.default.removeItem(atPath: path) }
+}
+
+/// Waits (on the main actor, letting the main queue run) until `condition` holds.
+@MainActor
+private func eventually(timeout: TimeInterval = 2, _ condition: () -> Bool) async -> Bool {
+    let deadline = Date().addingTimeInterval(timeout)
+    while Date() < deadline {
+        if condition() { return true }
+        try? await Task.sleep(nanoseconds: 10_000_000)
+    }
+    return condition()
 }

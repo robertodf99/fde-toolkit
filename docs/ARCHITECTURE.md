@@ -9,7 +9,7 @@ over a Unix socket. Everything else is libraries, so the logic is tested without
 | Module | Kind | Responsibility |
 |---|---|---|
 | `HookMeUpCore` | library | Pure domain logic on Foundation, no I/O of its own: hook input parsing, the plain-language `Summarizer`, `DecisionEncoder`, `SessionPermissionFilter`, wire messages and `Framing`, the agent's routing reducer `AgentCore` with `PendingStore`, the notification mapping `NativeNotification`, terminal mapping, `SessionActivation` (how a click brings a session forward: tab, project window or app) and `EditorWindows` (which open VS Code-family window contains a session's folder, read from the editor's `storage.json`). File reads go through the injected `FileSystem` protocol. |
-| `HookMeUpIPC` | library | Socket transport: `SocketServer`, `SocketClient`, `Connection` and the file-system/peer checks. |
+| `HookMeUpIPC` | library | Socket transport: `SocketServer` (with its periodic socket check, `SocketCheck`), `SocketClient`, `Connection` and the file-system/peer checks. |
 | `HookKit` | library | The hook runner `runHook`: parse, summarise, ask the agent, encode the decision. |
 | `AgentKit` | library | The agent runtime `AgentController`: socket ↔ `AgentCore` ↔ notifications, behind the protocols `NotificationPresenting`, `TerminalActivating` and `WallClock`. |
 | `SetupKit` | library | The installer: `SettingsMerger` (add/remove our hooks, matched by the binary their command runs, and `inspect`: which of them a settings file has and how they differ from what install writes), `SettingsFile` (backup, atomic write) and `AppLocation` (the app around an executable, Homebrew's opt path, the default `--hook`). |
@@ -61,6 +61,16 @@ old to answer.
 - **UID-checked socket.** The socket lives in a `0700` directory owned by the user
   (opened with `O_NOFOLLOW`; symlinks and other owners are refused), is `0600`, and
   both sides verify the peer's UID with `getpeereid`.
+- **The socket comes back.** Every ~5 s the agent checks that the file at the socket
+  path is still its own socket (device and inode). When it is gone (removed, or its
+  folder removed by a cleanup tool or an older uninstaller), the folder is prepared again
+  with the same rules (created `0700`, its mode fixed) and a new socket is bound at the
+  path: "socket was removed or replaced; listening again". A dead socket there is
+  replaced; a live one belongs to another agent, so this one stops listening without
+  removing anything and quits (exit 0, as at launch). Anything else (not a socket, a
+  symlinked folder, another user's) is left untouched and logged once ("could not listen
+  again: …"); the next checks try again. Connections already accepted keep working, and
+  `stop()` removes only the socket the agent created last.
 - **Request-id matching, one response per request.** The agent answers only on the
   request's own connection, at most once, and only while the entry is pending; the hook
   ignores a response for any other id. A notification response counts only under the
@@ -83,6 +93,9 @@ old to answer.
   leaves at once with status 0.
 - **Agent:** everything runs on the main actor. `SocketServer` accepts on a private
   queue and hands each connection to the main queue, where `Connection` reads frames.
+  The socket check is a timer on that same private queue; it changes the listener under
+  the server's lock and reports what changed (`SocketCheck`) outside it, and
+  `AgentController` logs it on the main actor.
   `AgentController` handles socket events and notification responses one at a time in
   arrival order (a chain of tasks), so a request waiting for its asynchronous
   authorization check can never be overtaken by its own connection closing.

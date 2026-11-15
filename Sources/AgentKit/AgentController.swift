@@ -30,6 +30,7 @@ public final class AgentController: ObservableObject {
     private let build: String
     private let log: @MainActor (String) -> Void
     private var server: SocketServer?
+    private var onYield: (@MainActor () -> Void)?
     private var connections: [ConnectionID: any AgentConnection] = [:]
     private var nextConnectionID: ConnectionID = 1
     private var pauseTimer: Timer?
@@ -53,16 +54,45 @@ public final class AgentController: ObservableObject {
         self.log = log
     }
 
-    /// Starts listening for hooks on `socketPath`.
-    public func start(socketPath: URL) throws {
+    /// Starts listening for hooks on `socketPath`. Every `checkInterval` seconds the
+    /// socket is checked: when it (or its folder) was removed, the agent listens again;
+    /// when another agent answers there now, this one stops listening and `onYield` runs
+    /// (the app quits, as when another agent was already listening at launch).
+    public func start(
+        socketPath: URL, checkInterval: TimeInterval = SocketServer.defaultCheckInterval,
+        onYield: @escaping @MainActor () -> Void = {}
+    ) throws {
         let server = SocketServer(path: socketPath)
-        try server.start { [weak self] connection in
-            DispatchQueue.main.async {
-                MainActor.assumeIsolated { self?.accept(connection) }
-            }
-        }
+        self.onYield = onYield
+        try server.start(
+            checkInterval: checkInterval,
+            onCheck: { [weak self] result in
+                DispatchQueue.main.async {
+                    MainActor.assumeIsolated { self?.socketChecked(result) }
+                }
+            },
+            onConnection: { [weak self] connection in
+                DispatchQueue.main.async {
+                    MainActor.assumeIsolated { self?.accept(connection) }
+                }
+            })
         self.server = server
         log("listening on \(socketPath.path)")
+    }
+
+    /// What a check of the socket changed (never `.intact`).
+    func socketChecked(_ result: SocketCheck) {
+        switch result {
+        case .rebound:
+            log("socket was removed or replaced; listening again")
+        case .failed(let error):
+            log("could not listen again: \(error)")
+        case .yielded:
+            log("another agent is listening on the socket now; quitting")
+            onYield?()
+        case .intact, .stopped:
+            break
+        }
     }
 
     /// Asks for notification permission if macOS has not asked yet and logs the result.

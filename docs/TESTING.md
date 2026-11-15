@@ -11,6 +11,12 @@ make signing-check # ad-hoc and identity signing, in a temporary folder
 make plugin-check  # the Claude Code plugin's JSON manifests and skills
 ```
 
+`HookMeUpIPCTests` remove a running server's socket or its folder, recreate the folder
+open, or put a file, a symlinked folder, a stale socket or another server's live socket
+in its place, and check that it listens again (folder `0700`, socket `0600`, earlier
+connections still answered), leaves what isn't its own untouched, or gives way; the
+periodic check runs every 50 ms there.
+
 `DoctorKitTests` run every doctor check against a fake `DoctorProbe` (each failure with
 its fix and the exit code), the installer's notification check against a scripted
 `OnboardingIO` (waiting, test notification, when System Settings opens), and the real
@@ -143,6 +149,7 @@ said otherwise, so that permission prompts actually appear.
 | 15 | Agent down: `launchctl bootout gui/$(id -u)/io.github.robertodf99.hook-me-up`, trigger a prompt | Terminal dialog at once. Then run the installer again (or `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/io.github.robertodf99.hook-me-up.plist`). |
 | 16 | Agent killed mid-request (`pkill -9 HookMeUp`) | Terminal dialog usable at once, nothing denied; launchd restarts the agent. |
 | 17 | Menu bar → Pause for 30 minutes, trigger a prompt; Resume | While paused: terminal dialog at once, no Finished/Waiting notifications. After Resume: normal. |
+| 17b | With the agent running, `rm -rf ~/Library/Application\ Support/hook-me-up`, then trigger a prompt after ~5 s | Within about 5 s the log says `socket was removed or replaced; listening again`; the folder is back (`stat -f %Lp` says 700, the socket 600); the request is a notification; the doctor's Agent line passes. |
 
 ## 4. Terminals and sessions
 

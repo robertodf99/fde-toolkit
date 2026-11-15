@@ -23,7 +23,7 @@ let package = Package(
         .testTarget(name: "HookMeUpCoreTests", dependencies: ["HookMeUpCore"]),
         .testTarget(name: "HookMeUpIPCTests", dependencies: ["HookMeUpIPC", "HookMeUpCore"]),
         .testTarget(name: "HookKitTests", dependencies: ["HookKit", "HookMeUpIPC", "HookMeUpCore"]),
-        .testTarget(name: "AgentKitTests", dependencies: ["AgentKit", "HookMeUpCore"]),
+        .testTarget(name: "AgentKitTests", dependencies: ["AgentKit", "HookMeUpCore", "HookMeUpIPC"]),
         .testTarget(name: "SetupKitTests", dependencies: ["SetupKit", "HookMeUpCore"]),
         .testTarget(name: "DoctorKitTests", dependencies: ["DoctorKit", "HookMeUpCore", "HookMeUpIPC"]),
         .testTarget(name: "HookMeUpTests", dependencies: ["HookMeUp", "HookMeUpCore"]),

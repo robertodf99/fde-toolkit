@@ -394,3 +394,219 @@ private let sampleRequest = WireMessage.request(
         #expect(throws: SocketError.self) { try client.send(.clear(sessionID: "s")) }
     }
 }
+
+/// A server that echoes a request with an approval, and the checks it reported.
+private final class RecoveringServer {
+    let server: SocketServer
+    let events = Box<[SocketCheck]>([])
+
+    init(path: URL, checkInterval: TimeInterval = 3600) throws {
+        server = SocketServer(path: path)
+        let events = events
+        try server.start(
+            checkInterval: checkInterval, onCheck: { result in events.mutate { $0.append(result) } },
+            onConnection: { connection in
+                connection.startReading(queue: DispatchQueue(label: "test.reader")) { message in
+                    if case .request(let request) = message {
+                        try? connection.send(.response(ResponseEnvelope(id: request.id, outcome: .decided(.approve))))
+                    }
+                }
+            })
+    }
+
+    deinit { server.stop() }
+}
+
+/// Sends a request and expects the approval back.
+private func roundTrip(_ client: Connection) throws -> Bool {
+    guard case .request(let sent) = sampleRequest else { return false }
+    try client.send(sampleRequest)
+    return try client.receive(timeout: 2) == .response(ResponseEnvelope(id: sent.id, outcome: .decided(.approve)))
+}
+
+private func roundTrip(at path: URL) throws -> Bool {
+    let client = try SocketClient.connect(path: path, timeout: 0.3)
+    defer { client.close() }
+    return try roundTrip(client)
+}
+
+private func inode(_ path: String) -> ino_t? {
+    var info = stat()
+    return lstat(path, &info) == 0 ? info.st_ino : nil
+}
+
+/// The agent's socket comes back when it (or its folder) is removed, and the agent gives
+/// way to another agent that took the path.
+@Suite(.serialized) struct SocketRecoveryTests {
+    @Test func aRemovedSocketIsBoundAgainAt0600() throws {
+        let temp = try ShortTempDir()
+        let path = temp.child("run/agent.sock")
+        let agent = try RecoveringServer(path: path)
+        #expect(agent.server.checkSocket() == .intact)
+        #expect(unlink(path.path) == 0)
+        #expect(agent.server.checkSocket() == .rebound)
+        let info = try #require(mode(path.path))
+        #expect(info.type == S_IFSOCK && info.perms == 0o600 && info.uid == getuid())
+        #expect(try roundTrip(at: path))
+        #expect(agent.server.checkSocket() == .intact)
+    }
+
+    @Test func aRemovedFolderComesBackAt0700() throws {
+        let temp = try ShortTempDir()
+        let folder = temp.child("run")
+        let path = folder.appendingPathComponent("agent.sock")
+        let agent = try RecoveringServer(path: path)
+        try FileManager.default.removeItem(at: folder)
+        #expect(agent.server.checkSocket() == .rebound)
+        #expect(mode(folder.path)?.perms == 0o700)
+        #expect(mode(path.path)?.type == S_IFSOCK)
+        #expect(try roundTrip(at: path))
+    }
+
+    @Test func aFolderRecreatedOpenIsMadePrivateAgain() throws {
+        let temp = try ShortTempDir()
+        let folder = temp.child("run")
+        let path = folder.appendingPathComponent("agent.sock")
+        let agent = try RecoveringServer(path: path)
+        try FileManager.default.removeItem(at: folder)
+        #expect(mkdir(folder.path, 0o755) == 0)
+        #expect(chmod(folder.path, 0o755) == 0)  // whatever the umask
+        #expect(agent.server.checkSocket() == .rebound)
+        #expect(mode(folder.path)?.perms == 0o700)
+        #expect(try roundTrip(at: path))
+    }
+
+    /// The timer finds the change on its own and reports it once.
+    @Test func thePeriodicCheckRebindsAndReportsIt() throws {
+        let temp = try ShortTempDir()
+        let path = temp.child("agent.sock")
+        let agent = try RecoveringServer(path: path, checkInterval: 0.05)
+        usleep(200_000)
+        #expect(agent.events.value.isEmpty)  // nothing changed: no event
+        #expect(unlink(path.path) == 0)
+        #expect(waitUntil { agent.events.value == [.rebound] })
+        usleep(200_000)
+        #expect(agent.events.value == [.rebound])
+        #expect(try roundTrip(at: path))
+    }
+
+    /// Another server took the path after ours was removed: this one gives way, and its
+    /// stop() leaves the other's socket alone.
+    @Test func anotherLiveServerAtThePathMakesThisOneYield() throws {
+        let temp = try ShortTempDir()
+        let path = temp.child("agent.sock")
+        let first = try RecoveringServer(path: path)
+        #expect(unlink(path.path) == 0)
+        let second = try RecoveringServer(path: path)
+        let secondInode = inode(path.path)
+        #expect(first.server.checkSocket() == .yielded)
+        #expect(first.server.checkSocket() == .stopped)
+        #expect(inode(path.path) == secondInode)
+        #expect(try roundTrip(at: path))  // served by the second
+        first.server.stop()
+        #expect(inode(path.path) == secondInode)
+        #expect(try roundTrip(at: path))
+        #expect(second.server.checkSocket() == .intact)
+    }
+
+    /// The timer notices a live socket put in place of ours (atomically, by rename) and
+    /// reports the yield.
+    @Test func thePeriodicCheckYieldsToALiveSocketAndReportsIt() throws {
+        let temp = try ShortTempDir()
+        let path = temp.child("agent.sock")
+        let first = try RecoveringServer(path: path, checkInterval: 0.05)
+        let other = temp.child("other.sock")
+        let listener = rawBind(other.path)
+        defer { close(listener) }
+        #expect(listen(listener, 4) == 0)
+        let otherInode = inode(other.path)
+        #expect(rename(other.path, path.path) == 0)
+        #expect(waitUntil { first.events.value == [.yielded] })
+        first.server.stop()
+        #expect(inode(path.path) == otherInode)
+        let client = try SocketClient.connect(path: path, timeout: 0.3)  // the other one's backlog
+        client.close()
+    }
+
+    /// Something that isn't a socket is never removed (reported once, however many checks
+    /// run); once it is gone, the socket comes back.
+    @Test func aFileAtThePathIsKeptAndReportedOnce() throws {
+        let temp = try ShortTempDir()
+        let path = temp.child("agent.sock")
+        let agent = try RecoveringServer(path: path, checkInterval: 0.05)
+        let file = temp.child("file")
+        try Data("keep me".utf8).write(to: file)
+        #expect(rename(file.path, path.path) == 0)  // in place of the socket, in one step
+        #expect(waitUntil { !agent.events.value.isEmpty })
+        usleep(200_000)  // several more checks
+        #expect(agent.events.value == [.failed(.notASocket(path.path))])
+        #expect(try Data(contentsOf: path) == Data("keep me".utf8))
+        #expect(agent.server.checkSocket() == .failed(.notASocket(path.path)))
+        try FileManager.default.removeItem(at: path)
+        #expect(waitUntil { agent.events.value.last == .rebound })
+        #expect(try roundTrip(at: path))
+    }
+
+    @Test func aSymbolicLinkInPlaceOfTheFolderIsRefusedAndLeftAlone() throws {
+        let temp = try ShortTempDir()
+        let folder = temp.child("run")
+        let path = folder.appendingPathComponent("agent.sock")
+        let agent = try RecoveringServer(path: path)
+        try FileManager.default.removeItem(at: folder)
+        let elsewhere = temp.child("elsewhere")
+        #expect(mkdir(elsewhere.path, 0o755) == 0)
+        #expect(symlink(elsewhere.path, folder.path) == 0)
+        #expect(agent.server.checkSocket() == .failed(.symlinkRefused(folder.path)))
+        #expect(mode(folder.path)?.type == S_IFLNK)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: elsewhere.path).isEmpty)
+        #expect(mode(elsewhere.path)?.perms == 0o755)
+    }
+
+    @Test func aStaleSocketInItsPlaceIsReplaced() throws {
+        let temp = try ShortTempDir()
+        let path = temp.child("agent.sock")
+        let agent = try RecoveringServer(path: path)
+        #expect(unlink(path.path) == 0)
+        makeStaleSocket(path.path)
+        let stale = inode(path.path)
+        #expect(agent.server.checkSocket() == .rebound)
+        #expect(inode(path.path) != stale)
+        #expect(try roundTrip(at: path))
+    }
+
+    @Test func aConnectionFromBeforeTheRebindStillWorks() throws {
+        let temp = try ShortTempDir()
+        let path = temp.child("agent.sock")
+        let agent = try RecoveringServer(path: path)
+        let early = try SocketClient.connect(path: path, timeout: 0.3)
+        defer { early.close() }
+        #expect(unlink(path.path) == 0)
+        #expect(agent.server.checkSocket() == .rebound)
+        #expect(try roundTrip(early))
+        #expect(try roundTrip(at: path))
+    }
+
+    /// After a rebind, stop() removes the new socket.
+    @Test func stopAfterARebindRemovesTheNewSocket() throws {
+        let temp = try ShortTempDir()
+        let path = temp.child("agent.sock")
+        let agent = try RecoveringServer(path: path)
+        #expect(unlink(path.path) == 0)
+        #expect(agent.server.checkSocket() == .rebound)
+        agent.server.stop()
+        #expect(mode(path.path) == nil)
+    }
+
+    @Test func stopEndsTheChecks() throws {
+        let temp = try ShortTempDir()
+        let path = temp.child("agent.sock")
+        let agent = try RecoveringServer(path: path, checkInterval: 0.05)
+        agent.server.stop()
+        #expect(mode(path.path) == nil)
+        usleep(200_000)
+        #expect(mode(path.path) == nil)  // not bound again
+        #expect(agent.events.value.isEmpty)
+        #expect(agent.server.checkSocket() == .stopped)
+        #expect(SocketServer(path: path).checkSocket() == .stopped)  // never started
+    }
+}
