@@ -155,8 +155,9 @@ away. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the details.
 - **Careful installer.** It verifies the package checksum, shows the settings diff and
   asks first, backs up, writes atomically, and refuses to write if the file changed
   meanwhile.
-- **No content in logs.** `~/Library/Logs/hook-me-up.log` and the unified log
-  (subsystem `io.github.robertodf99.hook-me-up`) hold event kinds and short ids only.
+- **No content in logs.** `~/Library/Logs/hook-me-up.log` (with Homebrew's service,
+  `$(brew --prefix)/var/log/hook-me-up.log`) and the unified log (subsystem
+  `io.github.robertodf99.hook-me-up`) hold event kinds and short ids only.
 
 ## Why macOS says "unidentified developer"
 
@@ -256,6 +257,9 @@ problem (it changes nothing itself):
 ```
 
 (With Homebrew: `hook-me-up-setup doctor`. From Claude Code: `/hook-me-up:doctor`.)
+
+The agent writes its log to `~/Library/Logs/hook-me-up.log`, or with Homebrew's service
+to `$(brew --prefix)/var/log/hook-me-up.log`.
 
 - **No notifications.** Check System Settings → Notifications → Hook Me Up. While
   notifications are off, every request goes to the terminal and the log says how to
