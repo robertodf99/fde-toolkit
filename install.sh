@@ -20,6 +20,7 @@
 #                               Claude Code plugin, which asks in the chat instead)
 #   HOOK_ME_UP_TEST_BREW_PREFIX=<dir>  look for Homebrew's copy only under <dir> (tests)
 #   HOOK_ME_UP_TEST_APPLICATIONS=<dir>  look for the editors' apps only under <dir> (tests)
+#   HOOK_ME_UP_TEST_EDITOR_TIMEOUT=<s>  stop an editor's tool after <s> seconds, not 120 (tests)
 #
 # Everything runs from main(), called on the last line, so a download cut short runs
 # nothing.
@@ -74,7 +75,10 @@ editor_clis() {
   done
 }
 # Runs a command and stops it after $1 seconds, so an editor's tool that hangs can't hang
-# this script: its exit status, or 124 when it was stopped. The same in both scripts.
+# this script: its exit status, or 124 when it was stopped. The tools are wrappers that
+# start the editor's own process and wait for it (they don't exec it), so the wrapper's
+# children are stopped first; whatever they started in turn is not looked for. The same
+# in both scripts.
 run_limited() {
   local seconds="$1" pid tenths=0
   shift
@@ -82,6 +86,7 @@ run_limited() {
   pid=$!
   while kill -0 "$pid" 2>/dev/null; do
     if [ "$tenths" -ge $((seconds * 10)) ]; then
+      pkill -TERM -P "$pid" 2>/dev/null || true
       kill -TERM "$pid" 2>/dev/null || true
       wait "$pid" 2>/dev/null || true
       return 124
@@ -257,6 +262,8 @@ main() {
   # Insiders, Cursor or Windsurf (see editor-extension/), added with each editor's
   # command-line tool that is found. Never fails the install.
   local vsix="$APP/Contents/Resources/hook-me-up.vsix" editors_added="" editor cli found_editor=0
+  local limit="${HOOK_ME_UP_TEST_EDITOR_TIMEOUT:-120}"
+  case "$limit" in "" | *[!0-9]*) limit=120 ;; esac
   if [ "${HOOK_ME_UP_NO_EDITOR_EXTENSION:-0}" = "1" ]; then
     say "Editor extension skipped (HOOK_ME_UP_NO_EDITOR_EXTENSION=1)."
   elif [ ! -f "$vsix" ]; then
@@ -264,7 +271,7 @@ main() {
   else
     while IFS=$'\t' read -r editor cli; do
       found_editor=1
-      if run_limited 120 "$cli" --install-extension "$vsix" --force >"$WORK/editor-extension" 2>&1 </dev/null; then
+      if run_limited "$limit" "$cli" --install-extension "$vsix" --force >"$WORK/editor-extension" 2>&1 </dev/null; then
         say "Added the Hook Me Up extension to $editor."
         editors_added="${editors_added:+$editors_added, }$editor"
       else

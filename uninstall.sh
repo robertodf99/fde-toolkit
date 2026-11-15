@@ -19,6 +19,7 @@
 #                            Claude Code plugin, which asks in the chat instead)
 #   HOOK_ME_UP_TEST_BREW_PREFIX=<dir>  look for Homebrew's copy only under <dir> (tests)
 #   HOOK_ME_UP_TEST_APPLICATIONS=<dir>  look for the editors' apps only under <dir> (tests)
+#   HOOK_ME_UP_TEST_EDITOR_TIMEOUT=<s>  stop an editor's tool after <s> seconds, not 120 (tests)
 #
 # Everything runs from main(), called on the last line, so a download cut short runs
 # nothing.
@@ -83,7 +84,10 @@ editor_clis() {
   done
 }
 # Runs a command and stops it after $1 seconds, so an editor's tool that hangs can't hang
-# this script: its exit status, or 124 when it was stopped. The same in both scripts.
+# this script: its exit status, or 124 when it was stopped. The tools are wrappers that
+# start the editor's own process and wait for it (they don't exec it), so the wrapper's
+# children are stopped first; whatever they started in turn is not looked for. The same
+# in both scripts.
 run_limited() {
   local seconds="$1" pid tenths=0
   shift
@@ -91,6 +95,7 @@ run_limited() {
   pid=$!
   while kill -0 "$pid" 2>/dev/null; do
     if [ "$tenths" -ge $((seconds * 10)) ]; then
+      pkill -TERM -P "$pid" 2>/dev/null || true
       kill -TERM "$pid" 2>/dev/null || true
       wait "$pid" 2>/dev/null || true
       return 124
@@ -100,6 +105,20 @@ run_limited() {
   done
   wait "$pid"
 }
+# The editors whose extensions registry lists Hook Me Up's extension, comma-separated
+# (the editors write it as "id":"hook-me-up.hook-me-up"; ids compare ignoring case).
+editors_with_extension() {
+  local entry folder name found=""
+  for entry in ".vscode|VS Code" ".vscode-insiders|VS Code Insiders" ".cursor|Cursor" ".windsurf|Windsurf"; do
+    IFS='|' read -r folder name <<<"$entry"
+    if grep -qiE '"id"[[:space:]]*:[[:space:]]*"hook-me-up\.hook-me-up"' \
+      "$HOME/$folder/extensions/extensions.json" 2>/dev/null; then
+      found="${found:+$found, }$name"
+    fi
+  done
+  printf '%s' "$found"
+}
+
 # Quits a Hook Me Up started outside launchd: only processes whose executable is exactly
 # this installed app's.
 quit_running_app() {
@@ -154,18 +173,21 @@ main() {
   rm -rf "$HOME/Applications/Hook Me Up.app"
   # Homebrew's agent listens in the same folder (and writes the editor extension's
   # requests there): removing either would cut that agent off.
-  local editor cli
+  local editor cli with
+  local limit="${HOOK_ME_UP_TEST_EDITOR_TIMEOUT:-120}"
+  case "$limit" in "" | *[!0-9]*) limit=120 ;; esac
   if homebrew_uses_support; then
     say "Stopped the agent and removed $app and its LaunchAgent."
     say "Kept $support: Homebrew's copy of Hook Me Up uses it."
-    if [ -n "$(editor_clis)" ]; then say "Kept the Hook Me Up extension in your editors: Homebrew's copy uses it too."; fi
+    with="$(editors_with_extension)"
+    if [ -n "$with" ]; then say "Kept the Hook Me Up extension in $with: Homebrew's copy uses it too."; fi
     say "If Homebrew's agent is not running, start it with: brew services restart hook-me-up"
   else
     rm -rf "$HOME/Library/Application Support/hook-me-up"
     say "Stopped the agent and removed $app, its LaunchAgent and $support."
     # An editor without the extension refuses (exit 1): nothing to say then.
     while IFS=$'\t' read -r editor cli; do
-      if run_limited 120 "$cli" --uninstall-extension hook-me-up.hook-me-up >/dev/null 2>&1 </dev/null; then
+      if run_limited "$limit" "$cli" --uninstall-extension hook-me-up.hook-me-up >/dev/null 2>&1 </dev/null; then
         say "Removed the Hook Me Up extension from $editor."
       fi
     done < <(editor_clis)

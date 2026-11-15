@@ -97,7 +97,7 @@ plugin-check:
 	./scripts/check-plugin.sh
 
 # The editor extension's JavaScript (syntax, request checks, which terminal it shows),
-# with a stand-in for VS Code. Needs node; not part of CI.
+# with a stand-in for VS Code. Needs node (CI runs it; GitHub's macOS images have node).
 editor-extension-check:
 	@command -v node >/dev/null || { echo "editor-extension-check: node is not installed" >&2; exit 1; }
 	node --check editor-extension/extension.js

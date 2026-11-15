@@ -1,6 +1,6 @@
 // Tests editor-extension/extension.js with Node, without VS Code: a stand-in for the
 // `vscode` module (terminals with process ids) and request files in a private temporary
-// folder. Run by `make editor-extension-check` when node is installed (not part of CI).
+// folder. Run by `make editor-extension-check` (locally and in CI), which needs node.
 'use strict';
 
 const assert = require('assert');

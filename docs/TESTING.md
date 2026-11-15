@@ -16,16 +16,18 @@ make editor-extension-check  # the editor extension's JavaScript with a stand-in
 back from its other end, and check that `/dev/null`, a regular file, a symlink to the
 terminal and another terminal are refused; read a process's controlling terminal (one
 started by `script`); run the Ghostty title-marker steps against a stand-in for Ghostty
-and the tty (titles, marker, find, title written back, focus, in that order; marker not
-seen; a failed write; no tty); and write the editor request into private and other
+and the tty (titles, marker, find, title written back, focus, in that order; an empty
+title written back when the marker isn't seen in exactly one terminal, or when the earlier
+title holds a marker; a failed write; no tty), check that two Ghostty clicks run one after
+the other; and write the editor request into private and other
 folders (`0600`, atomic, never through a link, never into a folder others can reach).
 
 `make editor-extension-check` runs `editor-extension/extension.js` under Node with a
 stand-in for the `vscode` module: the request checks (format, age, nonce, pids, file and
 folder owner and mode, links, size, FIFOs), which terminal is shown (the nearest pid; a
 terminal that doesn't say its process id is skipped) and the watcher (once per request,
-not for an old one, a folder created later). It is not part of CI (which has no Node);
-run it after changing the extension.
+not for an old one, a folder created later). It needs Node: CI runs it with the Node of
+GitHub's macOS image, and the step fails (saying so) rather than skip when there is none.
 
 `HookMeUpIPCTests` remove a running server's socket or its folder, recreate the folder
 open, or put a file, a symlinked folder, a stale socket or another server's live socket
@@ -54,15 +56,17 @@ to run if a real `code`, `code-insiders`, `cursor` or `windsurf` is there) and a
 Applications folder (`HOOK_ME_UP_TEST_APPLICATIONS`); a stand-in `code` (on `PATH`) and
 `cursor` (inside a fake `Cursor.app`) record their flags: the app's `.vsix` installed
 with `--force`, nothing with `HOOK_ME_UP_NO_EDITOR_EXTENSION=1`, a failing tool doesn't
-fail the install, uninstall runs `--uninstall-extension hook-me-up.hook-me-up` except
-next to Homebrew's copy, and with no tool at all both scripts say nothing about it. It
+fail the install, a tool that hangs is stopped (`HOOK_ME_UP_TEST_EDITOR_TIMEOUT=1`) with
+the process it started, uninstall runs `--uninstall-extension hook-me-up.hook-me-up`
+except next to Homebrew's copy (where it names only the editors whose registry lists the
+extension as kept), and with no tool at all both scripts say nothing about it. It
 also checks that the installed app holds the `.vsix` with its six entries.
 
-CI runs `lint`, `test`, `selftest`, `test-install` and `plugin-check` on every push and
-pull request. With the claude CLI installed, `claude plugin validate .` and
-`claude plugin validate ./plugins/hook-me-up` check the plugin further (expected: passed,
-with a warning that no version is set; the version is left out on purpose, so users
-get the plugin as it is on `main`).
+CI runs `lint`, `test`, `selftest`, `test-install`, `plugin-check` and
+`editor-extension-check` on every push and pull request. With the claude CLI installed,
+`claude plugin validate .` and `claude plugin validate ./plugins/hook-me-up` check the
+plugin further (expected: passed, with a warning that no version is set; the version is
+left out on purpose, so users get the plugin as it is on `main`).
 
 ## End-to-end checklist
 
@@ -185,7 +189,7 @@ said otherwise, so that permission prompts actually appear.
 | # | Check | Expected |
 |---|---|---|
 | 18 | Click a notification from Terminal, iTerm2, Ghostty, VS Code, Cursor, Claude desktop (and, if installed, VS Code Insiders, Windsurf, Zed) | Terminal / iTerm2: the exact tab is selected. VS Code / Cursor (and Insiders, Windsurf): the click focuses the open window that contains the session's folder, and opens no new window (with the editor extension, its terminal is shown too: 18e). Zed and the others: the app comes forward. The log says which strategy was used (`open session: focused an existing window of …` or `open session: no matching window or no window state; brought the editor forward …`) and the frontmost app, never a path. |
-| 18d | Ghostty 1.3 or later: two windows (or tabs) in different folders, Claude Code in one; click its notification from the other window, then from another app | macOS asks once to let Hook Me Up control Ghostty (allow it); then the session's terminal comes to the front, in its window and tab (`open session: ghostty terminal focused`, frontmost `com.mitchellh.ghostty`). With `macos-applescript = false` in Ghostty's config (restart Ghostty), or Automation denied for Ghostty, or Ghostty before 1.3: Ghostty only comes to the front (`ghostty script failed`). Note whether Ghostty actually comes forward in each case (the frontmost line). Then, title marker: (a) two splits (or two tabs) in the same folder, Claude Code in either one, the other focused: the click focuses Claude Code's split (`open session: ghostty terminal focused (title marker)`); its title flickers and is back to what it was within 1.5 s (time it; no stray characters in the title or on screen). Repeat with Claude Code in the other split. (b) Add `title = fixed` to Ghostty's config (reload it): the click only brings Ghostty forward (`ghostty: title marker not seen (2)`), the title stays "fixed". (c) Ghostty's shell integration with and without its title feature (`shell-integration-features = no-title`): (a) works in both; note the title before and after. (d) Click an older notification from a session you have since ended (`/exit`), with the two splits still open: Ghostty only comes forward (`ghostty: no usable tty (2)`), and neither split's title changes. (e) Click a notification of a session that is busy (Claude Code animates a spinner in its title while it works): note whether its split is focused or the log says `title marker not seen (2)`, and that no marker is left in the title afterwards. Logs never show a tty, a title or the marker. |
+| 18d | Ghostty 1.3 or later: two windows (or tabs) in different folders, Claude Code in one; click its notification from the other window, then from another app | macOS asks once to let Hook Me Up control Ghostty (allow it); then the session's terminal comes to the front, in its window and tab (`open session: ghostty terminal focused`, frontmost `com.mitchellh.ghostty`). With `macos-applescript = false` in Ghostty's config (restart Ghostty), or Automation denied for Ghostty, or Ghostty before 1.3: Ghostty only comes to the front (`ghostty script failed`). Note whether Ghostty actually comes forward in each case (the frontmost line). Then, title marker: (a) two splits (or two tabs) in the same folder, Claude Code in either one, the other focused: the click focuses Claude Code's split (`open session: ghostty terminal focused (title marker)`); its title flickers and is back to what it was within 1.5 s (time it; no stray characters in the title or on screen). Repeat with Claude Code in the other split. (b) Add `title = fixed` to Ghostty's config (reload it): the click only brings Ghostty forward (`ghostty: title marker not seen (2)`), the title stays "fixed" (Ghostty ignores the marker and the empty title written after it alike). (c) Ghostty's shell integration with and without its title feature (`shell-integration-features = no-title`): (a) works in both; note the title before and after. (d) Click an older notification from a session you have since ended (`/exit`), with the two splits still open: Ghostty only comes forward (`ghostty: no usable tty (2)`), and neither split's title changes. (e) Click a notification of a session that is busy (Claude Code animates a spinner in its title while it works): note whether its split is focused or the log says `title marker not seen (2)`; no `hmu-…` marker is ever left in a title (when it isn't seen, the title is cleared until the session sets it again). (f) Two clicks in quick succession on notifications of sessions in the two splits: each focuses its own split in turn, and both titles come back. (g) With `bell-features = title` in Ghostty's config and Claude Code set to ring the terminal bell (`preferredNotifChannel` `terminal_bell`), let Claude Code's split, not focused, ask for permission so its title shows 🔔, then click the notification: note whether the title written back keeps the 🔔 for good (it would if Ghostty puts the bell in the title it gives AppleScript). (h) A split whose title nothing has set (Ghostty's default title): after the click, note the title written back, and that it changes again as usual when the shell or Claude Code next sets one. Logs never show a tty, a title or the marker. |
 | 18e | VS Code with the editor extension (installed by the installer; reload windows opened before): (a) one window with two integrated terminals (and a terminal in an editor tab), Claude Code in one, another terminal focused or the panel hidden; (b) two windows, Claude Code in a terminal of each; (c) the extension uninstalled (Extensions view) or (d) disabled; (e) VS Code Insiders, Cursor, Windsurf if installed | (a) The click focuses the window and shows Claude Code's terminal (panel opened if hidden), with the cursor in it; the log says `open session: asked com.microsoft.VSCode to show the session's terminal` then `focused an existing window`. (b) Each click shows the right terminal in the right window; the other window changes nothing. (c) Exactly as 18b (no "asked" line). (d) The window is focused as in 18b and no terminal changes ("asked" is still logged: a disabled extension can't be told from outside). (e) The same as (a) and (b), with that editor's bundle id. Also: run Claude Code in a folder outside every open window (18c's last case) in a window's terminal: the editor comes forward and, if that window is in front, its terminal is shown. `~/Library/Application Support/hook-me-up/editor-focus-request.json` holds only `created`, `nonce`, `pids`, `version` (`stat -f %Lp` says 600). |
 | 18b | With two VS Code windows open (two projects), run Claude Code in each and click a notification from each | Each click focuses the open window that contains that session's folder, not just VS Code; no new window opens. Then close one of the two windows (its session ends) and click an older notification from it: VS Code only comes to the front, and no window opens. Close the last window too (VS Code keeps running) and click again: VS Code only comes to the front. |
 | 18c | In VS Code, open a repository as the window and run Claude Code in a worktree inside it (`.worktrees/<name>` or `.claude/worktrees/<name>`), then in a subfolder of it; open a saved multi-root `.code-workspace` and run Claude Code in one of its folders; last, `cd` to a folder outside every open window and run Claude Code there | The click focuses the open window that contains the session's folder (the repository's window, or the workspace's window), and opens no new window. For the outside folder VS Code only comes to the front (`no matching window or no window state; brought the editor forward`). |
