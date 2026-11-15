@@ -8,7 +8,7 @@ over a Unix socket. Everything else is libraries, so the logic is tested without
 
 | Module | Kind | Responsibility |
 |---|---|---|
-| `HookMeUpCore` | library | Pure domain logic on Foundation, no I/O of its own: hook input parsing, the plain-language `Summarizer`, `DecisionEncoder`, `SessionPermissionFilter`, wire messages and `Framing`, the agent's routing reducer `AgentCore` with `PendingStore`, the notification mapping `NativeNotification`, terminal mapping, `SessionActivation` (how a click brings a session forward: tab, Ghostty terminal, project window or app), `GhosttyTerminals` (the fixed Ghostty scripts and which listed terminal is in the session's folder) and `EditorWindows` (which open VS Code-family window contains a session's folder, read from the editor's `storage.json`). File reads go through the injected `FileSystem` protocol. |
+| `HookMeUpCore` | library | Pure domain logic on Foundation, no I/O of its own: hook input parsing, the plain-language `Summarizer`, `DecisionEncoder`, `SessionPermissionFilter`, wire messages and `Framing`, the agent's routing reducer `AgentCore` with `PendingStore`, the notification mapping `NativeNotification`, terminal mapping, `SessionActivation` (how a click brings a session forward: tab, Ghostty terminal, project window or app), `GhosttyTerminals` (the fixed Ghostty scripts, which listed terminal is in the session's folder, and the title marker: token, OSC 2 sequence, sanitised titles, tty device path), `EditorWindows` (which open VS Code-family window contains a session's folder, read from the editor's `storage.json`) and `EditorExtension` (whether an editor has Hook Me Up's extension, from its `extensions.json`, when to ask it, and the request it is sent). File reads go through the injected `FileSystem` protocol. |
 | `HookMeUpIPC` | library | Socket transport: `SocketServer` (with its periodic socket check, `SocketCheck`), `SocketClient`, `Connection` and the file-system/peer checks. |
 | `HookKit` | library | The hook runner `runHook`: parse, summarise, ask the agent, encode the decision. |
 | `AgentKit` | library | The agent runtime `AgentController`: socket ↔ `AgentCore` ↔ notifications, behind the protocols `NotificationPresenting`, `TerminalActivating` and `WallClock`. |
@@ -16,7 +16,8 @@ over a Unix socket. Everything else is libraries, so the logic is tested without
 | `DoctorKit` | library | `hook-me-up-setup doctor`: `Doctor` evaluates an installation (app, LaunchAgent, running agent, hooks, notification settings) through the `DoctorProbe` protocol and prints a fix for each problem; `AgentClient` asks the agent for its status over the socket; `NotificationOnboarding` (behind `OnboardingIO`) is the installer's notification check. |
 | `hook-me-up` | executable | Reads stdin, calls `runHook`, prints its output; always exits 0. |
 | `hook-me-up-setup` | executable | `install` / `uninstall` around SetupKit, `doctor` and `notifications` around DoctorKit. |
-| `HookMeUp` | app | AppKit and UserNotifications adapters only: `AppDelegate`, `StatusMenu`, `UserNotificationPresenter`, `TerminalActivator`. |
+| `HookMeUp` | app | AppKit and UserNotifications adapters only: `AppDelegate`, `StatusMenu`, `UserNotificationPresenter`, `TerminalActivator` (with `SessionProbe`, `TTYWriter`, which writes a title marker to the session's own tty only, and `EditorRequestFile`, which writes the editor extension's request atomically). |
+| `editor-extension/` | VS Code extension | Plain JavaScript, no dependencies, no build step (`scripts/build-vsix.sh` packs it): in every window of VS Code, VS Code Insiders, Cursor and Windsurf, watches the agent's request file and shows the integrated terminal whose process is one of the request's pids. Tested with Node and a stand-in for VS Code by `make editor-extension-check` (not part of CI). |
 
 Dependencies point inward: `HookMeUpCore` ← `HookMeUpIPC` ← `HookKit`, `AgentKit`;
 `HookMeUpCore` ← `SetupKit`; `HookMeUpIPC`, `SetupKit` ← `DoctorKit`; the executables
@@ -39,6 +40,20 @@ target with the same name plus `Tests`.
    `response` on that request's connection, closes it and the notification is removed.
 5. The hook checks the response id, builds its stdout from its **own** input with
    `DecisionEncoder`, prints it and exits. Claude Code applies the decision.
+
+"Open session" (a click on the notification body) runs `TerminalActivator` with the
+session's place (ancestor PIDs, tty, folder). Off the main thread it finds the app,
+plans (`SessionActivation`) and, for a VS Code-family editor with the extension, writes
+the extension's request; on the main thread it focuses the tab, terminal or window, or
+brings the app forward. Ghostty with several terminals in the session's folder: the
+`titles` script lists every terminal's title, a fresh token is written as an OSC 2 title
+to the session's tty (`TTYWriter`), the `findMarker` script (token as an argument) polls
+Ghostty for up to a second for the terminal that shows it, that terminal's earlier title
+is written back, and only then is it focused. Editors: the request
+(`editor-focus-request.json` in the support folder, `0600`, written to a temporary file
+and renamed) holds a nonce, the click time and the session's pids up to the editor's own;
+the window that has one of those pids as a terminal process shows it, and the window is
+focused as before.
 
 Heads-ups (`notify` for waiting/finished, `clear` when the session moves on) are
 fire-and-forget. When the user answers in the terminal instead, Claude Code stops the
@@ -83,8 +98,20 @@ old to answer.
   files.
 - **Installer.** Shows the diff, asks, backs up, writes atomically, and refuses to
   write when the file changed since it was read.
+- **A click writes only to the session's own terminal.** A title marker goes only to a
+  tty named `ttysNNN`/`ttysNNNN`, only while the session's process runs and the tty is its
+  controlling terminal: checked with `lstat` before opening and `fstat` after (a character
+  device of this user, with the session's device number), opened `O_WRONLY | O_NOCTTY |
+  O_NONBLOCK | O_NOFOLLOW`; one write, ended with BEL if it is cut short. The token
+  (`hmu-` and 16 random hex digits) and Ghostty's ids go to the scripts as arguments,
+  never as script text; titles written back lose control characters (C0, DEL, C1) and are
+  cut at 255 bytes.
+- **The editor request carries no content.** Only a nonce, a time and pids, written into
+  the private support folder (refused unless it is this user's, not a link, closed to
+  others), `0600`, atomically. The extension acts on a request only when it matches that
+  format exactly, is less than 5 s old and its nonce is new; it never writes the file.
 - **Logs** hold event kinds and short ids, never commands, messages or paths from the
-  request.
+  request, nor titles, ttys or tokens.
 
 ## Threading model
 
@@ -109,8 +136,12 @@ old to answer.
 ## Packaging and installation
 
 - `scripts/build-app.sh` builds `HookMeUp.app` with the agent and both CLIs in
-  `Contents/MacOS` (`UNIVERSAL=1` for arm64 + x86_64); `make dist` packages it as
-  `hook-me-up-<version>-macos.zip` with a `.sha256`.
+  `Contents/MacOS` (`UNIVERSAL=1` for arm64 + x86_64) and the editor extension as
+  `Contents/Resources/hook-me-up.vsix` (built by `scripts/build-vsix.sh`: a zip with
+  `[Content_Types].xml`, `extension.vsixmanifest` and `extension/`, made with `zip`, no
+  npm or vsce; fixed timestamps, so the same sources give the same bytes), before the
+  bundle is signed; `make dist` packages it as `hook-me-up-<version>-macos.zip` with a
+  `.sha256`.
 - A `v*` tag runs `.github/workflows/release.yml`: tests, a universal ad-hoc-signed
   package, checks, a build provenance attestation for the zip (`gh attestation verify`),
   and a GitHub release with the zip and checksum. The app icon is drawn
@@ -128,6 +159,12 @@ old to answer.
   `HOOK_ME_UP_NO_ONBOARDING` isn't set): status queries until macOS's notification
   question is answered, a `testNotification` (posted outside the entries, id
   `hook-me-up-test`, no buttons), and System Settings opened when notifications need
-  changing. It never reads stdin and never fails the install. `uninstall.sh` reverses
-  it and keeps the settings backups. `scripts/test-install.sh` runs both against a
-  throwaway HOME.
+  changing. It never reads stdin and never fails the install. It also adds the editor
+  extension with each editor's command-line tool it finds (`code`, `code-insiders`,
+  `cursor`, `windsurf` on `PATH`, else inside the app in `/Applications` or
+  `~/Applications`): `--install-extension <app>/Contents/Resources/hook-me-up.vsix
+  --force`, at most 2 minutes each, never failing the install (`HOOK_ME_UP_NO_EDITOR_EXTENSION=1`
+  skips it). `uninstall.sh` reverses it (`--uninstall-extension hook-me-up.hook-me-up`,
+  except while Homebrew's copy uses the support folder) and keeps the settings backups.
+  `scripts/test-install.sh` runs both against a throwaway HOME, with system folders only
+  on `PATH` and stand-ins for the editors' tools.

@@ -2,10 +2,11 @@ import CoreGraphics
 import Darwin
 import Foundation
 
-/// What a click needs to know before opening anything in an editor, read without any
-/// permission: whether the session's process still runs, and how many normal windows the
-/// editor has. The window list gives owner, layer, alpha and bounds without Screen
-/// Recording permission; only titles are withheld, and they are not used.
+/// What a click needs to know before opening anything in an editor or writing to a
+/// terminal, read without any permission: whether the session's process still runs, its
+/// controlling terminal, and how many normal windows the editor has. The window list gives
+/// owner, layer, alpha and bounds without Screen Recording permission; only titles are
+/// withheld, and they are not used.
 enum SessionProbe {
     /// Whether `pid` is a running process: it can be signalled and still has an executable
     /// (a zombie has none).
@@ -14,6 +15,19 @@ enum SessionProbe {
         guard kill(pid, 0) == 0 || errno == EPERM else { return false }
         var buffer = [UInt8](repeating: 0, count: 4 * Int(MAXPATHLEN))  // PROC_PIDPATHINFO_MAXSIZE
         return proc_pidpath(pid, &buffer, UInt32(buffer.count)) > 0
+    }
+
+    /// The device number of `pid`'s controlling terminal, when it has one (read with sysctl,
+    /// as the hook reads the tty's name; the app doesn't depend on the hook's library).
+    static func controllingTTYDevice(of pid: pid_t) -> dev_t? {
+        guard pid > 0 else { return nil }
+        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, pid]
+        var process = kinfo_proc()
+        var size = MemoryLayout<kinfo_proc>.stride
+        guard sysctl(&mib, UInt32(mib.count), &process, &size, nil, 0) == 0, size > 0, process.kp_proc.p_pid == pid
+        else { return nil }
+        let device = process.kp_eproc.e_tdev
+        return device == -1 ? nil : device  // NODEV: no controlling terminal
     }
 
     /// The normal windows of the app whose process is `pid`, on screen or not.

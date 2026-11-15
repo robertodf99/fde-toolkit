@@ -7,9 +7,10 @@ disable-model-invocation: true
 # Uninstall Hook Me Up
 
 The uninstaller removes Hook Me Up's hooks from `~/.claude/settings.json` first (after
-a backup), and only then stops the agent and removes the app, its LaunchAgent and its
-support folder (kept when Homebrew's copy of Hook Me Up is installed too, which uses
-it). Settings backups stay. Your job is to get the user's consent here in the chat.
+a backup), and only then stops the agent and removes the app, its LaunchAgent, its
+support folder and its editor extension from VS Code, VS Code Insiders, Cursor and
+Windsurf (the folder and the extension are kept when Homebrew's copy of Hook Me Up is
+installed too, which uses them). Settings backups stay. Your job is to get the user's consent here in the chat.
 
 Never remove anything without an explicit yes from the user in this conversation, and
 never edit `~/.claude/settings.json` yourself.
@@ -36,9 +37,9 @@ never edit `~/.claude/settings.json` yourself.
 3. Show the user the diff exactly as printed, in a code block: only Hook Me Up's
    hook entries are removed, every other key and hook stays, and a backup is written
    first. Say that the app and its LaunchAgent are removed too, and
-   `~/Library/Application Support/hook-me-up` unless Homebrew's copy of Hook Me Up is
-   installed too (it uses that folder, so the uninstaller keeps it and says so; Homebrew's
-   copy and its service are left alone). Ask whether to go ahead, and wait for the
+   `~/Library/Application Support/hook-me-up` and the editor extension unless Homebrew's
+   copy of Hook Me Up is installed too (it uses them, so the uninstaller keeps them and
+   says so; Homebrew's copy and its service are left alone). Ask whether to go ahead, and wait for the
    answer.
 
 4. Only if the user says yes, run:

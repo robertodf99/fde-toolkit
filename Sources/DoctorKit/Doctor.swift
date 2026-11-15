@@ -121,6 +121,7 @@ public enum Doctor {
         checks += hookChecks(install, options, probe)
         checks += notificationChecks(status, install, skipped: noStatus)
         checks.append(pauseCheck(status, skipped: noStatus))
+        checks.append(editorExtensionCheck(install, options, probe))
         return DoctorReport(checks: checks)
     }
 
@@ -408,6 +409,50 @@ public enum Doctor {
         return DoctorCheck(
             "Pause", .info, "paused: requests go to the terminal until the pause ends",
             fix: "To end it now, choose Resume in the ✻ menu-bar item.")
+    }
+
+    /// Which VS Code-family editors have Hook Me Up's extension (`EditorExtension`), which
+    /// shows the session's terminal on a click. Information only: it never fails. An editor
+    /// counts when its extensions folder is in the checked home; a registry that can't be
+    /// read, isn't valid or is too large counts as without the extension. For the editors
+    /// without it, the note gives the command that adds it from this app.
+    static func editorExtensionCheck(
+        _ install: Installation, _ options: Options, _ probe: some DoctorProbe
+    ) -> DoctorCheck {
+        let name = "Editor extension"
+        var with: [EditorExtension.Editor] = []
+        var without: [EditorExtension.Editor] = []
+        for editor in EditorExtension.editors {
+            guard let folder = EditorExtension.extensionsFolder(of: editor, home: options.home), probe.exists(folder)
+            else { continue }
+            let registry = probe.contents(of: folder + "/extensions.json")
+            if let registry, registry.count <= EditorExtension.maxRegistryBytes,
+                EditorExtension.isInstalled(registry: registry)
+            {
+                with.append(editor)
+            } else {
+                without.append(editor)
+            }
+        }
+        guard !with.isEmpty || !without.isEmpty else {
+            return DoctorCheck(
+                name, .info, "none of VS Code, VS Code Insiders, Cursor or Windsurf has an extensions folder")
+        }
+        let names = { (editors: [EditorExtension.Editor]) in editors.map(\.name).joined(separator: ", ") }
+        let installed = with.isEmpty ? [] : ["installed in \(names(with))"]
+        guard !without.isEmpty else { return DoctorCheck(name, .info, installed.joined()) }
+        let detail = (installed + ["not in \(names(without))"]).joined(separator: "; ")
+        let vsix = install.stableApp + "/Contents/Resources/" + EditorExtension.packageName
+        guard probe.exists(vsix) else {
+            return DoctorCheck(
+                name, .info, detail,
+                fix: "This app has no editor extension to add (\(vsix) is missing); update Hook Me Up.")
+        }
+        let commands = without.map { "\($0.commandLineTool) --install-extension \(quoted(vsix))" }
+        let fix =
+            ["Without it, a click focuses the editor's window but not the session's terminal. To add it:"] + commands
+            + ["then reload the editor's open windows."]
+        return DoctorCheck(name, .info, detail, fix: fix.joined(separator: "\n"))
     }
 
     // MARK: Commands in fixes

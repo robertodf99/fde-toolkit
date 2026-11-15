@@ -11,8 +11,12 @@
 # changes nothing; a truncated download or a failed install leaves everything as it was;
 # uninstall restores the original settings and leaves the backups; it keeps the support
 # folder (and the socket in it) when Homebrew's copy or its service plist is there, and
-# leaves that plist alone; a declined uninstall leaves the agent installed; and the real
-# HOME is never touched.
+# leaves that plist alone; a declined uninstall leaves the agent installed; the editor
+# extension, with stand-ins for the editors' command-line tools (on PATH or inside a fake
+# app), is added with --force and the app's .vsix, skipped when opted out or when no tool
+# is found, never fails the install, is removed by uninstall and kept next to Homebrew's
+# copy; and the real HOME is never touched. Every run gets a PATH of system folders only
+# and a fake Applications folder, so the real editors are never asked anything.
 #
 # Usage: scripts/test-install.sh   (HOOK_ME_UP_ZIP=<zip> to reuse a package)
 set -euo pipefail
@@ -25,6 +29,15 @@ if [ -z "$ZIP" ]; then
 fi
 
 REAL_HOME="$HOME"
+# The scripts run with system folders only on PATH (plus stand-ins where a test adds them),
+# so no real editor's command-line tool can be found.
+SAFE_PATH="/usr/bin:/bin:/usr/sbin:/sbin"
+for cli in code code-insiders cursor windsurf; do
+  if PATH="$SAFE_PATH" command -v "$cli" >/dev/null 2>&1; then
+    echo "test-install: $cli is on $SAFE_PATH; refusing to run (it would be a real editor's)" >&2
+    exit 1
+  fi
+done
 WORKDIR="$(mktemp -d "${TMPDIR:-/tmp}/hmu-test-install.XXXXXX")"
 case "$WORKDIR" in
   */hmu-test-install.*) ;;
@@ -79,14 +92,16 @@ same_tree() { # expected state: on a difference, show it
 run() { # script, extra env... (the script arrives on stdin, as with curl | bash)
   local script="$1"
   shift
-  env HOME="$FAKE" HOOK_ME_UP_ZIP="$ZIP" HOOK_ME_UP_DRY_LAUNCH=1 HOOK_ME_UP_NO_TTY=1 \
-    HOOK_ME_UP_TEST_BREW_PREFIX="$WORKDIR/no-homebrew" "$@" bash <"$script"
+  env HOME="$FAKE" HOOK_ME_UP_ZIP="$ZIP" HOOK_ME_UP_DRY_LAUNCH=1 HOOK_ME_UP_NO_TTY=1 PATH="$SAFE_PATH" \
+    HOOK_ME_UP_TEST_BREW_PREFIX="$WORKDIR/no-homebrew" HOOK_ME_UP_TEST_APPLICATIONS="$WORKDIR/no-applications" \
+    "$@" bash <"$script"
 }
 run_truncated() { # script, fraction of its lines to keep (e.g. 1/2)
   local lines
   lines="$(($(wc -l <"$1") * ${2%/*} / ${2#*/}))"
   head -n "$lines" "$1" | env HOME="$FAKE" HOOK_ME_UP_ZIP="$ZIP" HOOK_ME_UP_DRY_LAUNCH=1 HOOK_ME_UP_NO_TTY=1 \
-    HOOK_ME_UP_TEST_BREW_PREFIX="$WORKDIR/no-homebrew" HOOK_ME_UP_YES=1 bash
+    PATH="$SAFE_PATH" HOOK_ME_UP_TEST_BREW_PREFIX="$WORKDIR/no-homebrew" \
+    HOOK_ME_UP_TEST_APPLICATIONS="$WORKDIR/no-applications" HOOK_ME_UP_YES=1 bash
 }
 json_equal() { /usr/bin/python3 -c 'import json,sys; sys.exit(json.load(open(sys.argv[1])) != json.load(open(sys.argv[2])))' "$1" "$2"; }
 
@@ -137,6 +152,11 @@ check "doctor skips launchd and the agent for another home" \
 check "no notification check without launchctl" \
   'grep -q "^Notification check skipped (HOOK_ME_UP_DRY_LAUNCH=1)" "$LOGS/install-1.txt"'
 check "System Settings not opened" '! grep -qi "opened system settings" "$LOGS/install-1.txt"'
+check "no editor command-line tool: the extension is skipped, quietly" \
+  'grep -qx "Editor extension skipped (no VS Code, VS Code Insiders, Cursor or Windsurf command-line tool found)." "$LOGS/install-1.txt" \
+   && ! grep -q "could not add" "$LOGS/install-1.txt" && ! grep -q "Reload the windows" "$LOGS/install-1.txt"'
+check "the app holds the editor extension" \
+  '[ "$(unzip -Z1 "$APP/Contents/Resources/hook-me-up.vsix" | LC_ALL=C sort | tr "\n" " ")" = "[Content_Types].xml extension.vsixmanifest extension/LICENSE.txt extension/README.md extension/extension.js extension/package.json " ]'
 check "next steps: allow notifications, Alerts, restart sessions; and the doctor" \
   'grep -q "Allow notifications for \"Hook Me Up\"" "$LOGS/install-1.txt" && grep -q "\"Alerts\"" "$LOGS/install-1.txt" \
    && grep -q "Restart the Claude Code sessions" "$LOGS/install-1.txt" && grep -q "hook-me-up-setup\" doctor$" "$LOGS/install-1.txt"'
@@ -366,7 +386,7 @@ onboard() { # name, result, extra env...
   shift 2
   : >"$LOGS/stub-$name.txt"
   run install.sh HOOK_ME_UP_YES=1 HOOK_ME_UP_DRY_LAUNCH=0 HOOK_ME_UP_ZIP="$STUBS/hook-me-up-stub-macos.zip" \
-    PATH="$STUBS/bin:$PATH" STUB_LOG="$LOGS/stub-$name.txt" STUB_RESULT="$result" "$@" >"$LOGS/install-$name.txt" 2>&1
+    PATH="$STUBS/bin:$SAFE_PATH" STUB_LOG="$LOGS/stub-$name.txt" STUB_RESULT="$result" "$@" >"$LOGS/install-$name.txt" 2>&1
 }
 next_steps() { sed -n '/^Next steps:/,/^Run this installer again/p' "$LOGS/install-$1.txt"; }
 check "no app before the first install" '[ ! -e "$APP" ]'
@@ -384,7 +404,7 @@ args="$(sed -n 's/^notifications //p' "$LOGS/stub-fresh.txt" | sed -e 's/--wait 
 read -r -a args <<<"$args"
 # With the stand-ins on PATH too, so it can never open the real System Settings.
 : >"$LOGS/stub-real.txt"
-env PATH="$STUBS/bin:$PATH" STUB_LOG="$LOGS/stub-real.txt" "$STUB_MACOS/hook-me-up-setup-current" notifications \
+env PATH="$STUBS/bin:$SAFE_PATH" STUB_LOG="$LOGS/stub-real.txt" "$STUB_MACOS/hook-me-up-setup-current" notifications \
   "${args[@]}" --socket "$WORKDIR/nobody.sock" --result-file "$WORKDIR/real-result" </dev/null \
   >"$LOGS/real-notifications.txt" 2>&1
 check "the real notifications command takes the installer's flags" \
@@ -414,6 +434,68 @@ check "every check got only known flags, and /dev/null as stdin" \
   '! grep -q -e "unknown flag" -e "stdin is not /dev/null" "$LOGS"/stub-*.txt'
 run uninstall.sh HOOK_ME_UP_YES=1 >"$LOGS/uninstall-stub.txt" 2>&1
 check "and uninstalled" 'json_equal "$WORKDIR/original.json" "$SETTINGS" && [ ! -e "$APP" ]'
+
+echo "--- the editor extension, with stand-ins for the editors' command-line tools"
+# A stand-in records its arguments in $EDITOR_LOG (one line per call, with its own name)
+# and exits with $EDITOR_STATUS; nothing reaches a real editor.
+EDITORS="$WORKDIR/editors"
+mkdir -p "$EDITORS/bin" "$EDITORS/apps/Cursor.app/Contents/Resources/app/bin"
+cat >"$EDITORS/bin/code" <<'STUB'
+#!/bin/bash
+echo "$(basename "$0") $*" >>"$EDITOR_LOG"
+exit "${EDITOR_STATUS:-0}"
+STUB
+chmod +x "$EDITORS/bin/code"
+cp "$EDITORS/bin/code" "$EDITORS/apps/Cursor.app/Contents/Resources/app/bin/cursor"
+editor_run() { # name, script, extra env...
+  local name="$1" script="$2"
+  shift 2
+  : >"$LOGS/editor-$name.txt"
+  run "$script" HOOK_ME_UP_YES=1 PATH="$EDITORS/bin:$SAFE_PATH" EDITOR_LOG="$LOGS/editor-$name.txt" "$@" \
+    >"$LOGS/$name.txt" 2>&1
+}
+VSIX="$APP/Contents/Resources/hook-me-up.vsix"
+check "install.sh and uninstall.sh find the editors' tools the same way" \
+  'diff <(sed -n "/^editor_clis() {/,/^}/p" install.sh) <(sed -n "/^editor_clis() {/,/^}/p" uninstall.sh) >/dev/null \
+   && diff <(sed -n "/^run_limited() {/,/^}/p" install.sh) <(sed -n "/^run_limited() {/,/^}/p" uninstall.sh) >/dev/null'
+editor_run install-code install.sh
+check "code on PATH: the app's .vsix is installed with --force" \
+  '[ "$(cat "$LOGS/editor-install-code.txt")" = "code --install-extension $VSIX --force" ]'
+check "the installer says so, and to reload open windows" \
+  'grep -qx "Added the Hook Me Up extension to VS Code." "$LOGS/install-code.txt" \
+   && next_steps code | grep -q "Reload the windows of VS Code that were already open"'
+editor_run install-cursor-app install.sh PATH="$SAFE_PATH" HOOK_ME_UP_TEST_APPLICATIONS="$EDITORS/apps"
+check "a tool inside an editor's app is found too (Cursor)" \
+  '[ "$(cat "$LOGS/editor-install-cursor-app.txt")" = "cursor --install-extension $VSIX --force" ] \
+   && grep -qx "Added the Hook Me Up extension to Cursor." "$LOGS/install-cursor-app.txt"'
+editor_run install-opt-out install.sh HOOK_ME_UP_NO_EDITOR_EXTENSION=1
+check "HOOK_ME_UP_NO_EDITOR_EXTENSION=1: no tool is run" \
+  '[ ! -s "$LOGS/editor-install-opt-out.txt" ] \
+   && grep -qx "Editor extension skipped (HOOK_ME_UP_NO_EDITOR_EXTENSION=1)." "$LOGS/install-opt-out.txt"'
+if editor_run install-tool-fails install.sh EDITOR_STATUS=1; then status=0; else status=$?; fi
+check "a tool that fails doesn't fail the install" \
+  '[ "$status" = 0 ] && grep -q "could not add the Hook Me Up extension to VS Code" "$LOGS/install-tool-fails.txt" \
+   && grep -q "^Hook Me Up is installed" "$LOGS/install-tool-fails.txt" && ! grep -q "Reload the windows" "$LOGS/install-tool-fails.txt"'
+editor_run uninstall-code uninstall.sh
+check "uninstall removes the extension with each tool" \
+  '[ "$(cat "$LOGS/editor-uninstall-code.txt")" = "code --uninstall-extension hook-me-up.hook-me-up" ] \
+   && grep -qx "Removed the Hook Me Up extension from VS Code." "$LOGS/uninstall-code.txt" && [ ! -e "$APP" ]'
+editor_run reinstall-code install.sh
+editor_run uninstall-not-there uninstall.sh EDITOR_STATUS=1
+check "an editor without the extension: uninstall says nothing about it and succeeds" \
+  'grep -q "^code --uninstall-extension" "$LOGS/editor-uninstall-not-there.txt" && [ ! -e "$APP" ] \
+   && ! grep -q "extension" "$LOGS/uninstall-not-there.txt"'
+editor_run reinstall-for-homebrew install.sh HOOK_ME_UP_TEST_BREW_PREFIX="$WORKDIR/homebrew" HOOK_ME_UP_IGNORE_HOMEBREW=1
+editor_run uninstall-homebrew uninstall.sh HOOK_ME_UP_TEST_BREW_PREFIX="$WORKDIR/homebrew"
+check "next to Homebrew's copy, uninstall keeps the extension (and says so)" \
+  '[ ! -s "$LOGS/editor-uninstall-homebrew.txt" ] && [ ! -e "$APP" ] \
+   && grep -qx "Kept the Hook Me Up extension in your editors: Homebrew.s copy uses it too." "$LOGS/uninstall-homebrew.txt"'
+rm -rf "$SUPPORT"
+run install.sh HOOK_ME_UP_YES=1 >"$LOGS/install-no-tool.txt" 2>&1
+run uninstall.sh HOOK_ME_UP_YES=1 >"$LOGS/uninstall-no-tool.txt" 2>&1
+check "without any tool, uninstall succeeds without a word about the extension" \
+  '[ ! -e "$APP" ] && ! grep -qi "extension" "$LOGS/uninstall-no-tool.txt"'
+check "and the settings are back to the original" 'json_equal "$WORKDIR/original.json" "$SETTINGS"'
 
 check "the real HOME was not touched" '[ "$BEFORE" = "$(fingerprint)" ]'
 

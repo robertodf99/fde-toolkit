@@ -20,7 +20,9 @@ curl -fsSL https://raw.githubusercontent.com/robertodf99/hook-me-up/main/install
 The installer downloads the latest release (and checks its SHA-256), installs
 `~/Applications/Hook Me Up.app`, shows the changes it would make to
 `~/.claude/settings.json` and **asks before writing them** (with a timestamped
-backup), and starts the menu-bar agent at login. Run it again to upgrade.
+backup), adds the [editor extension](#editor-extension) to VS Code, VS Code Insiders,
+Cursor and Windsurf when it finds their command-line tool, and starts the menu-bar agent
+at login. Run it again to upgrade.
 
 Uninstall:
 
@@ -29,9 +31,10 @@ curl -fsSL https://raw.githubusercontent.com/robertodf99/hook-me-up/main/uninsta
 ```
 
 It stops the agent, removes Hook Me Up's hooks from your settings (again after showing
-the diff and asking), and removes the app and its support folder. Your settings backups
-stay where they are. When Homebrew's copy of Hook Me Up is installed too, the support
-folder stays (that copy's agent uses it), and Homebrew's copy is left alone.
+the diff and asking), and removes the app, its support folder and the editor extension
+(with each editor's command-line tool it finds). Your settings backups stay where they
+are. When Homebrew's copy of Hook Me Up is installed too, the support folder and the
+editor extension stay (that copy's agent uses them), and Homebrew's copy is left alone.
 
 Requirements: macOS 14 or later, and [Claude Code](https://docs.claude.com/en/docs/claude-code/overview).
 
@@ -49,7 +52,9 @@ hook-me-up-setup doctor
 
 It is a formula, not a cask, so the download isn't quarantined (see
 [Why macOS says "unidentified developer"](#why-macos-says-unidentified-developer)).
-Homebrew doesn't change your settings by itself. After `brew upgrade hook-me-up`, run
+Homebrew doesn't change your settings by itself, nor add the editor extension; to add it,
+run `code --install-extension "$(brew --prefix)/opt/hook-me-up/Hook Me Up.app/Contents/Resources/hook-me-up.vsix" --force`
+(or `code-insiders`, `cursor`, `windsurf`). After `brew upgrade hook-me-up`, run
 `brew services restart hook-me-up`. To remove it, run the `hook-me-up-setup uninstall
 --hook …` command with the same path first, then `brew services stop hook-me-up` and
 `brew uninstall hook-me-up`. Use Homebrew or the installer above, not both: only one
@@ -104,15 +109,23 @@ notification, and tells you what is left to do:
 
 - **Clicking a notification opens its session**: Terminal and iTerm2 select the exact
   tab. Ghostty (1.3 or later) focuses the terminal whose working directory is the folder
-  Claude Code was started in, when exactly one terminal is there; otherwise, or when
-  Ghostty's AppleScript is off (`macos-applescript = false`), Ghostty just comes to the
-  front. VS Code and Cursor (and VS Code Insiders and Windsurf) focus the open window that
+  Claude Code was started in. When several terminals are there (splits or tabs in the
+  same folder), Hook Me Up briefly sets the title of the session's own terminal to a
+  random marker, asks Ghostty which terminal shows it, puts the old title back and
+  focuses that terminal; the title is back within about a second. When Ghostty doesn't
+  show the marker (a fixed `title = …` in its config, or the session changed its title
+  first), when the session has ended, when no terminal is in the folder, or when Ghostty's
+  AppleScript is off (`macos-applescript = false`), Ghostty just comes to the front.
+  VS Code and Cursor (and VS Code Insiders and Windsurf) focus the open window that
   contains the folder Claude Code was started in: that folder's window, the window of
   the repository a worktree or subfolder belongs to, or a saved `.code-workspace` that
-  includes it. While the session's window is open, a click opens no new window; when no
-  open window contains the folder, the editor just comes to the front. The editor keeps
-  its list of windows up to date with a delay, so right after you close windows a click
-  may just bring the editor to the front. Zed and other apps come to the front.
+  includes it; with the [editor extension](#editor-extension), the session's integrated
+  terminal is shown too, even when the window has several. While the session's window is
+  open, a click opens no new window; when no open window contains the folder, the editor
+  just comes to the front (and, with the extension, the front window shows the session's
+  terminal if it has it). The editor keeps its list of windows up to date with a delay,
+  so right after you close windows a click may just bring the editor to the front. Zed and
+  other apps come to the front.
   The click hands the request to Claude Code's terminal dialog: nothing is
   approved or answered from it. In a multi-question flow, the answers given so far are
   dropped and the terminal asks all the questions again.
@@ -127,6 +140,29 @@ notification, and tells you what is left to do:
 
 The ✻ menu-bar item shows how many requests are waiting and offers **Pause for 30
 minutes**, **Resume** and **Quit**.
+
+### Editor extension
+
+VS Code can't be asked from outside which integrated terminal runs a session, so Hook Me
+Up comes with a small extension for VS Code, VS Code Insiders, Cursor and Windsurf (plain
+JavaScript, no dependencies; source in [editor-extension/](editor-extension/)). On a
+click, the agent writes a request to
+`~/Library/Application Support/hook-me-up/editor-focus-request.json`: a random id, the
+time and the session's process ids, nothing else (no paths, titles or commands). Every
+editor window watches that file; the window with a terminal whose process is one of those
+ids shows it, and the others do nothing. Without the extension (or with it disabled), a
+click works exactly as before: it focuses the window.
+
+- The installer adds it with each editor's command-line tool (`code`, `code-insiders`,
+  `cursor`, `windsurf`, on your `PATH` or inside the app in `/Applications` or
+  `~/Applications`) and says so; if adding it fails, the install goes on. Set
+  `HOOK_ME_UP_NO_EDITOR_EXTENSION=1` to skip it.
+- Windows that were already open may need a reload (**Developer: Reload Window**) before
+  the extension runs in them.
+- The uninstaller removes it (unless Homebrew's copy of Hook Me Up is still installed).
+  You can also remove it from the editor's Extensions view (it is "Hook Me Up", id
+  `hook-me-up.hook-me-up`).
+- `hook-me-up-setup doctor` shows which editors have it (an INFO line; it never fails).
 
 ## How it works
 
@@ -159,6 +195,15 @@ away. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the details.
 - **Session-only rules.** "Approve for session" keeps only rule and directory
   suggestions and always scopes them to the session; it never writes to your settings.
 - **Unlocked Mac only** for every answering action.
+- **Clicks reach only the session's own terminal.** For Ghostty, the title marker is
+  written only to the session's tty, and only while the session runs and that tty is
+  still its controlling terminal (a character device of yours with the same device
+  number, opened without following links); the marker is random, goes to Ghostty's
+  AppleScript as an argument (never as script text), and the title written back has no
+  control characters. The editor extension acts only on a request that is exactly what
+  the agent writes: a file of yours in your private support folder, not a link, at most
+  4 KiB, less than 5 seconds old, each id once, 1 to 16 process ids; it never writes the
+  file, logs nothing and sends nothing anywhere.
 - **Careful installer.** It verifies the package checksum, shows the settings diff and
   asks first, backs up, writes atomically, and refuses to write if the file changed
   meanwhile.
@@ -228,6 +273,7 @@ The installer and uninstaller read these environment variables:
 | `HOOK_ME_UP_ZIP=<path>` | Install a local package (its `.sha256` must sit next to it) |
 | `HOOK_ME_UP_IGNORE_HOMEBREW=1` | Install even though Hook Me Up is installed with Homebrew (the installer stops otherwise: only one copy's agent can run, and two sets of hooks notify twice) |
 | `HOOK_ME_UP_NO_ONBOARDING=1` | Skip the notification check after starting the agent (no waiting, no test notification, System Settings stays closed) |
+| `HOOK_ME_UP_NO_EDITOR_EXTENSION=1` | Don't add the [editor extension](#editor-extension) to VS Code, VS Code Insiders, Cursor or Windsurf |
 
 Example: `curl -fsSL …/install.sh | HOOK_ME_UP_YES=1 bash`. Without a terminal and
 without `HOOK_ME_UP_YES=1`, the installer changes nothing in your settings and prints
@@ -244,7 +290,8 @@ Requires Xcode 16 or later (Swift 6).
 make            # build the hook, the installer CLI and the agent
 make test       # unit tests
 make lint       # swift format lint (make format to apply)
-make app        # .build/HookMeUp.app
+make app        # .build/HookMeUp.app (with the editor extension in Contents/Resources)
+make vsix       # the editor extension alone: .build/hook-me-up.vsix
 make install    # package this checkout and run install.sh with it
 make uninstall  # run uninstall.sh
 make dist VERSION=1.2.3 UNIVERSAL=1   # .build/dist/hook-me-up-1.2.3-macos.zip and .sha256
@@ -290,7 +337,11 @@ to `$(brew --prefix)/var/log/hook-me-up.log`.
   for what that means and how to check what you installed.
 - **Clicking a notification doesn't select the tab.** The first time, macOS asks to let
   Hook Me Up control Terminal, iTerm2 or Ghostty; allow it in System Settings → Privacy &
-  Security → Automation.
+  Security → Automation. With several Ghostty terminals in the session's folder, the log
+  says why one wasn't picked (`ghostty: title marker not seen`, for instance when
+  Ghostty's config sets `title`). In VS Code and the editors built on it, the terminal is
+  shown only with the [editor extension](#editor-extension): check it with the doctor, and
+  reload windows opened before it was installed.
 
 ## Feedback
 
