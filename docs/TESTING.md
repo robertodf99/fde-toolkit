@@ -47,20 +47,16 @@ package's `hook-me-up-setup notifications` with a stand-in that records its flag
 refuses unknown ones) and reports a given result: it checks the flags on a first install
 (`--open-settings`) and an upgrade (`--open-settings-if-off`), `/dev/null` as stdin, the
 next steps for ready, not-alerts, off and no-agent, and that the real command accepts
-the same flags. It also checks that install.sh stops when it finds Homebrew's copy
-(`HOOK_ME_UP_TEST_BREW_PREFIX` points it at a fake one) unless
-`HOOK_ME_UP_IGNORE_HOMEBREW=1`, and that uninstall.sh keeps the support folder (and a
-stand-in socket in it) next to that copy or a `sh.brew.hook-me-up.plist`, which it leaves
-alone. For the editor extension, every run gets system folders only on `PATH` (it refuses
-to run if a real `code`, `code-insiders`, `cursor` or `windsurf` is there) and a fake
-Applications folder (`HOOK_ME_UP_TEST_APPLICATIONS`); a stand-in `code` (on `PATH`) and
-`cursor` (inside a fake `Cursor.app`) record their flags: the app's `.vsix` installed
-with `--force`, nothing with `HOOK_ME_UP_NO_EDITOR_EXTENSION=1`, a failing tool doesn't
-fail the install, a tool that hangs is stopped (`HOOK_ME_UP_TEST_EDITOR_TIMEOUT=1`) with
-the process it started, uninstall runs `--uninstall-extension hook-me-up.hook-me-up`
-except next to Homebrew's copy (where it names only the editors whose registry lists the
-extension as kept), and with no tool at all both scripts say nothing about it. It
-also checks that the installed app holds the `.vsix` with its six entries.
+the same flags. For the editor extension, every run gets system folders only on `PATH`
+(it refuses to run if a real `code`, `code-insiders`, `cursor` or `windsurf` is there)
+and a fake Applications folder (`HOOK_ME_UP_TEST_APPLICATIONS`); a stand-in `code` (on
+`PATH`) and `cursor` (inside a fake `Cursor.app`) record their flags: the app's `.vsix`
+installed with `--force`, nothing with `HOOK_ME_UP_NO_EDITOR_EXTENSION=1`, a failing
+tool doesn't fail the install, a tool that hangs is stopped
+(`HOOK_ME_UP_TEST_EDITOR_TIMEOUT=1`) with the process it started, uninstall runs
+`--uninstall-extension hook-me-up.hook-me-up`, and with no tool at all both scripts say
+nothing about it. It also checks that the installed app holds the `.vsix` with its six
+entries.
 
 CI runs `lint`, `test`, `selftest`, `test-install`, `plugin-check` and
 `editor-extension-check` on every push and pull request. With the claude CLI installed,
@@ -72,8 +68,7 @@ left out on purpose, so users get the plugin as it is on `main`).
 
 Unit tests cover the logic; these checks need real notifications, real clicks and
 real Claude Code sessions. Mark each line ✅ / ❌ with a note. Logs (event kinds and
-short ids only, never commands or messages): `tail -f ~/Library/Logs/hook-me-up.log`, or
-with Homebrew's service `tail -f "$(brew --prefix)/var/log/hook-me-up.log"`.
+short ids only, never commands or messages): `tail -f ~/Library/Logs/hook-me-up.log`.
 
 For each check, use a scratch repository and `claude --permission-mode default` unless
 said otherwise, so that permission prompts actually appear.
@@ -131,25 +126,6 @@ said otherwise, so that permission prompts actually appear.
    from 0.1.x, `make build && .build/release/hook-me-up-setup doctor` against the old agent
    says it is too old to answer status questions (Agent WARN, exit 0).
 
-### Homebrew
-
-1. `brew tap robertodf99/tap`, `brew trust --tap robertodf99/tap` (recent Homebrew
-   refuses untrusted taps), then `brew install hook-me-up`: the caveats show the `hook-me-up-setup
-   install --hook "…/opt/hook-me-up/Hook Me Up.app/Contents/MacOS/hook-me-up"` command,
-   `brew services start hook-me-up` and `hook-me-up-setup doctor`.
-2. `xattr -r -p com.apple.quarantine "$(brew --prefix hook-me-up)/Hook Me Up.app"`
-   prints nothing (not quarantined), and the agent starts with `brew services start`.
-3. With the hooks added at the opt path, `hook-me-up-setup doctor` passes: App says
-   "installed with Homebrew", LaunchAgent `sh.brew.hook-me-up starts this app`
-   (`homebrew.mxcl.hook-me-up` before Homebrew 7), Agent process "running" (from
-   `launchctl print gui/$(id -u)/sh.brew.hook-me-up`), Hooks name the opt path. A leftover
-   `homebrew.mxcl.hook-me-up.plist` next to the `sh.brew` one is not a second
-   installation. With the curl installer's copy installed too, it warns "Two
-   installations" (and "Other installation" if both have hooks). Quit from the menu,
-   then the doctor: Agent process FAIL with `brew services restart hook-me-up`.
-4. `brew upgrade hook-me-up && brew services restart hook-me-up`: the doctor still
-   passes (the hooks at the opt path follow the upgrade).
-
 ## 1. Requests
 
 | # | Check | Expected |
@@ -200,5 +176,5 @@ said otherwise, so that permission prompts actually appear.
 
 | # | Check | Expected |
 |---|---|---|
-| 21 | The uninstall one-liner (or `make uninstall`) | Shows the diff (only our five hook entries removed), asks, backs up, writes; LaunchAgent removed, the app and `~/Library/Application Support/hook-me-up` removed, backups kept; "Removed the Hook Me Up extension from VS Code." (and each other editor that had it), and `code --list-extensions` no longer lists it. Other hooks and keys untouched. With Homebrew's copy installed too: the folder (and Homebrew's agent's socket) and the editor extension stay, the uninstaller says "Kept …: Homebrew's copy of Hook Me Up uses it." (and that it kept the extension), and `sh.brew.hook-me-up` (or `homebrew.mxcl.hook-me-up`) still runs and passes the doctor. |
+| 21 | The uninstall one-liner (or `make uninstall`) | Shows the diff (only our five hook entries removed), asks, backs up, writes; LaunchAgent removed, the app and `~/Library/Application Support/hook-me-up` removed, backups kept; "Removed the Hook Me Up extension from VS Code." (and each other editor that had it), and `code --list-extensions` no longer lists it. Other hooks and keys untouched. |
 | 22 | Reinstall, reboot | The agent starts at login (✻ in the menu bar); notifications work without opening anything. |

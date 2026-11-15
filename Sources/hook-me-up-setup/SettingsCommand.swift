@@ -10,8 +10,7 @@ import SetupKit
 func runSettingsCommand(_ command: String, _ arguments: [String]) -> Never {
     var arguments = arguments
     var settingsURL = HookMeUpPaths.claudeSettingsURL
-    // Without --hook: the hook next to this program (Homebrew's opt path for its keg),
-    // else where the installer puts it.
+    // Without --hook: the hook next to this program, else where the installer puts it.
     var hookPath = AppLocation.defaultHookPath(
         setupExecutable: Bundle.main.executablePath, canonicalPath: AppLocation.resolvingSymlinks,
         isExecutable: FileManager.default.isExecutableFile(atPath:), fallback: HookMeUpPaths.installedHookPath)

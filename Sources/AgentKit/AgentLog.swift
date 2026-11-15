@@ -2,8 +2,7 @@ import Foundation
 import os
 
 /// Agent log: unified logging (subsystem io.github.robertodf99.hook-me-up) plus stderr, which the
-/// LaunchAgent sends to ~/Library/Logs/hook-me-up.log (Homebrew's service: to
-/// $(brew --prefix)/var/log/hook-me-up.log). Never logs tool input,
+/// LaunchAgent sends to ~/Library/Logs/hook-me-up.log. Never logs tool input,
 /// commands or messages: only event kinds and short ids.
 public enum AgentLog {
     private static let logger = Logger(subsystem: "io.github.robertodf99.hook-me-up", category: "agent")

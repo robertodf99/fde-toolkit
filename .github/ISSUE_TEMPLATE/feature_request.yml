@@ -31,7 +31,6 @@ body:
       label: How Hook Me Up was installed
       options:
         - curl installer (install.sh)
-        - Homebrew (robertodf99/tap/hook-me-up)
         - Claude Code plugin (/hook-me-up:install)
         - From source (make install)
         - Not installed yet

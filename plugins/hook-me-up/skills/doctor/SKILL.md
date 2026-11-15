@@ -12,12 +12,9 @@ changes nothing. It exits 1 when a check failed; warnings don't.
 
 ## Steps
 
-1. Find `hook-me-up-setup`, in this order:
-   - `~/Applications/Hook Me Up.app/Contents/MacOS/hook-me-up-setup` (the installer's);
-   - `hook-me-up-setup` on the `PATH` (`command -v hook-me-up-setup`; Homebrew links it).
-
-   If neither exists, Hook Me Up isn't installed: suggest `/hook-me-up:install` and
-   stop.
+1. Find `hook-me-up-setup` where the installer puts it:
+   `~/Applications/Hook Me Up.app/Contents/MacOS/hook-me-up-setup`. If it doesn't
+   exist, Hook Me Up isn't installed: suggest `/hook-me-up:install` and stop.
 
 2. Run it: `"<path>" doctor`. A non-zero exit status is expected when something
    fails; read the output either way. If it prints a usage message instead of the
@@ -30,11 +27,9 @@ changes nothing. It exits 1 when a check failed; warnings don't.
    - **Notifications** off, or **Notification style** not Alerts: the user changes it
      in System Settings > Notifications > Hook Me Up (the fix line has a command
      that opens it).
-   - **Agent** not running or too old: the fix restarts it (re-running the installer,
-     or `brew services restart hook-me-up` for Homebrew).
-   - **Two installations** or **Other installation**: the installer's copy and
-     Homebrew's (or an old copy) both have hooks or LaunchAgents, so requests are
-     notified twice or the wrong agent runs. Keep one.
+   - **Agent** not running or too old: the fix restarts it (re-running the installer).
+   - **Other installation**: another copy of Hook Me Up (an older one, for example)
+     also has hooks in the settings, so requests are notified twice. Keep one.
 
 4. Offer to run a fix only when it is a command and it doesn't change the settings
    file or remove anything (for example `launchctl kickstart …` or opening System

@@ -13,12 +13,10 @@
 #   HOOK_ME_UP_YES=1            change ~/.claude/settings.json without asking
 #   HOOK_ME_UP_ZIP=<path>       install a local package (its .sha256 must sit next to it)
 #   HOOK_ME_UP_NO_ONBOARDING=1  skip the notification check after starting the agent
-#   HOOK_ME_UP_IGNORE_HOMEBREW=1  install even though Homebrew's copy is installed
 #   HOOK_ME_UP_NO_EDITOR_EXTENSION=1  do not add the editor extension
 #   HOOK_ME_UP_DRY_LAUNCH=1     do not use launchctl or start the app (tests)
 #   HOOK_ME_UP_NO_TTY=1         behave as if there were no terminal to ask (tests, and the
 #                               Claude Code plugin, which asks in the chat instead)
-#   HOOK_ME_UP_TEST_BREW_PREFIX=<dir>  look for Homebrew's copy only under <dir> (tests)
 #   HOOK_ME_UP_TEST_APPLICATIONS=<dir>  look for the editors' apps only under <dir> (tests)
 #   HOOK_ME_UP_TEST_EDITOR_TIMEOUT=<s>  stop an editor's tool after <s> seconds, not 120 (tests)
 #
@@ -38,19 +36,6 @@ die() {
 }
 dry_launch() { [ "${HOOK_ME_UP_DRY_LAUNCH:-0}" = "1" ]; }
 has_tty() { [ "${HOOK_ME_UP_NO_TTY:-0}" != "1" ] && (exec </dev/tty) 2>/dev/null; }
-# Homebrew's copy of Hook Me Up (the formula), if it is installed: prints its opt folder.
-homebrew_copy() {
-  local prefix prefixes=("${HOMEBREW_PREFIX:-/opt/homebrew}" /opt/homebrew /usr/local)
-  # Tests look elsewhere, so a Homebrew copy on the test machine doesn't count.
-  if [ -n "${HOOK_ME_UP_TEST_BREW_PREFIX:-}" ]; then prefixes=("$HOOK_ME_UP_TEST_BREW_PREFIX"); fi
-  for prefix in "${prefixes[@]}"; do
-    if [ -d "$prefix/opt/hook-me-up/Hook Me Up.app" ]; then
-      printf '%s\n' "$prefix/opt/hook-me-up"
-      return 0
-    fi
-  done
-  return 1
-}
 # The command-line tool of each VS Code-family editor found, one per line: the editor's
 # name, a tab, the tool's path. The tool on PATH, else the one inside the app in
 # /Applications or ~/Applications. The same in install.sh and uninstall.sh.
@@ -141,22 +126,6 @@ main() {
     "" | "/") die "HOME is not set." ;;
   esac
   [ -d "$HOME" ] || die "HOME ($HOME) is not a folder."
-  # Two copies would fight over the agent's socket, and two sets of hooks notify twice.
-  local brew_copy
-  if brew_copy="$(homebrew_copy)"; then
-    if [ "${HOOK_ME_UP_IGNORE_HOMEBREW:-0}" = "1" ]; then
-      warn "Hook Me Up is also installed with Homebrew ($brew_copy); installing this copy anyway"
-      warn "(HOOK_ME_UP_IGNORE_HOMEBREW=1). Only one agent can run, and both sets of hooks notify twice."
-    else
-      warn "Hook Me Up is already installed with Homebrew ($brew_copy). Use one or the other:"
-      warn "only one agent can run, and two sets of hooks notify twice."
-      warn "  Upgrade Homebrew's copy: brew upgrade hook-me-up && brew services restart hook-me-up"
-      warn "  Or switch to this installer: remove it first (hook-me-up-setup uninstall --hook"
-      warn "  \"$brew_copy/Hook Me Up.app/Contents/MacOS/hook-me-up\", brew services stop hook-me-up,"
-      warn "  brew uninstall hook-me-up), or set HOOK_ME_UP_IGNORE_HOMEBREW=1 to install both."
-      exit 1
-    fi
-  fi
 
   APPS="$HOME/Applications"
   APP="$APPS/Hook Me Up.app"

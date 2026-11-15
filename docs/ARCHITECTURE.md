@@ -12,7 +12,7 @@ over a Unix socket. Everything else is libraries, so the logic is tested without
 | `HookMeUpIPC` | library | Socket transport: `SocketServer` (with its periodic socket check, `SocketCheck`), `SocketClient`, `Connection` and the file-system/peer checks. |
 | `HookKit` | library | The hook runner `runHook`: parse, summarise, ask the agent, encode the decision. |
 | `AgentKit` | library | The agent runtime `AgentController`: socket ↔ `AgentCore` ↔ notifications, behind the protocols `NotificationPresenting`, `TerminalActivating` and `WallClock`. |
-| `SetupKit` | library | The installer: `SettingsMerger` (add/remove our hooks, matched by the binary their command runs, and `inspect`: which of them a settings file has and how they differ from what install writes), `SettingsFile` (backup, atomic write) and `AppLocation` (the app around an executable, Homebrew's opt path, the default `--hook`). |
+| `SetupKit` | library | The installer: `SettingsMerger` (add/remove our hooks, matched by the binary their command runs, and `inspect`: which of them a settings file has and how they differ from what install writes), `SettingsFile` (backup, atomic write) and `AppLocation` (the app around an executable, the default `--hook`). |
 | `DoctorKit` | library | `hook-me-up-setup doctor`: `Doctor` evaluates an installation (app, LaunchAgent, running agent, hooks, notification settings) through the `DoctorProbe` protocol and prints a fix for each problem; `AgentClient` asks the agent for its status over the socket; `NotificationOnboarding` (behind `OnboardingIO`) is the installer's notification check. |
 | `hook-me-up` | executable | Reads stdin, calls `runHook`, prints its output; always exits 0. |
 | `hook-me-up-setup` | executable | `install` / `uninstall` around SetupKit, `doctor` and `notifications` around DoctorKit. |
@@ -167,7 +167,7 @@ old to answer.
   `cursor`, `windsurf` on `PATH`, else inside the app in `/Applications` or
   `~/Applications`): `--install-extension <app>/Contents/Resources/hook-me-up.vsix
   --force`, at most 2 minutes each (then the tool and the editor process it started are stopped), never failing the install (`HOOK_ME_UP_NO_EDITOR_EXTENSION=1`
-  skips it). `uninstall.sh` reverses it (`--uninstall-extension hook-me-up.hook-me-up`,
-  except while Homebrew's copy uses the support folder) and keeps the settings backups.
+  skips it). `uninstall.sh` reverses it (`--uninstall-extension hook-me-up.hook-me-up`)
+  and keeps the settings backups.
   `scripts/test-install.sh` runs both against a throwaway HOME, with system folders only
   on `PATH` and stand-ins for the editors' tools.
