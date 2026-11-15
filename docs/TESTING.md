@@ -25,7 +25,9 @@ refuses unknown ones) and reports a given result: it checks the flags on a first
 next steps for ready, not-alerts, off and no-agent, and that the real command accepts
 the same flags. It also checks that install.sh stops when it finds Homebrew's copy
 (`HOOK_ME_UP_TEST_BREW_PREFIX` points it at a fake one) unless
-`HOOK_ME_UP_IGNORE_HOMEBREW=1`.
+`HOOK_ME_UP_IGNORE_HOMEBREW=1`, and that uninstall.sh keeps the support folder (and a
+stand-in socket in it) next to that copy or a `sh.brew.hook-me-up.plist`, which it leaves
+alone.
 
 CI runs `lint`, `test`, `selftest`, `test-install` and `plugin-check` on every push and
 pull request. With the claude CLI installed, `claude plugin validate .` and
@@ -156,5 +158,5 @@ said otherwise, so that permission prompts actually appear.
 
 | # | Check | Expected |
 |---|---|---|
-| 21 | The uninstall one-liner (or `make uninstall`) | Shows the diff (only our five hook entries removed), asks, backs up, writes; LaunchAgent removed, the app and `~/Library/Application Support/hook-me-up` removed, backups kept. Other hooks and keys untouched. |
+| 21 | The uninstall one-liner (or `make uninstall`) | Shows the diff (only our five hook entries removed), asks, backs up, writes; LaunchAgent removed, the app and `~/Library/Application Support/hook-me-up` removed, backups kept. Other hooks and keys untouched. With Homebrew's copy installed too: the folder (and Homebrew's agent's socket) stays, the uninstaller says "Kept …: Homebrew's copy of Hook Me Up uses it.", and `sh.brew.hook-me-up` (or `homebrew.mxcl.hook-me-up`) still runs and passes the doctor. |
 | 22 | Reinstall, reboot | The agent starts at login (✻ in the menu bar); notifications work without opening anything. |
