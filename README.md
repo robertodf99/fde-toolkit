@@ -1,5 +1,7 @@
 # Hook Me Up
 
+<p align="center"><img src="docs/images/logo.png" width="128" alt="Hook Me Up logo"></p>
+
 Answer Claude Code from native macOS notifications. When Claude Code needs permission
 for a tool, asks you a question, wants a plan approved or finishes a turn, Hook Me Up
 shows a notification you can act on right there: approve or deny, pick an answer,

@@ -115,7 +115,11 @@ old to answer.
   package, checks, a build provenance attestation for the zip (`gh attestation verify`),
   and a GitHub release with the zip and checksum. The app icon is drawn
   at build time by `scripts/make-icon.swift` from the committed symbol path
-  (`Resources/icon/claude-symbol.svg`).
+  (`Resources/icon/claude-symbol.svg`). The project logo, GitHub's social preview and
+  the Product Hunt thumbnail in `docs/images/` are drawn by `scripts/make-logo.swift`;
+  the demo video (`.build/demo/hook-me-up-demo.mp4`) and the README's GIF by
+  `scripts/make-demo.sh`, from screen recordings that are never committed (the shot
+  list is a table at the top of the script).
 - `install.sh` downloads that release (checksum verified), installs
   `~/Applications/Hook Me Up.app` exactly as packaged (its signature intact),
   adds the hooks only with consent (asked on `/dev/tty`, or `HOOK_ME_UP_YES=1`), and
