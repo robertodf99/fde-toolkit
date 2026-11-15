@@ -72,6 +72,7 @@ body:
     attributes:
       label: Relevant lines of ~/Library/Logs/hook-me-up.log
       description: |
+        With Homebrew's service the log is `$(brew --prefix)/var/log/hook-me-up.log`.
         The log holds event kinds and short ids, not commands or messages, but read it
         before pasting and remove anything private.
       render: text

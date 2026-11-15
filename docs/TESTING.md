@@ -37,7 +37,8 @@ get the plugin as it is on `main`).
 
 Unit tests cover the logic; these checks need real notifications, real clicks and
 real Claude Code sessions. Mark each line ✅ / ❌ with a note. Logs (event kinds and
-short ids only, never commands or messages): `tail -f ~/Library/Logs/hook-me-up.log`.
+short ids only, never commands or messages): `tail -f ~/Library/Logs/hook-me-up.log`, or
+with Homebrew's service `tail -f "$(brew --prefix)/var/log/hook-me-up.log"`.
 
 For each check, use a scratch repository and `claude --permission-mode default` unless
 said otherwise, so that permission prompts actually appear.
