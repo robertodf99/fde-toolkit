@@ -88,8 +88,8 @@ said otherwise, so that permission prompts actually appear.
    `notifications: authorized, style alert`. Notifications show the app icon: a white
    spark on a clay rounded square.
 6. The menu bar shows ✻ (with the number of waiting entries, ⏸ while paused).
-7. The first click on a notification with Terminal or iTerm2 asks once for Automation
-   permission: allow it.
+7. The first click on a notification with Terminal, iTerm2 or Ghostty asks once for
+   Automation permission: allow it.
 8. `~/Applications/"Hook Me Up.app"/Contents/MacOS/hook-me-up-setup doctor`: every line
    PASS (Pause may be INFO), exit status 0. Then, one at a time, and run the doctor after
    each (undo it afterwards): set the style to Banners (WARN, exit 0); turn notifications
@@ -156,6 +156,7 @@ said otherwise, so that permission prompts actually appear.
 | # | Check | Expected |
 |---|---|---|
 | 18 | Click a notification from Terminal, iTerm2, Ghostty, VS Code, Cursor, Claude desktop (and, if installed, VS Code Insiders, Windsurf, Zed) | Terminal / iTerm2: the exact tab is selected. VS Code / Cursor (and Insiders, Windsurf): the click focuses the open window that contains the session's folder, and opens no new window. Zed and the others: the app comes forward. The log says which strategy was used (`open session: focused an existing window of …` or `open session: no matching window or no window state; brought the editor forward …`) and the frontmost app, never a path. |
+| 18d | Ghostty 1.3 or later: two windows (or tabs) in different folders, Claude Code in one; click its notification from the other window, then from another app | macOS asks once to let Hook Me Up control Ghostty (allow it); then the session's terminal comes to the front, in its window and tab (`open session: ghostty terminal focused`, frontmost `com.mitchellh.ghostty`). With a second terminal (a split) in the same folder: Ghostty only comes to the front (`ghostty: no unique match (2)`). With `macos-applescript = false` in Ghostty's config (restart Ghostty), or Automation denied for Ghostty, or Ghostty before 1.3: Ghostty only comes to the front (`ghostty script failed`). Note whether Ghostty actually comes forward in each case (the frontmost line). |
 | 18b | With two VS Code windows open (two projects), run Claude Code in each and click a notification from each | Each click focuses the open window that contains that session's folder, not just VS Code; no new window opens. Then close one of the two windows (its session ends) and click an older notification from it: VS Code only comes to the front, and no window opens. Close the last window too (VS Code keeps running) and click again: VS Code only comes to the front. |
 | 18c | In VS Code, open a repository as the window and run Claude Code in a worktree inside it (`.worktrees/<name>` or `.claude/worktrees/<name>`), then in a subfolder of it; open a saved multi-root `.code-workspace` and run Claude Code in one of its folders; last, `cd` to a folder outside every open window and run Claude Code there | The click focuses the open window that contains the session's folder (the repository's window, or the workspace's window), and opens no new window. For the outside folder VS Code only comes to the front (`no matching window or no window state; brought the editor forward`). |
 | 19 | Subagent permission request | Title ends with "· subagent". |

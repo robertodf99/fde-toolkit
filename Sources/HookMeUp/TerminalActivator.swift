@@ -4,15 +4,20 @@ import HookMeUpCore
 
 /// Brings a session forward when its notification is clicked: Terminal and iTerm2
 /// select the exact tab by tty (AppleScript; macOS asks for Automation permission once);
+/// Ghostty (1.3 or later, with its AppleScript on) focuses the one terminal whose working
+/// directory is the session's folder (AppleScript too: one script lists the terminals,
+/// a second focuses one by id; the folder never goes into a script), and only comes
+/// forward when no single terminal is there, the scripts fail or Automation isn't allowed;
 /// VS Code, VS Code Insiders, Cursor and Windsurf focus the open window that holds the
 /// session's folder (by opening exactly that window's folder or workspace file), and are
 /// only brought forward when no open window holds it, so a click never opens a new
-/// window; other apps (Zed, Ghostty, Warp, Claude desktop…) come forward.
+/// window; other apps (Zed, Warp, Claude desktop…) come forward.
 ///
 /// Activation is cooperative (macOS 14): the notification click makes this app active,
-/// and it yields to the target app. Logs say what really happened (the strategy, the
-/// result and the frontmost app shortly after), never a path. This is the only place the
-/// agent activates another app on purpose.
+/// and it yields to the target app; macOS may still refuse, which the log shows. An app
+/// that is asked over AppleScript (Terminal, iTerm2, Ghostty) activates itself. Logs say
+/// what really happened (the strategy, the result and the frontmost app shortly after),
+/// never a path. This is the only place the agent activates another app on purpose.
 ///
 /// The app lookup and the plan (process, file and window-list reads) run off the main
 /// thread; opening and activating run on it.
@@ -49,6 +54,8 @@ struct TerminalActivator: TerminalActivating {
         switch plan {
         case .selectTab(let app, let tty):
             selectTab(app, tty: tty, owner: owner)
+        case .focusTerminalByFolder(_, let folder):
+            focusGhosttyTerminal(folder: folder, owner: owner)
         case .focusWindow(let target):
             focusWindow(target, owner: owner)
         case .activateApp where EditorWindows.tracksWindows(bundleID: owner.bundleID):
@@ -73,6 +80,57 @@ struct TerminalActivator: TerminalActivating {
                     bringForward(owner)
                 }
             }
+        }
+    }
+
+    /// What happened when Ghostty was asked for the session's terminal.
+    enum GhosttyResult: Equatable {
+        /// The one terminal in the folder was focused.
+        case focused
+        /// Ghostty listed its terminals, but not exactly one is in the folder (this many are).
+        case noUniqueMatch(Int)
+        /// A script failed: Ghostty before 1.3, its AppleScript off, Automation not allowed,
+        /// the terminal gone, or a timeout.
+        case scriptFailed
+    }
+
+    /// Ghostty: focuses the terminal in the session's folder, then brings Ghostty forward.
+    private static func focusGhosttyTerminal(folder: String, owner: TerminalMapping.Owner) {
+        // osascript can block (macOS asks for Automation permission the first time): off the main thread.
+        DispatchQueue.global(qos: .userInitiated).async {
+            let result = ghosttyFocus(folder: folder)
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    switch result {
+                    case .focused:
+                        AgentLog.info("open session: ghostty terminal focused")
+                        bringForward(owner)
+                    case .noUniqueMatch(let count):
+                        bringForward(owner, strategy: "ghostty: no unique match (\(count)); brought Ghostty forward")
+                    case .scriptFailed:
+                        bringForward(owner, strategy: "ghostty script failed; brought Ghostty forward")
+                    }
+                }
+            }
+        }
+    }
+
+    /// Lists Ghostty's terminals, and focuses the one whose working directory is `folder`
+    /// when exactly one is. When none or several are, asks Ghostty to come forward (it
+    /// answered the list, so Automation is allowed). Blocks: run it off the main thread.
+    nonisolated static func ghosttyFocus(folder: String) -> GhosttyResult {
+        guard let output = runAppleScriptOutput(GhosttyTerminals.list) else { return .scriptFailed }
+        let terminals = GhosttyTerminals.terminals(fromList: output)
+        switch GhosttyTerminals.match(folder: folder, in: terminals, resolve: LocalFileSystem.resolvingSymlinks) {
+        case .unique(let id):
+            guard let focus = GhosttyTerminals.focus(id: id), runAppleScript(focus) else { return .scriptFailed }
+            return .focused
+        case .none:
+            _ = runAppleScript(GhosttyTerminals.activate)
+            return .noUniqueMatch(0)
+        case .several(let count):
+            _ = runAppleScript(GhosttyTerminals.activate)
+            return .noUniqueMatch(count)
         }
     }
 
@@ -139,22 +197,57 @@ struct TerminalActivator: TerminalActivating {
         }
     }
 
-    /// Runs `source` with /usr/bin/osascript (killed after 10 s); true when it printed "found".
-    nonisolated static func runAppleScript(_ source: String) -> Bool {
+    /// Runs `source` with /usr/bin/osascript (killed after `timeout` seconds); true when it
+    /// printed "found". `arguments` go to the script's `on run argv`, never into its text.
+    nonisolated static func runAppleScript(
+        _ source: String, arguments: [String] = [], timeout: TimeInterval = 10
+    ) -> Bool {
+        let text = runAppleScriptOutput(source, arguments: arguments, timeout: timeout)
+        return text?.trimmingCharacters(in: .whitespacesAndNewlines) == "found"
+    }
+
+    nonisolated static func runAppleScript(_ command: GhosttyTerminals.Command) -> Bool {
+        runAppleScript(command.source, arguments: command.arguments)
+    }
+
+    nonisolated static func runAppleScriptOutput(_ command: GhosttyTerminals.Command) -> String? {
+        runAppleScriptOutput(command.source, arguments: command.arguments)
+    }
+
+    /// What `source` printed, run with /usr/bin/osascript and `arguments` (after `--`, so
+    /// one that starts with "-" is not taken for an option); nil when it failed or ran
+    /// longer than `timeout` seconds (then it is killed). The output is read while the
+    /// script runs, so a long one can't fill the pipe and block it.
+    nonisolated static func runAppleScriptOutput(
+        _ source: String, arguments: [String] = [], timeout: TimeInterval = 10
+    ) -> String? {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-        process.arguments = ["-e", source]
+        process.arguments = ["-e", source, "--"] + arguments
         let output = Pipe()
         process.standardOutput = output
         process.standardError = FileHandle.nullDevice
+        process.standardInput = FileHandle.nullDevice
         let finished = DispatchSemaphore(value: 0)
         process.terminationHandler = { _ in finished.signal() }  // set before run: no missed exit
-        do { try process.run() } catch { return false }
-        if finished.wait(timeout: .now() + 10) == .timedOut {
-            process.terminate()
-            return false
+        do { try process.run() } catch { return nil }
+        let collected = CollectedOutput()
+        let reading = DispatchGroup()
+        DispatchQueue.global(qos: .userInitiated).async(group: reading) {
+            collected.data = output.fileHandleForReading.readDataToEndOfFile()
         }
-        let text = String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-        return process.terminationStatus == 0 && text.trimmingCharacters(in: .whitespacesAndNewlines) == "found"
+        if finished.wait(timeout: .now() + timeout) == .timedOut {
+            process.terminate()
+            _ = reading.wait(timeout: .now() + 1)
+            return nil
+        }
+        // osascript has exited, so its end of the pipe is closed: the read ends.
+        guard reading.wait(timeout: .now() + 1) == .success, process.terminationStatus == 0 else { return nil }
+        return String(decoding: collected.data, as: UTF8.self)
     }
+}
+
+/// The output a reader thread collected; read only after the reading group finished.
+private final class CollectedOutput: @unchecked Sendable {
+    var data = Data()
 }

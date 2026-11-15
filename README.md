@@ -101,7 +101,10 @@ notification, and tells you what is left to do:
 | finishes a turn, or waits for a reply | `project · Finished` / `Waiting for your reply` | none |
 
 - **Clicking a notification opens its session**: Terminal and iTerm2 select the exact
-  tab. VS Code and Cursor (and VS Code Insiders and Windsurf) focus the open window that
+  tab. Ghostty (1.3 or later) focuses the terminal whose working directory is the folder
+  Claude Code was started in, when exactly one terminal is there; otherwise, or when
+  Ghostty's AppleScript is off (`macos-applescript = false`), Ghostty just comes to the
+  front. VS Code and Cursor (and VS Code Insiders and Windsurf) focus the open window that
   contains the folder Claude Code was started in: that folder's window, the window of
   the repository a worktree or subfolder belongs to, or a saved `.code-workspace` that
   includes it. While the session's window is open, a click opens no new window; when no
@@ -284,7 +287,7 @@ to `$(brew --prefix)/var/log/hook-me-up.log`.
   item enabled. See [Why macOS says "unidentified developer"](#why-macos-says-unidentified-developer)
   for what that means and how to check what you installed.
 - **Clicking a notification doesn't select the tab.** The first time, macOS asks to let
-  Hook Me Up control Terminal or iTerm2; allow it in System Settings → Privacy &
+  Hook Me Up control Terminal, iTerm2 or Ghostty; allow it in System Settings → Privacy &
   Security → Automation.
 
 ## Feedback
