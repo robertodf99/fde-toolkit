@@ -4,12 +4,13 @@
 #   curl -fsSL https://raw.githubusercontent.com/robertodf99/hook-me-up/main/uninstall.sh | bash
 #
 # Removes Hook Me Up's hooks from ~/.claude/settings.json (after showing the diff and
-# asking). Only then does it stop the agent and remove the app, its LaunchAgent and its
-# support folder; if the hooks stay, everything else stays too. The support folder
-# (~/Library/Application Support/hook-me-up, with the agent's socket) stays when
-# Homebrew's copy of Hook Me Up is installed too, since that copy uses it; Homebrew's
-# copy and its service are never touched. Settings backups (settings.json.bak-*) and
-# the log are left where they are.
+# asking). Only then does it stop the agent and remove the app, its LaunchAgent, its
+# support folder and the editor extension (from VS Code, VS Code Insiders, Cursor and
+# Windsurf, with each command-line tool found); if the hooks stay, everything else stays
+# too. The support folder (~/Library/Application Support/hook-me-up, with the agent's
+# socket) and the editor extension stay when Homebrew's copy of Hook Me Up is installed
+# too, since that copy uses them; Homebrew's copy and its service are never touched.
+# Settings backups (settings.json.bak-*) and the log are left where they are.
 #
 # Environment:
 #   HOOK_ME_UP_YES=1         change ~/.claude/settings.json without asking
@@ -17,6 +18,7 @@
 #   HOOK_ME_UP_NO_TTY=1      behave as if there were no terminal to ask (tests, and the
 #                            Claude Code plugin, which asks in the chat instead)
 #   HOOK_ME_UP_TEST_BREW_PREFIX=<dir>  look for Homebrew's copy only under <dir> (tests)
+#   HOOK_ME_UP_TEST_APPLICATIONS=<dir>  look for the editors' apps only under <dir> (tests)
 #
 # Everything runs from main(), called on the last line, so a download cut short runs
 # nothing.
@@ -57,6 +59,47 @@ homebrew_uses_support() {
   return 1
 }
 
+# The command-line tool of each VS Code-family editor found, one per line: the editor's
+# name, a tab, the tool's path. The tool on PATH, else the one inside the app in
+# /Applications or ~/Applications. The same in install.sh and uninstall.sh.
+editor_clis() {
+  local entry cli app name dir found folders=(/Applications "$HOME/Applications")
+  # Tests look elsewhere, so the editors on the test machine don't count.
+  if [ -n "${HOOK_ME_UP_TEST_APPLICATIONS:-}" ]; then folders=("$HOOK_ME_UP_TEST_APPLICATIONS"); fi
+  for entry in "code|Visual Studio Code|VS Code" "code-insiders|Visual Studio Code - Insiders|VS Code Insiders" \
+    "cursor|Cursor|Cursor" "windsurf|Windsurf|Windsurf"; do
+    IFS='|' read -r cli app name <<<"$entry"
+    found="$(command -v "$cli" 2>/dev/null || true)"
+    case "$found" in /*) ;; *) found="" ;; esac
+    if [ -z "$found" ]; then
+      for dir in "${folders[@]}"; do
+        if [ -x "$dir/$app.app/Contents/Resources/app/bin/$cli" ]; then
+          found="$dir/$app.app/Contents/Resources/app/bin/$cli"
+          break
+        fi
+      done
+    fi
+    if [ -n "$found" ]; then printf '%s\t%s\n' "$name" "$found"; fi
+  done
+}
+# Runs a command and stops it after $1 seconds, so an editor's tool that hangs can't hang
+# this script: its exit status, or 124 when it was stopped. The same in both scripts.
+run_limited() {
+  local seconds="$1" pid tenths=0
+  shift
+  "$@" &
+  pid=$!
+  while kill -0 "$pid" 2>/dev/null; do
+    if [ "$tenths" -ge $((seconds * 10)) ]; then
+      kill -TERM "$pid" 2>/dev/null || true
+      wait "$pid" 2>/dev/null || true
+      return 124
+    fi
+    sleep 0.1
+    tenths=$((tenths + 1))
+  done
+  wait "$pid"
+}
 # Quits a Hook Me Up started outside launchd: only processes whose executable is exactly
 # this installed app's.
 quit_running_app() {
@@ -109,14 +152,23 @@ main() {
   quit_running_app "$app/Contents/MacOS/HookMeUp"
   rm -f "$HOME/Library/LaunchAgents/$LABEL.plist"
   rm -rf "$HOME/Applications/Hook Me Up.app"
-  # Homebrew's agent listens in the same folder: removing it would cut that agent off.
+  # Homebrew's agent listens in the same folder (and writes the editor extension's
+  # requests there): removing either would cut that agent off.
+  local editor cli
   if homebrew_uses_support; then
     say "Stopped the agent and removed $app and its LaunchAgent."
     say "Kept $support: Homebrew's copy of Hook Me Up uses it."
+    if [ -n "$(editor_clis)" ]; then say "Kept the Hook Me Up extension in your editors: Homebrew's copy uses it too."; fi
     say "If Homebrew's agent is not running, start it with: brew services restart hook-me-up"
   else
     rm -rf "$HOME/Library/Application Support/hook-me-up"
     say "Stopped the agent and removed $app, its LaunchAgent and $support."
+    # An editor without the extension refuses (exit 1): nothing to say then.
+    while IFS=$'\t' read -r editor cli; do
+      if run_limited 120 "$cli" --uninstall-extension hook-me-up.hook-me-up >/dev/null 2>&1 </dev/null; then
+        say "Removed the Hook Me Up extension from $editor."
+      fi
+    done < <(editor_clis)
   fi
   say "Settings backups (settings.json.bak-*) were left in ~/.claude."
 }

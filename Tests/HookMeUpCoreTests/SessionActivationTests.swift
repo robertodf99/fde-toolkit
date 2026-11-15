@@ -151,16 +151,30 @@ private let vsCodeFamily = [
         #expect(plan(bundleID, tty: "ttys003", folder: "\(projects)/acme-api") == .activateApp)
     }
 
-    /// Ghostty focuses the terminal in the session's folder (normalised), whatever the tty;
-    /// the session's process and window count don't matter.
+    /// Ghostty focuses the terminal in the session's folder (normalised), with the session's
+    /// tty as a device path when it has one (for the title marker); the session's process
+    /// and window count don't matter.
     @Test func ghosttyLooksForTheTerminalInTheFolder() {
         let ghostty = "com.mitchellh.ghostty"
         #expect(
             plan(ghostty, tty: "ttys003", folder: "\(projects)/acme-api")
-                == .focusTerminalByFolder(.ghostty, folder: "\(projects)/acme-api"))
+                == .focusTerminalByFolder(.ghostty, folder: "\(projects)/acme-api", tty: "/dev/ttys003"))
         #expect(
             plan(ghostty, folder: "\(projects)/acme-web/src/", sessionAlive: false, openWindows: 0)
-                == .focusTerminalByFolder(.ghostty, folder: "\(projects)/acme-web/src"))
+                == .focusTerminalByFolder(.ghostty, folder: "\(projects)/acme-web/src", tty: nil))
+    }
+
+    /// Only a plain pseudo-terminal is kept; anything else still looks for the terminal by
+    /// folder, without a tty (so no title marker is written).
+    @Test(
+        arguments: [
+            ("/dev/ttys012", "/dev/ttys012"), ("ttys1023", "/dev/ttys1023"), ("ttys0", nil), ("../ttys003", nil),
+            ("not a tty", nil), ("/dev/console", nil), ("ttys003\"", nil),
+        ] as [(String, String?)])
+    func ghosttyKeepsOnlyAPlainPseudoTerminal(_ tty: String, _ path: String?) {
+        #expect(
+            plan("com.mitchellh.ghostty", tty: tty, folder: "\(projects)/acme-api")
+                == .focusTerminalByFolder(.ghostty, folder: "\(projects)/acme-api", tty: path))
     }
 
     /// Without an existing absolute folder, Ghostty only comes forward.

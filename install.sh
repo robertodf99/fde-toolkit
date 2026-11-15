@@ -4,7 +4,9 @@
 #   curl -fsSL https://raw.githubusercontent.com/robertodf99/hook-me-up/main/install.sh | bash
 #
 # Installs ~/Applications/Hook Me Up.app, adds the hooks to ~/.claude/settings.json
-# (after showing the diff and asking), and starts the menu-bar agent at login.
+# (after showing the diff and asking), adds the editor extension to VS Code, VS Code
+# Insiders, Cursor and Windsurf (those whose command-line tool it finds), and starts the
+# menu-bar agent at login.
 #
 # Environment:
 #   HOOK_ME_UP_VERSION=vX.Y.Z   install that release instead of the latest
@@ -12,10 +14,12 @@
 #   HOOK_ME_UP_ZIP=<path>       install a local package (its .sha256 must sit next to it)
 #   HOOK_ME_UP_NO_ONBOARDING=1  skip the notification check after starting the agent
 #   HOOK_ME_UP_IGNORE_HOMEBREW=1  install even though Homebrew's copy is installed
+#   HOOK_ME_UP_NO_EDITOR_EXTENSION=1  do not add the editor extension
 #   HOOK_ME_UP_DRY_LAUNCH=1     do not use launchctl or start the app (tests)
 #   HOOK_ME_UP_NO_TTY=1         behave as if there were no terminal to ask (tests, and the
 #                               Claude Code plugin, which asks in the chat instead)
 #   HOOK_ME_UP_TEST_BREW_PREFIX=<dir>  look for Homebrew's copy only under <dir> (tests)
+#   HOOK_ME_UP_TEST_APPLICATIONS=<dir>  look for the editors' apps only under <dir> (tests)
 #
 # Everything runs from main(), called on the last line, so a download cut short runs
 # nothing.
@@ -45,6 +49,47 @@ homebrew_copy() {
     fi
   done
   return 1
+}
+# The command-line tool of each VS Code-family editor found, one per line: the editor's
+# name, a tab, the tool's path. The tool on PATH, else the one inside the app in
+# /Applications or ~/Applications. The same in install.sh and uninstall.sh.
+editor_clis() {
+  local entry cli app name dir found folders=(/Applications "$HOME/Applications")
+  # Tests look elsewhere, so the editors on the test machine don't count.
+  if [ -n "${HOOK_ME_UP_TEST_APPLICATIONS:-}" ]; then folders=("$HOOK_ME_UP_TEST_APPLICATIONS"); fi
+  for entry in "code|Visual Studio Code|VS Code" "code-insiders|Visual Studio Code - Insiders|VS Code Insiders" \
+    "cursor|Cursor|Cursor" "windsurf|Windsurf|Windsurf"; do
+    IFS='|' read -r cli app name <<<"$entry"
+    found="$(command -v "$cli" 2>/dev/null || true)"
+    case "$found" in /*) ;; *) found="" ;; esac
+    if [ -z "$found" ]; then
+      for dir in "${folders[@]}"; do
+        if [ -x "$dir/$app.app/Contents/Resources/app/bin/$cli" ]; then
+          found="$dir/$app.app/Contents/Resources/app/bin/$cli"
+          break
+        fi
+      done
+    fi
+    if [ -n "$found" ]; then printf '%s\t%s\n' "$name" "$found"; fi
+  done
+}
+# Runs a command and stops it after $1 seconds, so an editor's tool that hangs can't hang
+# this script: its exit status, or 124 when it was stopped. The same in both scripts.
+run_limited() {
+  local seconds="$1" pid tenths=0
+  shift
+  "$@" &
+  pid=$!
+  while kill -0 "$pid" 2>/dev/null; do
+    if [ "$tenths" -ge $((seconds * 10)) ]; then
+      kill -TERM "$pid" 2>/dev/null || true
+      wait "$pid" 2>/dev/null || true
+      return 124
+    fi
+    sleep 0.1
+    tenths=$((tenths + 1))
+  done
+  wait "$pid"
 }
 # Whether this hook-me-up-setup has the command $2 (older releases only have install and
 # uninstall): its usage lists the commands it knows.
@@ -76,7 +121,7 @@ on_exit() {
   fi
   if [ -n "${WORK:-}" ] && [ -d "$WORK" ]; then
     rm -rf "$WORK/unpacked"
-    rm -f "$WORK/package.zip" "$WORK/package.zip.sha256" "$WORK/notifications"
+    rm -f "$WORK/package.zip" "$WORK/package.zip.sha256" "$WORK/notifications" "$WORK/editor-extension"
     rmdir "$WORK" 2>/dev/null || true
   fi
 }
@@ -207,6 +252,31 @@ main() {
     say "or run this installer again with HOOK_ME_UP_YES=1."
   fi
 
+  # --- Editor extension -------------------------------------------------------------
+  # Shows the session's terminal when a notification is clicked in VS Code, VS Code
+  # Insiders, Cursor or Windsurf (see editor-extension/), added with each editor's
+  # command-line tool that is found. Never fails the install.
+  local vsix="$APP/Contents/Resources/hook-me-up.vsix" editors_added="" editor cli found_editor=0
+  if [ "${HOOK_ME_UP_NO_EDITOR_EXTENSION:-0}" = "1" ]; then
+    say "Editor extension skipped (HOOK_ME_UP_NO_EDITOR_EXTENSION=1)."
+  elif [ ! -f "$vsix" ]; then
+    say "Editor extension skipped (this package has none)."
+  else
+    while IFS=$'\t' read -r editor cli; do
+      found_editor=1
+      if run_limited 120 "$cli" --install-extension "$vsix" --force >"$WORK/editor-extension" 2>&1 </dev/null; then
+        say "Added the Hook Me Up extension to $editor."
+        editors_added="${editors_added:+$editors_added, }$editor"
+      else
+        warn "could not add the Hook Me Up extension to $editor ($cli --install-extension failed);"
+        warn "clicking a notification still focuses the editor's window."
+      fi
+    done < <(editor_clis)
+    if [ "$found_editor" = 0 ]; then
+      say "Editor extension skipped (no VS Code, VS Code Insiders, Cursor or Windsurf command-line tool found)."
+    fi
+  fi
+
   # --- Start at login ---------------------------------------------------------------
   mkdir -p "$agents" "$(dirname "$log")"
   xml() { printf '%s' "$1" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g'; }
@@ -295,6 +365,10 @@ EOF
     off) steps="$turn_on"$'\n'"$restart" ;;
     *) steps="$allow"$'\n'"$alerts"$'\n'"$restart" ;;
   esac
+  if [ -n "$editors_added" ]; then
+    steps="$steps"$'\n'"  - Reload the windows of $editors_added that were already open (Developer: Reload
+    Window), so the extension runs there."
+  fi
   local doctor=""
   if setup_has "$setup" doctor; then
     doctor=$'\n'"Something not working? Check the installation with:"$'\n'"  \"$setup\" doctor"$'\n'

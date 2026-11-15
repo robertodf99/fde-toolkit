@@ -3,9 +3,21 @@ import Foundation
 /// Where things live, derived from the user's home folder. Shared by the hook, the
 /// agent and the installer.
 public enum HookMeUpPaths {
+    /// The agent's private support folder (`0700`) for the user whose home folder is `home`:
+    /// its socket, the installer's state and the editor extension's request.
+    public static func supportFolder(home: URL) -> URL {
+        home.appendingPathComponent("Library/Application Support/hook-me-up", isDirectory: true)
+    }
+
     /// The agent's socket for the user whose home folder is `home`.
     public static func socketURL(home: URL) -> URL {
-        home.appendingPathComponent("Library/Application Support/hook-me-up/agent.sock")
+        supportFolder(home: home).appendingPathComponent("agent.sock")
+    }
+
+    /// Where the agent asks the editor extension to show a session's terminal (see
+    /// `EditorExtension`).
+    public static func editorFocusRequestURL(home: URL) -> URL {
+        supportFolder(home: home).appendingPathComponent(EditorExtension.requestFileName)
     }
 
     /// The socket in the current user's home directory, taken from the user database

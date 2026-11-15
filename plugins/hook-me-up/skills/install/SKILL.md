@@ -39,7 +39,10 @@ with a backup.
    ```
 
    It downloads the latest release, checks its SHA-256, installs
-   `~/Applications/Hook Me Up.app`, starts the agent, and spends up to 10 seconds on a
+   `~/Applications/Hook Me Up.app`, adds Hook Me Up's editor extension to VS Code,
+   VS Code Insiders, Cursor and Windsurf when it finds their command-line tool (so a click
+   also shows the session's integrated terminal; `HOOK_ME_UP_NO_EDITOR_EXTENSION=1`
+   skips that, if the user asks), starts the agent, and spends up to 10 seconds on a
    notification check (macOS may ask the user to allow notifications from Hook Me Up
    meanwhile). Don't add `HOOK_ME_UP_YES=1`.
 
@@ -73,5 +76,6 @@ with a backup.
    check output: allow notifications for Hook Me Up when macOS asks, set their style
    to Alerts in System Settings > Notifications > Hook Me Up so requests stay on
    screen, and restart the Claude Code sessions that are already running, this one
-   included, so they load the hooks. Suggest `/hook-me-up:doctor` to check
+   included, so they load the hooks. If it added the editor extension, also mention
+   reloading editor windows that were already open. Suggest `/hook-me-up:doctor` to check
    everything afterwards.

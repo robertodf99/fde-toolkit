@@ -22,6 +22,7 @@ private let installerCommand =
 final class FakeProbe: DoctorProbe {
     var files: [String: Data] = [:]
     var executables: Set<String> = []
+    var folders: Set<String> = []
     /// Symlinks: path prefix -> what it resolves to.
     var links: [String: String] = [:]
     var launchStates: [String: LaunchAgentState] = [:]
@@ -31,7 +32,8 @@ final class FakeProbe: DoctorProbe {
     func contents(of path: String) -> Data? { files[path] }
     func isExecutable(_ path: String) -> Bool { executables.contains(path) }
     func exists(_ path: String) -> Bool {
-        files[path] != nil || executables.contains(path) || executables.contains { $0.hasPrefix(path + "/") }
+        files[path] != nil || folders.contains(path) || executables.contains(path)
+            || executables.contains { $0.hasPrefix(path + "/") }
     }
     func canonicalPath(_ path: String) -> String {
         for (link, target) in links where path == link || path.hasPrefix(link + "/") {
@@ -109,9 +111,10 @@ private func run(_ probe: FakeProbe, _ options: Doctor.Options = realHome) -> Do
         #expect(
             report.checks.map(\.name) == [
                 "App", "LaunchAgent", "Agent process", "Agent", "Agent version", "Hooks", "Notifications",
-                "Notification style", "Pause",
+                "Notification style", "Pause", "Editor extension",
             ])
-        #expect(report.checks.allSatisfy { $0.result == .pass }, "\(report.rendered())")
+        #expect(report.checks.dropLast().allSatisfy { $0.result == .pass }, "\(report.rendered())")
+        #expect(report.check("Editor extension")?.result == .info)
         #expect(report.exitCode == 0)
         #expect(probe.queried == [socketPath])
         #expect(report.check("App")?.detail == "Hook Me Up 0.2.0 (0.2.0) at \(app)")
@@ -431,6 +434,84 @@ private func run(_ probe: FakeProbe, _ options: Doctor.Options = realHome) -> Do
         #expect(report.rendered().contains("      Note: To end it now"))
     }
 
+    // MARK: Editor extension
+
+    private func registry(_ ids: [String]) -> Data {
+        Data(
+            ("[" + ids.map { #"{"identifier": {"id": "\#($0)"}, "version": "0.1.0"}"# }.joined(separator: ", ") + "]")
+                .utf8)
+    }
+
+    private let vsix = "\(app)/Contents/Resources/hook-me-up.vsix"
+
+    @Test func noEditorIsInformationOnly() {
+        let report = run(healthy())
+        let check = report.check("Editor extension")
+        #expect(check?.result == .info)
+        #expect(check?.detail == "none of VS Code, VS Code Insiders, Cursor or Windsurf has an extensions folder")
+        #expect(check?.fix == nil)
+        #expect(report.exitCode == 0)
+        #expect(report.rendered().hasSuffix("\nNo problems found."))
+    }
+
+    @Test func editorsWithTheExtensionAreNamed() {
+        let probe = healthy()
+        probe.files["/Users/me/.vscode/extensions/extensions.json"] = registry([
+            "ms-python.python", "hook-me-up.hook-me-up",
+        ])
+        probe.folders.insert("/Users/me/.vscode/extensions")
+        probe.files["/Users/me/.cursor/extensions/extensions.json"] = registry(["Hook-Me-Up.Hook-Me-Up"])
+        probe.folders.insert("/Users/me/.cursor/extensions")
+        let check = run(probe).check("Editor extension")
+        #expect(check?.result == .info)
+        #expect(check?.detail == "installed in VS Code, Cursor")
+        #expect(check?.fix == nil)
+    }
+
+    /// An editor without it (no registry, or one that can't be read, counts as without):
+    /// still only information, with the command that adds it from this app.
+    @Test func editorsWithoutTheExtensionGetTheCommandThatAddsIt() {
+        let probe = healthy()
+        probe.files[vsix] = Data("zip".utf8)
+        probe.files["/Users/me/.vscode/extensions/extensions.json"] = registry(["hook-me-up.hook-me-up"])
+        probe.folders.insert("/Users/me/.vscode/extensions")
+        probe.folders.insert("/Users/me/.windsurf/extensions")
+        probe.files["/Users/me/.cursor/extensions/extensions.json"] = Data("not json".utf8)
+        probe.folders.insert("/Users/me/.cursor/extensions")
+        let report = run(probe)
+        let check = report.check("Editor extension")
+        #expect(check?.result == .info)
+        #expect(check?.detail == "installed in VS Code; not in Cursor, Windsurf")
+        #expect(
+            check?.fix == """
+                Without it, a click focuses the editor's window but not the session's terminal. To add it:
+                cursor --install-extension '\(vsix)'
+                windsurf --install-extension '\(vsix)'
+                then reload the editor's open windows.
+                """)
+        #expect(report.exitCode == 0)
+        #expect(report.rendered().hasSuffix("\nNo problems found."))
+    }
+
+    @Test func anAppWithoutTheExtensionSaysSo() {
+        let probe = healthy()
+        probe.folders.insert("/Users/me/.vscode-insiders/extensions")
+        let check = run(probe).check("Editor extension")
+        #expect(check?.result == .info)
+        #expect(check?.detail == "not in VS Code Insiders")
+        #expect(check?.fix == "This app has no editor extension to add (\(vsix) is missing); update Hook Me Up.")
+    }
+
+    /// An oversized registry isn't read.
+    @Test func anOversizedRegistryCountsAsWithout() {
+        let probe = healthy()
+        var big = registry(["hook-me-up.hook-me-up"])
+        big.append(Data(repeating: 0x20, count: EditorExtension.maxRegistryBytes))
+        probe.files["/Users/me/.vscode/extensions/extensions.json"] = big
+        probe.folders.insert("/Users/me/.vscode/extensions")
+        #expect(run(probe).check("Editor extension")?.detail == "not in VS Code")
+    }
+
     // MARK: Another home (tests, the install harness)
 
     @Test func anotherHomeSkipsLaunchdAndTheAgent() {
@@ -468,13 +549,22 @@ private func run(_ probe: FakeProbe, _ options: Doctor.Options = realHome) -> Do
         var options = realHome
         options.app = keg
         let report = run(probe, options)
-        #expect(report.checks.allSatisfy { $0.result == .pass }, "\(report.rendered())")
+        // Everything passes; the editor extension line is information only.
+        #expect(
+            report.checks.filter { $0.name != "Editor extension" }.allSatisfy { $0.result == .pass },
+            "\(report.rendered())")
+        #expect(report.check("Editor extension")?.result == .info)
         #expect(report.check("App")?.detail.hasSuffix("installed with Homebrew") == true)
         #expect(report.check("LaunchAgent")?.detail == "\(label) starts this app")
         #expect(report.check("Agent process")?.detail == "running (pid 7)")
         #expect(report.check("Hooks")?.detail == "all five events run \(opt)/Contents/MacOS/hook-me-up")
 
         // Fixes name Homebrew's commands and the stable opt path.
+        probe.folders.insert("/Users/me/.vscode/extensions")
+        probe.files["\(opt)/Contents/Resources/hook-me-up.vsix"] = Data("zip".utf8)
+        #expect(
+            run(probe, options).check("Editor extension")?.fix?.contains(
+                "code --install-extension '\(opt)/Contents/Resources/hook-me-up.vsix'") == true)
         probe.launchStates = [label: .notRunning]
         #expect(run(probe, options).check("Agent process")?.fix == "brew services restart hook-me-up")
         probe.files[settingsPath] = nil

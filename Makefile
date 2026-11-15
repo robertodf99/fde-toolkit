@@ -15,7 +15,7 @@ endif
 SWIFT ?= swift
 FORMAT_PATHS := Package.swift Sources Tests scripts
 
-.PHONY: build test app dist signing-check selftest format lint logo install-dry-run install uninstall test-install plugin-check clean
+.PHONY: build test app vsix dist signing-check selftest format lint logo install-dry-run install uninstall test-install plugin-check editor-extension-check clean
 
 # Where `make app` puts the bundle.
 APP_DIR ?= .build
@@ -47,6 +47,10 @@ CODESIGN_IDENTITY ?=
 
 app:
 	APP_DIR="$(APP_DIR)" CODESIGN_IDENTITY="$(CODESIGN_IDENTITY)" ./scripts/build-app.sh
+
+# The editor extension on its own (the app has it in Contents/Resources): .build/hook-me-up.vsix.
+vsix:
+	./scripts/build-vsix.sh .build/hook-me-up.vsix
 
 # Release package: .build/dist/hook-me-up-$(VERSION)-macos.zip and its .sha256.
 # The release workflow runs: make dist VERSION=<tag> UNIVERSAL=1 CODESIGN_IDENTITY=-
@@ -91,6 +95,13 @@ test-install:
 # The Claude Code plugin's manifests and skills, without the claude CLI.
 plugin-check:
 	./scripts/check-plugin.sh
+
+# The editor extension's JavaScript (syntax, request checks, which terminal it shows),
+# with a stand-in for VS Code. Needs node; not part of CI.
+editor-extension-check:
+	@command -v node >/dev/null || { echo "editor-extension-check: node is not installed" >&2; exit 1; }
+	node --check editor-extension/extension.js
+	node scripts/test-editor-extension.js
 
 clean:
 	$(SWIFT) package clean

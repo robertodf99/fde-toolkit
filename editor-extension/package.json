@@ -1,0 +1,31 @@
+{
+  "name": "hook-me-up",
+  "displayName": "Hook Me Up",
+  "description": "Shows a Claude Code session's terminal when you click its Hook Me Up notification.",
+  "version": "0.1.0",
+  "publisher": "hook-me-up",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/robertodf99/hook-me-up"
+  },
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./extension.js",
+  "extensionKind": [
+    "ui"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    },
+    "virtualWorkspaces": true
+  }
+}

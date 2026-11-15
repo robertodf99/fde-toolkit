@@ -1,7 +1,8 @@
 #!/bin/bash
 # Builds $APP_DIR/HookMeUp.app (default .build): the agent and both CLIs (hook-me-up,
-# hook-me-up-setup) in Contents/MacOS, the app icon, signed. Writes only .build (the
-# Swift build) and $APP_DIR, where it replaces only HookMeUp.app.
+# hook-me-up-setup) in Contents/MacOS, the app icon and the editor extension
+# (Contents/Resources/hook-me-up.vsix, see scripts/build-vsix.sh), signed. Writes only
+# .build (the Swift build) and $APP_DIR, where it replaces only HookMeUp.app.
 #
 # UNIVERSAL=1 builds for arm64 and x86_64 (release builds); APP_VERSION sets the version.
 #
@@ -71,7 +72,11 @@ done
 # App icon, drawn from the committed symbol path (see THIRD_PARTY_NOTICES.md).
 xcrun swift scripts/make-icon.swift Resources/icon/claude-symbol.svg "$APP/Contents/Resources/AppIcon.icns"
 
-# Inner executables first, then the bundle (which seals Contents/MacOS/HookMeUp).
+# The editor extension, which install.sh adds to VS Code and the editors built on it.
+./scripts/build-vsix.sh "$APP/Contents/Resources/hook-me-up.vsix"
+
+# Inner executables first, then the bundle (which seals Contents/MacOS/HookMeUp and the
+# resources, the extension among them).
 codesign --force --sign "$IDENTITY" --timestamp=none --identifier io.github.robertodf99.hook-me-up.hook \
   "$APP/Contents/MacOS/hook-me-up"
 codesign --force --sign "$IDENTITY" --timestamp=none --identifier io.github.robertodf99.hook-me-up.setup \
