@@ -268,6 +268,10 @@ to `$(brew --prefix)/var/log/hook-me-up.log`.
   turn them on.
 - **Nothing happens at all.** Make sure the agent runs (✻ in the menu bar; else run the
   installer again) and restart your Claude Code sessions so they load the hooks.
+- **The agent's folder was deleted** (`~/Library/Application Support/hook-me-up`, say by
+  a cleanup tool): the agent notices within about 5 seconds, creates it again and keeps
+  listening (the log says `socket was removed or replaced; listening again`). Requests in
+  between go to the terminal.
 - **The icon is out of date** after an upgrade. macOS caches it:
 
   ```sh

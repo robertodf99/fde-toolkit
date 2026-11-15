@@ -30,7 +30,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             controller?.handle(response, identifier: identifier, categoryIdentifier: category)
         }
         do {
-            try controller.start(socketPath: HookMeUpPaths.defaultSocketURL)
+            // Another agent took the socket over later: quit the same way (exit 0, so
+            // launchd doesn't start this one again).
+            try controller.start(socketPath: HookMeUpPaths.defaultSocketURL) { NSApp.terminate(nil) }
         } catch SocketError.alreadyRunning {
             AgentLog.info("another agent is already listening; exiting")
             NSApp.terminate(nil)
