@@ -9,12 +9,6 @@ private let app = "/Users/me/Applications/Hook Me Up.app"
 private let settingsPath = "/Users/me/.claude/settings.json"
 private let socketPath = "/Users/me/Library/Application Support/hook-me-up/agent.sock"
 private let installerPlist = "/Users/me/Library/LaunchAgents/io.github.robertodf99.hook-me-up.plist"
-/// The label `brew services` gives the service since Homebrew 7, and the one before.
-private let brewLabel = "sh.brew.hook-me-up"
-private let oldBrewLabel = "homebrew.mxcl.hook-me-up"
-private let homebrewOpt = "/opt/homebrew/opt/hook-me-up/Hook Me Up.app"
-
-private func plistPath(_ label: String) -> String { "/Users/me/Library/LaunchAgents/\(label).plist" }
 private let installerCommand =
     "curl -fsSL https://raw.githubusercontent.com/robertodf99/hook-me-up/main/install.sh | bash"
 
@@ -53,8 +47,8 @@ private func plist(_ object: [String: Any]) -> Data {
     (try? PropertyListSerialization.data(fromPropertyList: object, format: .xml, options: 0)) ?? Data()
 }
 
-private func launchAgent(starting program: String, label: String = Doctor.installerLabel) -> Data {
-    plist(["Label": label, "ProgramArguments": [program], "RunAtLoad": true])
+private func launchAgent(starting program: String) -> Data {
+    plist(["Label": Doctor.installerLabel, "ProgramArguments": [program], "RunAtLoad": true])
 }
 
 private func hooks(at hook: String) -> Data {
@@ -83,7 +77,7 @@ private func status(
 }
 
 /// An installer install that works: app, LaunchAgent, running agent, hooks, Alerts.
-private func healthy(app: String = app) -> FakeProbe {
+private func healthy() -> FakeProbe {
     let probe = FakeProbe()
     for executable in ["HookMeUp", "hook-me-up", "hook-me-up-setup"] {
         probe.executables.insert("\(app)/Contents/MacOS/\(executable)")
@@ -162,20 +156,6 @@ private func run(_ probe: FakeProbe, _ options: Doctor.Options = realHome) -> Do
         let probe = healthy()
         probe.files[installerPlist] = Data("not a plist".utf8)
         #expect(run(probe).check("LaunchAgent")?.result == .fail)
-    }
-
-    /// The installer's LaunchAgent next to Homebrew's, under either label.
-    @Test(arguments: [brewLabel, oldBrewLabel])
-    func bothLaunchAgentsWarn(_ label: String) {
-        let probe = healthy()
-        probe.files[plistPath(label)] = launchAgent(starting: "\(homebrewOpt)/Contents/MacOS/HookMeUp", label: label)
-        let report = run(probe)
-        #expect(report.check("LaunchAgent")?.result == .pass)
-        #expect(report.check("LaunchAgent")?.detail == "io.github.robertodf99.hook-me-up starts this app")
-        let both = report.check("Two installations")
-        #expect(both?.result == .warn)
-        #expect(both?.fix?.contains("brew uninstall hook-me-up") == true)
-        #expect(report.exitCode == 0)
     }
 
     @Test func anUnloadedAgentFailsWithTheBootstrapCommand() {
@@ -531,95 +511,19 @@ private func run(_ probe: FakeProbe, _ options: Doctor.Options = realHome) -> Do
                 "--state '/Users/me/Library/Application Support/hook-me-up/setup-state.json'") == true)
     }
 
-    // MARK: Homebrew
-
-    /// An app in Homebrew's keg, started by `brew services` (the label since Homebrew 7, or
-    /// the one before): checked through its opt path, with Homebrew's commands in fixes.
-    @Test(arguments: [brewLabel, oldBrewLabel])
-    func aHomebrewInstallIsCheckedThroughItsOptPath(_ label: String) {
-        let keg = "/opt/homebrew/Cellar/hook-me-up/0.2.0/Hook Me Up.app"
-        let opt = homebrewOpt
-        let probe = healthy(app: keg)
-        probe.links["/opt/homebrew/opt/hook-me-up"] = "/opt/homebrew/Cellar/hook-me-up/0.2.0"
-        probe.files[installerPlist] = nil
-        probe.files[plistPath(label)] = launchAgent(starting: "\(opt)/Contents/MacOS/HookMeUp", label: label)
-        probe.launchStates = [label: .running(pid: 7)]  // launchctl print gui/501/<label>
-        probe.files[settingsPath] = hooks(at: "\(opt)/Contents/MacOS/hook-me-up")
-        probe.executables.insert("\(opt)/Contents/MacOS/hook-me-up")  // the opt link exists
-        var options = realHome
-        options.app = keg
-        let report = run(probe, options)
-        // Everything passes; the editor extension line is information only.
-        #expect(
-            report.checks.filter { $0.name != "Editor extension" }.allSatisfy { $0.result == .pass },
-            "\(report.rendered())")
-        #expect(report.check("Editor extension")?.result == .info)
-        #expect(report.check("App")?.detail.hasSuffix("installed with Homebrew") == true)
-        #expect(report.check("LaunchAgent")?.detail == "\(label) starts this app")
-        #expect(report.check("Agent process")?.detail == "running (pid 7)")
-        #expect(report.check("Hooks")?.detail == "all five events run \(opt)/Contents/MacOS/hook-me-up")
-
-        // Fixes name Homebrew's commands and the stable opt path.
-        probe.folders.insert("/Users/me/.vscode/extensions")
-        probe.files["\(opt)/Contents/Resources/hook-me-up.vsix"] = Data("zip".utf8)
-        #expect(
-            run(probe, options).check("Editor extension")?.fix?.contains(
-                "code --install-extension '\(opt)/Contents/Resources/hook-me-up.vsix'") == true)
-        probe.launchStates = [label: .notRunning]
-        #expect(run(probe, options).check("Agent process")?.fix == "brew services restart hook-me-up")
-        probe.files[settingsPath] = nil
-        probe.launchStates = [:]
-        probe.reply = .noSocket
-        let broken = run(probe, options)
-        #expect(
-            broken.check("Hooks")?.fix?.hasSuffix(
-                "'\(opt)/Contents/MacOS/hook-me-up-setup' install --settings \(settingsPath)"
-                    + " --hook '\(opt)/Contents/MacOS/hook-me-up'") == true)
-        #expect(broken.check("Agent process")?.detail == "\(label) is not loaded, so the agent isn't running")
-        #expect(broken.check("Agent process")?.fix == "brew services start hook-me-up")
-        #expect(broken.check("Agent")?.fix == "brew services restart hook-me-up")
-    }
-
-    /// After Homebrew 7 renamed the service, the old plist may stay next to the new one:
-    /// that is still one installation, and the new one counts.
-    @Test func homebrewsLeftoverPlistIsNotASecondInstallation() {
-        let keg = "/opt/homebrew/Cellar/hook-me-up/0.2.0/Hook Me Up.app"
-        let probe = healthy(app: keg)
-        probe.links["/opt/homebrew/opt/hook-me-up"] = "/opt/homebrew/Cellar/hook-me-up/0.2.0"
-        probe.files[installerPlist] = nil
-        for label in [brewLabel, oldBrewLabel] {
-            probe.files[plistPath(label)] = launchAgent(
-                starting: "\(homebrewOpt)/Contents/MacOS/HookMeUp", label: label)
-        }
-        probe.launchStates = [brewLabel: .running(pid: 7)]
-        var options = realHome
-        options.app = keg
-        let report = run(probe, options)
-        #expect(report.check("LaunchAgent")?.detail == "sh.brew.hook-me-up starts this app")
-        #expect(report.check("Agent process")?.result == .pass)
-        #expect(report.check("Two installations") == nil)
-    }
-
-    @Test func homebrewLabelsAreRecognised() {
-        #expect(Doctor.isHomebrew(label: "sh.brew.hook-me-up"))
-        #expect(Doctor.isHomebrew(label: "homebrew.mxcl.hook-me-up"))
-        #expect(!Doctor.isHomebrew(label: Doctor.installerLabel))
-        #expect(!Doctor.isHomebrew(label: "sh.brew.other"))
-    }
-
     // MARK: Options and parsing
 
     @Test func optionsComeFromTheAppThisProgramRunsFrom() {
         let probe = FakeProbe()
-        probe.links["/opt/homebrew/bin/hook-me-up-setup"] =
-            "/opt/homebrew/Cellar/hook-me-up/0.2.0/Hook Me Up.app/Contents/MacOS/hook-me-up-setup"
-        let brew = Doctor.Options.resolve(
-            home: nil, app: nil, settings: nil, socket: nil, executablePath: "/opt/homebrew/bin/hook-me-up-setup",
+        // Run through a link: the app it links into (not the default app in the home).
+        probe.links["/Users/me/bin/hook-me-up-setup"] = "/Applications/Hook Me Up.app/Contents/MacOS/hook-me-up-setup"
+        let linked = Doctor.Options.resolve(
+            home: nil, app: nil, settings: nil, socket: nil, executablePath: "/Users/me/bin/hook-me-up-setup",
             realHome: home, uid: 501, probe: probe)
-        #expect(brew.app == "/opt/homebrew/Cellar/hook-me-up/0.2.0/Hook Me Up.app")
-        #expect(brew.isRealHome)
-        #expect(brew.settings == settingsPath)
-        #expect(brew.socket == socketPath)
+        #expect(linked.app == "/Applications/Hook Me Up.app")
+        #expect(linked.isRealHome)
+        #expect(linked.settings == settingsPath)
+        #expect(linked.socket == socketPath)
 
         let loose = Doctor.Options.resolve(
             home: "/tmp/fake", app: nil, settings: nil, socket: nil,

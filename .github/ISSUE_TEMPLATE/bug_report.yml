@@ -52,7 +52,6 @@ body:
       label: How Hook Me Up was installed
       options:
         - curl installer (install.sh)
-        - Homebrew (robertodf99/tap/hook-me-up)
         - Claude Code plugin (/hook-me-up:install)
         - From source (make install)
     validations:
@@ -63,7 +62,7 @@ body:
       label: Output of hook-me-up-setup doctor
       description: |
         Run `~/Applications/"Hook Me Up.app"/Contents/MacOS/hook-me-up-setup doctor`
-        (with Homebrew: `hook-me-up-setup doctor`) and paste everything it prints.
+        and paste everything it prints.
       render: text
     validations:
       required: true
@@ -72,7 +71,6 @@ body:
     attributes:
       label: Relevant lines of ~/Library/Logs/hook-me-up.log
       description: |
-        With Homebrew's service the log is `$(brew --prefix)/var/log/hook-me-up.log`.
         The log holds event kinds and short ids, not commands or messages, but read it
         before pasting and remove anything private.
       render: text

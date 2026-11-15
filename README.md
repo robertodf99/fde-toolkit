@@ -33,37 +33,9 @@ curl -fsSL https://raw.githubusercontent.com/robertodf99/hook-me-up/main/uninsta
 It stops the agent, removes Hook Me Up's hooks from your settings (again after showing
 the diff and asking), and removes the app, its support folder and the editor extension
 (with each editor's command-line tool it finds). Your settings backups stay where they
-are. When Homebrew's copy of Hook Me Up is installed too, the support folder and the
-editor extension stay (that copy's agent uses them), and Homebrew's copy is left alone.
+are.
 
 Requirements: macOS 14 or later, and [Claude Code](https://docs.claude.com/en/docs/claude-code/overview).
-
-### Install with Homebrew
-
-```sh
-brew tap robertodf99/tap
-brew trust --tap robertodf99/tap   # recent Homebrew asks you to trust third-party taps once
-brew install hook-me-up
-# Add the hooks (shows the changes and asks first); the opt path survives upgrades.
-hook-me-up-setup install --hook "$(brew --prefix)/opt/hook-me-up/Hook Me Up.app/Contents/MacOS/hook-me-up"
-brew services start hook-me-up
-hook-me-up-setup doctor
-```
-
-It is a formula, not a cask, so the download isn't quarantined (see
-[Why macOS says "unidentified developer"](#why-macos-says-unidentified-developer)).
-Homebrew doesn't change your settings by itself, nor add the editor extension; to add it,
-run `code --install-extension "$(brew --prefix)/opt/hook-me-up/Hook Me Up.app/Contents/Resources/hook-me-up.vsix" --force`
-(or `code-insiders`, `cursor`, `windsurf`), and to remove it,
-`code --uninstall-extension hook-me-up.hook-me-up`. `brew uninstall hook-me-up` doesn't
-remove it either (nor does the installer's uninstaller while Homebrew's copy is there):
-left behind, it does nothing, since no agent writes requests any more; remove it with
-that command or from the editor's Extensions view. After `brew upgrade hook-me-up`, run
-`brew services restart hook-me-up`. To remove it, run the `hook-me-up-setup uninstall
---hook …` command with the same path first, then `brew services stop hook-me-up` and
-`brew uninstall hook-me-up`. Use Homebrew or the installer above, not both: only one
-agent can run, and two sets of hooks notify twice (the installer stops when it finds
-Homebrew's copy, and the doctor warns about it).
 
 ### Install from Claude Code
 
@@ -165,9 +137,8 @@ click works exactly as before: it focuses the window.
   `HOOK_ME_UP_NO_EDITOR_EXTENSION=1` to skip it.
 - Windows that were already open may need a reload (**Developer: Reload Window**) before
   the extension runs in them.
-- The uninstaller removes it (unless Homebrew's copy of Hook Me Up is still installed).
-  You can also remove it from the editor's Extensions view (it is "Hook Me Up", id
-  `hook-me-up.hook-me-up`).
+- The uninstaller removes it. You can also remove it from the editor's Extensions view
+  (it is "Hook Me Up", id `hook-me-up.hook-me-up`).
 - `hook-me-up-setup doctor` shows which editors have it (an INFO line; it never fails).
 - Profiles: Hook Me Up checks the extension in the default profile's list (where the
   installer adds it). A window that uses another profile runs it only if that profile has
@@ -216,8 +187,7 @@ away. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the details.
 - **Careful installer.** It verifies the package checksum, shows the settings diff and
   asks first, backs up, writes atomically, and refuses to write if the file changed
   meanwhile.
-- **No content in logs.** `~/Library/Logs/hook-me-up.log` (with Homebrew's service,
-  `$(brew --prefix)/var/log/hook-me-up.log`) and the unified log (subsystem
+- **No content in logs.** `~/Library/Logs/hook-me-up.log` and the unified log (subsystem
   `io.github.robertodf99.hook-me-up`) hold event kinds and short ids only.
 
 ## Why macOS says "unidentified developer"
@@ -236,8 +206,7 @@ because of that:
 
 **Why the install isn't blocked.** Gatekeeper checks apps that carry the quarantine
 flag (`com.apple.quarantine`), which browsers and other apps add to what they download.
-`curl` doesn't add it, so the app the installer unpacks opens normally. Homebrew
-doesn't add it to what a formula downloads either (it does for casks). The same zip
+`curl` doesn't add it, so the app the installer unpacks opens normally. The same zip
 downloaded with a browser would be quarantined, and Gatekeeper would block the app from
 opening.
 
@@ -280,7 +249,6 @@ The installer and uninstaller read these environment variables:
 | `HOOK_ME_UP_VERSION=v1.2.3` | Install that release instead of the latest |
 | `HOOK_ME_UP_YES=1` | Change `~/.claude/settings.json` without asking (non-interactive installs) |
 | `HOOK_ME_UP_ZIP=<path>` | Install a local package (its `.sha256` must sit next to it) |
-| `HOOK_ME_UP_IGNORE_HOMEBREW=1` | Install even though Hook Me Up is installed with Homebrew (the installer stops otherwise: only one copy's agent can run, and two sets of hooks notify twice) |
 | `HOOK_ME_UP_NO_ONBOARDING=1` | Skip the notification check after starting the agent (no waiting, no test notification, System Settings stays closed) |
 | `HOOK_ME_UP_NO_EDITOR_EXTENSION=1` | Don't add the [editor extension](#editor-extension) to VS Code, VS Code Insiders, Cursor or Windsurf |
 
@@ -319,10 +287,9 @@ problem (it changes nothing itself):
 ~/Applications/"Hook Me Up.app"/Contents/MacOS/hook-me-up-setup doctor
 ```
 
-(With Homebrew: `hook-me-up-setup doctor`. From Claude Code: `/hook-me-up:doctor`.)
+From Claude Code, run `/hook-me-up:doctor`.
 
-The agent writes its log to `~/Library/Logs/hook-me-up.log`, or with Homebrew's service
-to `$(brew --prefix)/var/log/hook-me-up.log`.
+The agent writes its log to `~/Library/Logs/hook-me-up.log`.
 
 - **No notifications.** Check System Settings → Notifications → Hook Me Up. While
   notifications are off, every request goes to the terminal and the log says how to

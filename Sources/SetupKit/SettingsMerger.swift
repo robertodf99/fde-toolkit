@@ -37,8 +37,8 @@ public enum SettingsMerger {
 
     /// Settings with our hooks (re-installing replaces ours, so it is idempotent). Ours
     /// are the handlers that run `hookPath`, however the command spells it: compared
-    /// through `canonicalPath` (e.g. resolving symlinks, so Homebrew's opt path and its
-    /// keg are the same hook).
+    /// through `canonicalPath` (e.g. resolving symlinks, so a link to the app and the app
+    /// itself are the same hook).
     public static func install(
         into settings: JSONValue, hookPath: String, permissionTimeout: Int,
         canonicalPath: (String) -> String = { $0 }

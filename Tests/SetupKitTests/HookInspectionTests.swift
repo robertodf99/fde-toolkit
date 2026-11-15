@@ -59,7 +59,7 @@ private func dropping(_ event: String, from settings: JSONValue) -> JSONValue {
     }
 
     @Test func hooksAtAnotherPathAreReportedNotCounted() throws {
-        let other = "/opt/homebrew/opt/hook-me-up/Hook Me Up.app/Contents/MacOS/hook-me-up"
+        let other = "/Applications/Hook Me Up.app/Contents/MacOS/hook-me-up"
         let result = SettingsMerger.inspect(settings: try installed(at: other), hookPath: hook)
         #expect(result.installed.isEmpty)
         #expect(result.missing == allEvents)
@@ -90,26 +90,24 @@ private func dropping(_ event: String, from settings: JSONValue) -> JSONValue {
     }
 
     @Test func pathsAreComparedThroughTheCanonicalPath() throws {
-        // Homebrew: settings name the stable opt path, which links to the versioned keg.
-        let opt = "/opt/homebrew/opt/hook-me-up/Hook Me Up.app/Contents/MacOS/hook-me-up"
-        let keg = "/opt/homebrew/Cellar/hook-me-up/0.2.0/Hook Me Up.app/Contents/MacOS/hook-me-up"
-        let resolve: (String) -> String = {
-            $0.replacingOccurrences(of: "/opt/hook-me-up/", with: "/Cellar/hook-me-up/0.2.0/")
-        }
-        let result = SettingsMerger.inspect(settings: try installed(at: opt), hookPath: keg, canonicalPath: resolve)
+        // Settings name the app through a link to its folder; the hook path is the real one.
+        let link = "/Users/me/link/Hook Me Up.app/Contents/MacOS/hook-me-up"
+        let real = "/Users/me/real/Hook Me Up.app/Contents/MacOS/hook-me-up"
+        let resolve: (String) -> String = { $0.replacingOccurrences(of: "/link/", with: "/real/") }
+        let result = SettingsMerger.inspect(settings: try installed(at: link), hookPath: real, canonicalPath: resolve)
         #expect(result.missing.isEmpty)
         #expect(result.otherPaths.isEmpty)
         // Without resolving, the same settings point elsewhere.
-        #expect(SettingsMerger.inspect(settings: try installed(at: opt), hookPath: keg).otherPaths == [opt])
+        #expect(SettingsMerger.inspect(settings: try installed(at: link), hookPath: real).otherPaths == [link])
     }
 
     @Test func aRealSymlinkResolves() throws {
         let tree = try TempTree()
-        try tree.file("keg/Hook Me Up.app/Contents/MacOS/hook-me-up", "#!/bin/sh\n")
+        try tree.file("real/Hook Me Up.app/Contents/MacOS/hook-me-up", "#!/bin/sh\n")
         try FileManager.default.createSymbolicLink(
-            atPath: tree.path("opt"), withDestinationPath: tree.path("keg"))
-        let viaLink = tree.path("opt/Hook Me Up.app/Contents/MacOS/hook-me-up")
-        let real = tree.path("keg/Hook Me Up.app/Contents/MacOS/hook-me-up")
+            atPath: tree.path("link"), withDestinationPath: tree.path("real"))
+        let viaLink = tree.path("link/Hook Me Up.app/Contents/MacOS/hook-me-up")
+        let real = tree.path("real/Hook Me Up.app/Contents/MacOS/hook-me-up")
         let resolve: (String) -> String = { URL(fileURLWithPath: $0).resolvingSymlinksInPath().path }
         let result = SettingsMerger.inspect(
             settings: try installed(at: viaLink), hookPath: real, canonicalPath: resolve)
@@ -186,21 +184,19 @@ private func dropping(_ event: String, from settings: JSONValue) -> JSONValue {
     }
 
     @Test func installReplacesOurHookSpelledThroughASymlink() throws {
-        let opt = "/opt/homebrew/opt/hook-me-up/Hook Me Up.app/Contents/MacOS/hook-me-up"
-        let keg = "/opt/homebrew/Cellar/hook-me-up/0.2.0/Hook Me Up.app/Contents/MacOS/hook-me-up"
-        let resolve: (String) -> String = {
-            $0.replacingOccurrences(of: "/opt/hook-me-up/", with: "/Cellar/hook-me-up/0.2.0/")
-        }
-        let viaOpt = try installed(at: opt)
+        let link = "/Users/me/link/Hook Me Up.app/Contents/MacOS/hook-me-up"
+        let real = "/Users/me/real/Hook Me Up.app/Contents/MacOS/hook-me-up"
+        let resolve: (String) -> String = { $0.replacingOccurrences(of: "/link/", with: "/real/") }
+        let viaLink = try installed(at: link)
         let again = try SettingsMerger.install(
-            into: viaOpt, hookPath: keg, permissionTimeout: 600, canonicalPath: resolve)
-        let result = SettingsMerger.inspect(settings: again, hookPath: keg, canonicalPath: resolve)
+            into: viaLink, hookPath: real, permissionTimeout: 600, canonicalPath: resolve)
+        let result = SettingsMerger.inspect(settings: again, hookPath: real, canonicalPath: resolve)
         #expect(result.duplicated.isEmpty)
         #expect(result.missing.isEmpty)
-        #expect(!again.pretty().contains("/opt/hook-me-up/"))
+        #expect(!again.pretty().contains("/link/"))
         // Without the canonicalizer they are different hooks, and both stay.
-        let both = try SettingsMerger.install(into: viaOpt, hookPath: keg, permissionTimeout: 600)
-        #expect(SettingsMerger.inspect(settings: both, hookPath: keg).duplicated.count == 5)
+        let both = try SettingsMerger.install(into: viaLink, hookPath: real, permissionTimeout: 600)
+        #expect(SettingsMerger.inspect(settings: both, hookPath: real).duplicated.count == 5)
     }
 
     @Test func uninstallRemovesOurHookHoweverItIsQuoted() throws {

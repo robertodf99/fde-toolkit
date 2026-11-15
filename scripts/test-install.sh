@@ -7,17 +7,15 @@
 # check is skipped without launchctl, when opted out or when the package's
 # hook-me-up-setup is too old to have it; with stand-ins for launchctl and the check, the
 # flags it gets on a first install and on an upgrade, and the next steps for each result;
-# install.sh refuses to install next to Homebrew's copy unless told to; a second install
-# changes nothing; a truncated download or a failed install leaves everything as it was;
-# uninstall restores the original settings and leaves the backups; it keeps the support
-# folder (and the socket in it) when Homebrew's copy or its service plist is there, and
-# leaves that plist alone; a declined uninstall leaves the agent installed; the editor
-# extension, with stand-ins for the editors' command-line tools (on PATH or inside a fake
-# app), is added with --force and the app's .vsix, skipped when opted out or when no tool
-# is found, never fails the install (a tool that hangs is stopped with the process it
-# started), is removed by uninstall and kept next to Homebrew's copy (naming only the
-# editors whose registry lists it); and the real HOME is never touched. Every run gets a PATH of system folders only
-# and a fake Applications folder, so the real editors are never asked anything.
+# a second install changes nothing; a truncated download or a failed install leaves
+# everything as it was; uninstall restores the original settings, removes the support
+# folder and leaves the backups; a declined uninstall leaves the agent installed; the
+# editor extension, with stand-ins for the editors' command-line tools (on PATH or inside
+# a fake app), is added with --force and the app's .vsix, skipped when opted out or when
+# no tool is found, never fails the install (a tool that hangs is stopped with the
+# process it started), and is removed by uninstall; and the real HOME is never touched.
+# Every run gets a PATH of system folders only and a fake Applications folder, so the
+# real editors are never asked anything.
 #
 # Usage: scripts/test-install.sh   (HOOK_ME_UP_ZIP=<zip> to reuse a package)
 set -euo pipefail
@@ -94,15 +92,13 @@ run() { # script, extra env... (the script arrives on stdin, as with curl | bash
   local script="$1"
   shift
   env HOME="$FAKE" HOOK_ME_UP_ZIP="$ZIP" HOOK_ME_UP_DRY_LAUNCH=1 HOOK_ME_UP_NO_TTY=1 PATH="$SAFE_PATH" \
-    HOOK_ME_UP_TEST_BREW_PREFIX="$WORKDIR/no-homebrew" HOOK_ME_UP_TEST_APPLICATIONS="$WORKDIR/no-applications" \
-    "$@" bash <"$script"
+    HOOK_ME_UP_TEST_APPLICATIONS="$WORKDIR/no-applications" "$@" bash <"$script"
 }
 run_truncated() { # script, fraction of its lines to keep (e.g. 1/2)
   local lines
   lines="$(($(wc -l <"$1") * ${2%/*} / ${2#*/}))"
   head -n "$lines" "$1" | env HOME="$FAKE" HOOK_ME_UP_ZIP="$ZIP" HOOK_ME_UP_DRY_LAUNCH=1 HOOK_ME_UP_NO_TTY=1 \
-    PATH="$SAFE_PATH" HOOK_ME_UP_TEST_BREW_PREFIX="$WORKDIR/no-homebrew" \
-    HOOK_ME_UP_TEST_APPLICATIONS="$WORKDIR/no-applications" HOOK_ME_UP_YES=1 bash
+    PATH="$SAFE_PATH" HOOK_ME_UP_TEST_APPLICATIONS="$WORKDIR/no-applications" HOOK_ME_UP_YES=1 bash
 }
 json_equal() { /usr/bin/python3 -c 'import json,sys; sys.exit(json.load(open(sys.argv[1])) != json.load(open(sys.argv[2])))' "$1" "$2"; }
 
@@ -217,12 +213,6 @@ check "second install reports no changes" 'grep -q "No changes" "$LOGS/install-3
 check "app still installed" '[ -x "$APP/Contents/MacOS/HookMeUp" ]'
 check "no staging folders left" '! ls -a "$FAKE/Applications" | grep -q "^\.Hook Me Up"'
 run install.sh HOOK_ME_UP_YES=1 HOOK_ME_UP_NO_ONBOARDING=1 >"$LOGS/install-no-onboarding.txt" 2>&1
-# A Homebrew copy (its opt folder) next to this one.
-mkdir -p "$WORKDIR/homebrew/opt/hook-me-up/Hook Me Up.app"
-run install.sh HOOK_ME_UP_YES=1 HOOK_ME_UP_TEST_BREW_PREFIX="$WORKDIR/homebrew" HOOK_ME_UP_IGNORE_HOMEBREW=1 \
-  >"$LOGS/install-next-to-homebrew.txt" 2>&1
-check "HOOK_ME_UP_IGNORE_HOMEBREW=1 installs next to Homebrew's copy, with a warning" \
-  'grep -q "also installed with Homebrew" "$LOGS/install-next-to-homebrew.txt" && grep -q "^Installed " "$LOGS/install-next-to-homebrew.txt"'
 check "HOOK_ME_UP_NO_ONBOARDING=1 skips the notification check" \
   'grep -q "^Notification check skipped (HOOK_ME_UP_NO_ONBOARDING=1)" "$LOGS/install-no-onboarding.txt"'
 
@@ -246,15 +236,6 @@ else
   check "a failure after moving the old app aside fails" "true"
 fi
 check "the previous app is put back" 'same_tree "$INSTALLED_STATE"'
-if run install.sh HOOK_ME_UP_YES=1 HOOK_ME_UP_TEST_BREW_PREFIX="$WORKDIR/homebrew" >"$LOGS/install-homebrew.txt" 2>&1; then
-  check "with Homebrew's copy installed, install.sh refuses" "false"
-else
-  check "with Homebrew's copy installed, install.sh refuses" "true"
-fi
-check "and says why and what to do" \
-  'grep -q "already installed with Homebrew ($WORKDIR/homebrew/opt/hook-me-up)" "$LOGS/install-homebrew.txt" \
-   && grep -q "HOOK_ME_UP_IGNORE_HOMEBREW=1" "$LOGS/install-homebrew.txt"'
-check "and changes nothing" 'same_tree "$INSTALLED_STATE"'
 
 echo "--- uninstall without consent keeps everything working"
 for part in 1/2 3/4; do
@@ -276,38 +257,6 @@ check "LaunchAgent removed" '[ ! -e "$PLIST" ]'
 check "backups left in place" 'ls "$FAKE/.claude" | grep -q "^settings.json.bak-"'
 run uninstall.sh HOOK_ME_UP_YES=1 >"$LOGS/uninstall-3.txt" 2>&1
 check "uninstalling again is harmless" 'json_equal "$WORKDIR/original.json" "$SETTINGS"'
-
-echo "--- uninstall next to Homebrew's copy keeps the support folder (Homebrew's agent uses it)"
-SUPPORT="$FAKE/Library/Application Support/hook-me-up"
-check "homebrew_copy is the same in install.sh and uninstall.sh" \
-  'diff <(sed -n "/^homebrew_copy() {/,/^}/p" install.sh) <(sed -n "/^homebrew_copy() {/,/^}/p" uninstall.sh) >/dev/null'
-run install.sh HOOK_ME_UP_YES=1 HOOK_ME_UP_TEST_BREW_PREFIX="$WORKDIR/homebrew" HOOK_ME_UP_IGNORE_HOMEBREW=1 \
-  >"$LOGS/install-for-homebrew-uninstall.txt" 2>&1
-# A stand-in for the socket of Homebrew's agent (bound with a relative path: the full
-# one is too long for a socket address; nobody listens on it afterwards).
-(cd "$SUPPORT" && /usr/bin/python3 -I -c 'import socket; socket.socket(socket.AF_UNIX).bind("agent.sock")')
-inode() { stat -f %i "$1"; }
-support_inode="$(inode "$SUPPORT")"
-socket_inode="$(inode "$SUPPORT/agent.sock")"
-run uninstall.sh HOOK_ME_UP_YES=1 HOOK_ME_UP_TEST_BREW_PREFIX="$WORKDIR/homebrew" >"$LOGS/uninstall-homebrew.txt" 2>&1
-check "the app and the installer's LaunchAgent are removed" '[ ! -e "$APP" ] && [ ! -e "$PLIST" ]'
-check "the support folder and the socket in it are kept (same inodes)" \
-  '[ "$(inode "$SUPPORT")" = "$support_inode" ] && [ -S "$SUPPORT/agent.sock" ] && [ "$(inode "$SUPPORT/agent.sock")" = "$socket_inode" ]'
-check "and says why" \
-  'grep -qxF "Kept $SUPPORT: Homebrew'"'"'s copy of Hook Me Up uses it." "$LOGS/uninstall-homebrew.txt"'
-check "the hooks are removed all the same" 'json_equal "$WORKDIR/original.json" "$SETTINGS"'
-# Only Homebrew's service plist (sh.brew.…, Homebrew 7's label) is left: the folder stays too.
-run install.sh HOOK_ME_UP_YES=1 >"$LOGS/install-for-brew-plist-uninstall.txt" 2>&1
-BREW_PLIST="$FAKE/Library/LaunchAgents/sh.brew.hook-me-up.plist"
-printf '<plist version="1.0"><dict><key>Label</key><string>sh.brew.hook-me-up</string></dict></plist>\n' >"$BREW_PLIST"
-cp "$BREW_PLIST" "$WORKDIR/brew-plist-copy"
-run uninstall.sh HOOK_ME_UP_YES=1 >"$LOGS/uninstall-brew-plist.txt" 2>&1
-check "with only Homebrew's service plist: app removed, folder kept, that plist untouched" \
-  '[ ! -e "$APP" ] && [ ! -e "$PLIST" ] && [ -d "$SUPPORT" ] && cmp -s "$WORKDIR/brew-plist-copy" "$BREW_PLIST" \
-   && grep -q "^Kept .*: Homebrew.s copy of Hook Me Up uses it.$" "$LOGS/uninstall-brew-plist.txt"'
-rm -f "$BREW_PLIST"
-run uninstall.sh HOOK_ME_UP_YES=1 >"$LOGS/uninstall-after-homebrew.txt" 2>&1
-check "without Homebrew, the next uninstall removes the folder" '[ ! -e "$SUPPORT" ]'
 
 echo "--- a package whose hook-me-up-setup has no notifications command (0.1.x)"
 # The same package with hook-me-up-setup replaced by a stand-in for 0.1.x: install and
@@ -506,23 +455,6 @@ editor_run uninstall-not-there uninstall.sh EDITOR_STATUS=1
 check "an editor without the extension: uninstall says nothing about it and succeeds" \
   'grep -q "^code --uninstall-extension" "$LOGS/editor-uninstall-not-there.txt" && [ ! -e "$APP" ] \
    && ! grep -q "extension" "$LOGS/uninstall-not-there.txt"'
-editor_run reinstall-for-homebrew install.sh HOOK_ME_UP_TEST_BREW_PREFIX="$WORKDIR/homebrew" HOOK_ME_UP_IGNORE_HOMEBREW=1
-# The stand-in installs nothing: these registries, as the editors write them, say VS Code
-# has the extension and Cursor doesn't.
-mkdir -p "$FAKE/.vscode/extensions" "$FAKE/.cursor/extensions"
-printf '[{"identifier":{"id":"hook-me-up.hook-me-up"},"version":"0.1.0"}]' >"$FAKE/.vscode/extensions/extensions.json"
-printf '[{"identifier":{"id":"ms-python.python"},"version":"1.0.0"}]' >"$FAKE/.cursor/extensions/extensions.json"
-editor_run uninstall-homebrew uninstall.sh HOOK_ME_UP_TEST_BREW_PREFIX="$WORKDIR/homebrew"
-check "next to Homebrew's copy, uninstall keeps the extension and names the editors that have it" \
-  '[ ! -s "$LOGS/editor-uninstall-homebrew.txt" ] && [ ! -e "$APP" ] \
-   && grep -qx "Kept the Hook Me Up extension in VS Code: Homebrew.s copy uses it too." "$LOGS/uninstall-homebrew.txt"'
-rm -rf "$FAKE/.vscode" "$FAKE/.cursor"
-editor_run reinstall-for-homebrew-2 install.sh HOOK_ME_UP_TEST_BREW_PREFIX="$WORKDIR/homebrew" HOOK_ME_UP_IGNORE_HOMEBREW=1
-editor_run uninstall-homebrew-no-extension uninstall.sh HOOK_ME_UP_TEST_BREW_PREFIX="$WORKDIR/homebrew"
-check "next to Homebrew's copy, with the extension in no editor: not a word about it" \
-  '[ ! -e "$APP" ] && grep -q "^Kept .*: Homebrew.s copy of Hook Me Up uses it.$" "$LOGS/uninstall-homebrew-no-extension.txt" \
-   && ! grep -qi "extension" "$LOGS/uninstall-homebrew-no-extension.txt"'
-rm -rf "$SUPPORT"
 run install.sh HOOK_ME_UP_YES=1 >"$LOGS/install-no-tool.txt" 2>&1
 run uninstall.sh HOOK_ME_UP_YES=1 >"$LOGS/uninstall-no-tool.txt" 2>&1
 check "without any tool, uninstall succeeds without a word about the extension" \
