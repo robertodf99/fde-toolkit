@@ -19,46 +19,48 @@ RECORDINGS_DIR="${1:-$HOME/Desktop}"
 # must have, so a re-recorded or renamed file is caught before anything is rendered.
 #   name | duration | width x height
 RECORDINGS=(
-  "Screen Recording 2026-11-14 at 22.32.08.mov|40.567|3024x1964"
-  "Screen Recording 2026-11-14 at 22.05.01.mov|32.493|3024x1964"
-  "Screen Recording 2026-11-14 at 22.44.21.mov|33.995|3024x1964"
-  "Screen Recording 2026-11-14 at 22.20.23.mov|99.073|3024x1964"
+  "Screen Recording 2026-11-15 at 13.00.08.mov|154.310|3024x1964"
 )
 
 # Shots, in order. Consecutive shots with the same caption are one step (one number,
 # one progress dot). Times are in the recording's own seconds (cut exactly, after
-# decoding); speed 2 plays twice as fast. The crop is in recording pixels and is scaled
-# to fit 1600 × 900. "gif" puts the shot in the README GIF too. Blur: rectangles
-# x:y:w:h in recording pixels, separated by ";", each optionally "@from-to" (recording
-# seconds) to blur only then.
+# decoding); speed 2 plays twice as fast, 0.75 holds a still screen longer. The crop
+# is in recording pixels and is scaled to fit 1600 × 900. "gif" puts the shot in the
+# README GIF too. Blur: rectangles x:y:w:h in recording pixels, separated by ";", each
+# optionally "@from-to" (recording seconds) to blur only then.
 #   recording | start | end | speed | crop w:h:x:y | gif | caption | blur
-# Privacy: these ranges and crops were picked by looking at the recordings' frames, and
-# the recordings hold e-mail addresses, browser history, other sites, other projects
-# and home-folder paths just outside them. After any change, extract frames of the
-# rendered video at least every 0.5 s and look at every one before publishing it.
+# Privacy: these ranges and crops were picked by looking at the recording's frames, and
+# it holds the account name, home-folder paths, other sessions' tab titles and
+# notifications, and the recording notes just outside them. After any change, extract
+# frames of the rendered video and GIF at least every 0.5 s and look at every one, and
+# look at EVERY frame of the first and last 0.5 s of each shot and of each crossfade:
+# windows sliding between Spaces carry text past a fixed blur in a frame or two. Static
+# blur rectangles only hold once the window is still (shot 10 starts at 122.0 s for
+# that reason: the Space switch shows the desktop and Dock until ~121.8 s and the
+# window slides in until ~121.9 s).
+# The desktop shots share one crop: the top-right corner, where notifications appear.
 SHOTS=(
-  "22.32.08|2.0|12.2|2|1920:1080:700:880|gif|Ask Claude Code something, then get on with your day|"
-  "22.05.01|12.0|21.8|1.25|1104:620:1920:0|gif|Claude asks: pick an answer right from the notification|"
-  "22.05.01|23.8|27.9|1.5|2200:1000:690:400|gif|Your answer goes straight back to Claude Code|"
-  # "<permission recording>|...|...|1|...|gif|Approve or deny a tool without leaving what you're doing|"
-  # "<plan recording>|...|...|1|...|gif|Approve Claude's plan, or ask for changes|"
-  "22.44.21|14.3|21.0|1|964:620:2060:0|gif|Reply… shows every option plus a box for your own answer|"
-  # "<free-text recording>|...|...|1|...|gif|Type your own answer and send it from the notification|"
-  "22.44.21|24.3|26.7|1|944:531:2080:0|gif|Know the moment Claude finishes|"
-  "22.20.23|28.2|30.44|1|1104:620:1920:0|gif|Click any notification to jump back to the session|"
-  "22.20.23|30.44|34.6|1|3024:1964:0:0|gif|Click any notification to jump back to the session|0:960:3024:400@30-31.8"
-  # "<menu-bar recording>|...|...|1|...|no|Pause notifications from the ✻ menu, and resume them|"
-  # "<install recording>|...|...|2|...|no|Install with one command|"
+  "13.00.08|21.6|23.6|1|1920:1080:0:880|no|Ask Claude Code something, then get on with your day|"
+  "13.00.08|35.0|39.6|1|1152:720:1860:0|gif|Claude needs permission? Approve it from the notification|"
+  "13.00.08|40.3|42.1|1|1152:720:1860:0|gif|Know the moment Claude finishes|"
+  "13.00.08|52.6|57.0|1|1152:720:1860:0|gif|Or deny it, and Claude knows you said no|2370:368:630:60"
+  "13.00.08|58.2|60.4|1|1152:720:1860:0|gif|Or deny it, and Claude knows you said no|"
+  "13.00.08|106.4|113.6|1|1152:720:1860:0|gif|Claude asks? Pick an answer right from the notification|"
+  "13.00.08|72.2|78.6|1|1152:720:1860:0|gif|Reply… shows every option plus a box for your own answer|"
+  "13.00.08|95.6|98.9|0.75|1800:670:0:570|no|Every answer goes straight back to Claude Code|"
+  "13.00.08|119.0|121.45|1|1152:720:1860:0|gif|Click a notification to jump to its session|"
+  "13.00.08|122.0|125.0|1|2280:1600:20:290|gif|Click a notification to jump to its session|130:770:840:68"
+  "13.00.08|147.6|151.5|1|1152:720:1860:0|no|Pause notifications from the ✻ menu, and resume them|"
 )
 # A shot's recording is the RECORDINGS entry whose name contains its first field.
 
-INTRO_SECONDS=3
-OUTRO_SECONDS=4
+INTRO_SECONDS=3.5
+OUTRO_SECONDS=4.5
 FADE=0.4      # crossfade between shots, seconds
 FPS=60
 GIF_FPS=20
 GIF_WIDTH=960
-GIF_MAX_BYTES=$((5 * 1024 * 1024))
+GIF_MAX_BYTES=5000000
 # The window area: shots are scaled to fit this box, centred under the caption bar.
 BOX_W=1600
 BOX_H=900
@@ -113,19 +115,31 @@ recording_for() {
 }
 
 mkdir -p "$OUT"
-rm -f "${OUT:?}"/shot-*.png "${OUT:?}"/clip-*.nut "${OUT:?}"/gif-*.png
+rm -f "${OUT:?}"/shot-*.png "${OUT:?}"/gifshot-*.png "${OUT:?}"/clip-*.nut "${OUT:?}"/gifclip-*.nut \
+  "${OUT:?}"/gif-*.png
 
 # --- Shot list: steps and window sizes --------------------------------------------
+# Steps are numbered twice: among all shots (the video) and among the "gif" shots (the
+# GIF, which leaves some out and so has its own numbers and progress dots).
 count=${#SHOTS[@]}
 steps=0
+gif_steps=0
 previous=""
+previous_gif=""
 STEP=()
+GIF_STEP=()
 for shot in "${SHOTS[@]}"; do
-  IFS='|' read -r _ _ _ _ _ _ caption _ <<<"$shot"
+  IFS='|' read -r _ _ _ _ _ gif caption _ <<<"$shot"
   [ "$caption" = "$previous" ] || steps=$((steps + 1))
   STEP+=("$steps")
   previous="$caption"
+  if [ "$gif" = "gif" ]; then
+    [ "$caption" = "$previous_gif" ] || gif_steps=$((gif_steps + 1))
+    previous_gif="$caption"
+  fi
+  GIF_STEP+=("$gif_steps")
 done
+[ "$gif_steps" -gt 0 ] || fail "no shot is marked gif"
 
 cards="$OUT/cards.txt"
 logo="$OUT/logo.png"
@@ -150,6 +164,8 @@ for i in $(seq 0 $((count - 1))); do
   FRAMES+=("$frames")
   printf 'shot|%s|%s|%s|%s|%s|%s|%s|%s\n' "$OUT/shot-$i.png" "${STEP[$i]}" "$steps" "$x" "$y" "$w" "$h" \
     "$caption" >>"$cards"
+  [ "$gif" != "gif" ] || printf 'shot|%s|%s|%s|%s|%s|%s|%s|%s\n' "$OUT/gifshot-$i.png" "${GIF_STEP[$i]}" \
+    "$gif_steps" "$x" "$y" "$w" "$h" "$caption" >>"$cards"
 done
 
 echo "Drawing the logo and cards"
@@ -194,10 +210,19 @@ for i in $(seq 0 $((count - 1))); do
   graph="$graph,setpts=(PTS-STARTPTS)/$speed,fps=$FPS,crop=$crop"
   graph="$graph,scale=$w:$h:flags=lanczos+accurate_rnd+full_chroma_int:in_color_matrix=bt709:in_range=tv"
   graph="$graph,format=rgb24,pad=1920:1080:$x:$y:color=black"
-  graph="$graph,tpad=stop_mode=clone:stop_duration=1,trim=end_frame=${FRAMES[$i]}[clip];"
-  graph="$graph[1:v]format=rgba[card];[clip][card]overlay=0:0:format=rgb:shortest=1,format=rgb24"
-  ffmpeg -v error -y -i "$file" -loop 1 -framerate "$FPS" -i "$OUT/shot-$i.png" -filter_complex "$graph" \
-    -frames:v "${FRAMES[$i]}" "${LOSSLESS[@]}" "$OUT/clip-$i.nut"
+  graph="$graph,tpad=stop_mode=clone:stop_duration=1,trim=end_frame=${FRAMES[$i]}"
+  # One clip per card: the video's, and the GIF's (its own step numbers) for "gif" shots.
+  cards_in=(-loop 1 -framerate "$FPS" -i "$OUT/shot-$i.png")
+  outputs=(-map "[o1]" -frames:v "${FRAMES[$i]}" "${LOSSLESS[@]}" "$OUT/clip-$i.nut")
+  if [ "$gif" = "gif" ]; then
+    cards_in+=(-loop 1 -framerate "$FPS" -i "$OUT/gifshot-$i.png")
+    outputs+=(-map "[o2]" -frames:v "${FRAMES[$i]}" "${LOSSLESS[@]}" "$OUT/gifclip-$i.nut")
+    graph="$graph,split[c1][c2];[c2][2:v]overlay=0:0:format=rgb:shortest=1,format=rgb24[o2];"
+  else
+    graph="$graph[c1];"
+  fi
+  graph="$graph[c1][1:v]overlay=0:0:format=rgb:shortest=1,format=rgb24[o1]"
+  ffmpeg -v error -y -i "$file" "${cards_in[@]}" -filter_complex "$graph" "${outputs[@]}"
 done
 
 # --- Assembly: crossfades between consecutive clips ---------------------------------
@@ -206,7 +231,10 @@ xfade_graph() {
   local index=0 offset=0 label="0:v" clip frames duration
   for clip in "$@"; do
     frames="$(ffprobe -v error -count_frames -select_streams v:0 -show_entries stream=nb_read_frames \
-      -of csv=p=0 "$clip")"
+      -of csv=p=0 "$clip")" || fail "ffprobe cannot count the frames of $clip"
+    case "$frames" in
+      '' | *[!0-9]*) fail "ffprobe gave \"$frames\" as the frame count of $clip" ;;
+    esac
     duration="$(awk -v n="$frames" -v f="$FPS" 'BEGIN{printf "%.6f", n / f}')"
     if [ "$index" -gt 0 ]; then
       printf '[%s][%d:v]xfade=transition=fade:duration=%s:offset=%s[x%d];' \
@@ -230,27 +258,30 @@ GIF_CLIPS=()
 for i in $(seq 0 $((count - 1))); do
   VIDEO_CLIPS+=("$OUT/clip-$i.nut")
   IFS='|' read -r _ _ _ _ _ gif _ _ <<<"${SHOTS[$i]}"
-  [ "$gif" != "gif" ] || GIF_CLIPS+=("$OUT/clip-$i.nut")
+  [ "$gif" != "gif" ] || GIF_CLIPS+=("$OUT/gifclip-$i.nut")
 done
 VIDEO_CLIPS+=("$OUT/clip-outro.nut")
 
 echo "Encoding $VIDEO"
 args=()
 while IFS= read -r -d '' arg; do args+=("$arg"); done < <(inputs "${VIDEO_CLIPS[@]}")
+# Built first: a failure inside $(...) in ffmpeg's arguments would not stop the script.
+video_graph="$(xfade_graph "${VIDEO_CLIPS[@]}")" || exit 1
 ffmpeg -v error -y "${args[@]}" \
-  -filter_complex "$(xfade_graph "${VIDEO_CLIPS[@]}");[out]scale=out_color_matrix=bt709:out_range=tv:flags=accurate_rnd+full_chroma_int,format=yuv420p,setparams=color_primaries=bt709:color_trc=bt709:colorspace=bt709:range=tv[v]" \
+  -filter_complex "$video_graph;[out]scale=out_color_matrix=bt709:out_range=tv:flags=accurate_rnd+full_chroma_int,format=yuv420p,setparams=color_primaries=bt709:color_trc=bt709:colorspace=bt709:range=tv[v]" \
   -map "[v]" -c:v libx264 -preset slow -crf 18 -pix_fmt yuv420p -profile:v high -r "$FPS" \
   -colorspace bt709 -color_primaries bt709 -color_trc bt709 -color_range tv \
   -movflags +faststart -fflags +bitexact -map_metadata -1 -an "$VIDEO"
 
 echo "Encoding $GIF"
-[ "${#GIF_CLIPS[@]}" -gt 0 ] || fail "no shot is marked gif"
 args=()
 while IFS= read -r -d '' arg; do args+=("$arg"); done < <(inputs "${GIF_CLIPS[@]}")
+gif_graph="$(xfade_graph "${GIF_CLIPS[@]}")" || exit 1
 ffmpeg -v error -y "${args[@]}" \
-  -filter_complex "$(xfade_graph "${GIF_CLIPS[@]}");[out]fps=$GIF_FPS,scale=$GIF_WIDTH:-2:flags=lanczos,format=rgb24[g]" \
+  -filter_complex "$gif_graph;[out]fps=$GIF_FPS,scale=$GIF_WIDTH:-2:flags=lanczos,format=rgb24[g]" \
   -map "[g]" -fflags +bitexact "$OUT/gif-%04d.png"
-gifski --quiet --fps "$GIF_FPS" --width "$GIF_WIDTH" --quality 80 -o "$OUT/demo.gif" "$OUT"/gif-*.png
+# Full motion quality: lower values leave ghosts of earlier frames on the flat backgrounds.
+gifski --quiet --fps "$GIF_FPS" --width "$GIF_WIDTH" --quality 85 --motion-quality 100 -o "$OUT/demo.gif" "$OUT"/gif-*.png
 bytes="$(wc -c <"$OUT/demo.gif" | tr -d ' ')"
 [ "$bytes" -lt "$GIF_MAX_BYTES" ] || fail "the GIF is $bytes bytes (limit $GIF_MAX_BYTES): lower GIF_WIDTH or the quality"
 cp "$OUT/demo.gif" "$GIF"

@@ -9,7 +9,7 @@ approve the plan or ask for changes. Click the notification to jump to the sessi
 It is built on Claude Code's hooks and fails open: if anything is off, Claude Code
 simply shows its usual terminal dialog.
 
-![Claude Code asks a question, you answer it from a macOS notification (picking an option or typing your own), then click the finished notification to jump back to the session](docs/images/demo.gif)
+![Claude Code asks for permission and you approve or deny it from a macOS notification, pick an answer to its question or open Reply… for every option plus a box for your own, then click a notification to jump to its session](docs/images/demo.gif)
 
 ## Install
 
