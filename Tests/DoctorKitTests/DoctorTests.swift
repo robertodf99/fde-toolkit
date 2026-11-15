@@ -77,7 +77,7 @@ private func status(
 }
 
 /// An installer install that works: app, LaunchAgent, running agent, hooks, Alerts.
-private func healthy() -> FakeProbe {
+private func healthy(app: String = app) -> FakeProbe {
     let probe = FakeProbe()
     for executable in ["HookMeUp", "hook-me-up", "hook-me-up-setup"] {
         probe.executables.insert("\(app)/Contents/MacOS/\(executable)")
@@ -156,6 +156,25 @@ private func run(_ probe: FakeProbe, _ options: Doctor.Options = realHome) -> Do
         let probe = healthy()
         probe.files[installerPlist] = Data("not a plist".utf8)
         #expect(run(probe).check("LaunchAgent")?.result == .fail)
+    }
+
+    /// The app is checked at its real path, while the LaunchAgent and the hooks name it
+    /// through a link to its folder: both still count as this app's.
+    @Test func theLaunchAgentAndHooksMayNameTheAppThroughALink() {
+        let real = "/Volumes/X/Applications/Hook Me Up.app"
+        let probe = healthy(app: real)
+        probe.links["/Users/me/Applications"] = "/Volumes/X/Applications"
+        probe.files[installerPlist] = launchAgent(starting: "\(app)/Contents/MacOS/HookMeUp")
+        probe.files[settingsPath] = hooks(at: "\(app)/Contents/MacOS/hook-me-up")
+        var options = realHome
+        options.app = real
+        let report = run(probe, options)
+        #expect(report.check("LaunchAgent")?.result == .pass, "\(report.rendered())")
+        #expect(report.check("LaunchAgent")?.detail == "io.github.robertodf99.hook-me-up starts this app")
+        #expect(report.check("Hooks")?.result == .pass, "\(report.rendered())")
+        #expect(report.check("Hooks")?.detail == "all five events run \(real)/Contents/MacOS/hook-me-up")
+        #expect(report.check("Other installation") == nil)
+        #expect(report.exitCode == 0)
     }
 
     @Test func anUnloadedAgentFailsWithTheBootstrapCommand() {
