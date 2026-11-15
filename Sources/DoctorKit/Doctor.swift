@@ -309,20 +309,43 @@ public enum Doctor {
                     fix: "Keep one hook-me-up entry per event in \(settings)."))
         }
         if !found.otherPaths.isEmpty {
-            // uninstall needs an absolute path; a relative one only by hand.
-            let removals = found.otherPaths.map {
-                $0.hasPrefix("/")
-                    ? "\(quoted(install.setupPath)) uninstall --settings \(quoted(settings)) --hook \(quoted($0))"
-                    : "(by hand) the entries that run \($0), a path relative to where Claude Code runs"
+            let removals = otherHookRemovals(found.otherPaths, setup: install.setupPath, settings: settings)
+            var fix: [String] = []
+            if !removals.commands.isEmpty {
+                fix.append("If that copy is gone or unused, remove its hooks (shows the changes and asks first):")
+                fix += removals.commands
+            }
+            if !removals.byHand.isEmpty {
+                fix.append(
+                    removals.commands.isEmpty
+                        ? "If that copy is gone or unused, remove by hand from \(settings):"
+                        : "Remove by hand from \(settings):")
+                fix += removals.byHand
             }
             checks.append(
                 DoctorCheck(
                     "Other installation", .warn,
                     "\(settings) also runs hook-me-up from \(found.otherPaths.joined(separator: ", "))",
-                    fix: "If that copy is gone or unused, remove its hooks (shows the changes and asks first):\n"
-                        + removals.joined(separator: "\n")))
+                    fix: fix.joined(separator: "\n")))
         }
         return checks
+    }
+
+    /// How to remove hooks that run hook-me-up from `otherPaths` (another installation):
+    /// `uninstall` takes only an absolute path, so each absolute one gets the command that
+    /// removes its hooks from `settings` (run with `setup`); the others (relative, `~/…`,
+    /// `$HOME/…`: the settings file doesn't name the file itself) can only be removed by
+    /// hand.
+    public static func otherHookRemovals(
+        _ otherPaths: [String], setup: String, settings: String
+    ) -> (commands: [String], byHand: [String]) {
+        let commands = otherPaths.filter { $0.hasPrefix("/") }.map {
+            "\(quoted(setup)) uninstall --settings \(quoted(settings)) --hook \(quoted($0))"
+        }
+        let byHand = otherPaths.filter { !$0.hasPrefix("/") }.map {
+            "the entries that run \($0), which is not an absolute path"
+        }
+        return (commands, byHand)
     }
 
     static func notificationChecks(_ status: AgentStatus?, _ install: Installation, skipped: String) -> [DoctorCheck] {

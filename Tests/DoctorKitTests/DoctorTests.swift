@@ -289,17 +289,52 @@ private func run(_ probe: FakeProbe, _ options: Doctor.Options = realHome) -> Do
         #expect(report.exitCode == 0)
     }
 
-    @Test func hooksAtARelativePathCanOnlyBeRemovedByHand() {
-        let probe = healthy()
+    /// Settings whose Stop event also runs each of `commands` (JSON-escaped), next to ours.
+    private func withOtherStopHooks(_ commands: [String]) -> Data {
         let ours = String(decoding: hooks(at: "\(app)/Contents/MacOS/hook-me-up"), as: UTF8.self)
-        let theirs =
-            #""Stop": [{"hooks": [{"type": "command", "command": "HookMeUp.app/Contents/MacOS/hook-me-up finished"}]}, "#
-        probe.files[settingsPath] = Data(
-            ours.replacingOccurrences(of: #""Stop": ["#, with: theirs + "{\"x\": 1},").utf8)
+        let theirs = commands.map { #"{"hooks": [{"type": "command", "command": "\#($0)"}]}, "# }.joined()
+        return Data(ours.replacingOccurrences(of: #""Stop": ["#, with: #""Stop": ["# + theirs).utf8)
+    }
+
+    /// A relative path, `~/…` or `$HOME/…`: the settings don't name a file, so `uninstall`
+    /// (which takes an absolute path) can't remove them; the fix says to remove them by hand.
+    @Test func hooksAtAPathThatIsNotAbsoluteCanOnlyBeRemovedByHand() {
+        let relative = "HookMeUp.app/Contents/MacOS/hook-me-up"
+        let tilde = "~/Applications/Hook Me Up.app/Contents/MacOS/hook-me-up"
+        let home = "$HOME/Applications/Hook Me Up.app/Contents/MacOS/hook-me-up"
+        let probe = healthy()
+        probe.files[settingsPath] = withOtherStopHooks([
+            "\(relative) finished", #"~/Applications/Hook\\ Me\\ Up.app/Contents/MacOS/hook-me-up finished"#,
+            #"\"$HOME/Applications/Hook Me Up.app/Contents/MacOS/hook-me-up\" finished"#,
+        ])
         let check = run(probe).check("Other installation")
-        #expect(check?.detail.hasSuffix("from HookMeUp.app/Contents/MacOS/hook-me-up") == true)
-        #expect(check?.fix?.contains("(by hand) the entries that run HookMeUp.app/Contents/MacOS/hook-me-up") == true)
-        #expect(check?.fix?.contains("uninstall") == false)
+        #expect(check?.result == .warn)
+        #expect(check?.detail == "\(settingsPath) also runs hook-me-up from \(home), \(relative), \(tilde)")
+        #expect(
+            check?.fix == """
+                If that copy is gone or unused, remove by hand from \(settingsPath):
+                the entries that run \(home), which is not an absolute path
+                the entries that run \(relative), which is not an absolute path
+                the entries that run \(tilde), which is not an absolute path
+                """)
+    }
+
+    /// An absolute path gets the uninstall command; the rest are removed by hand.
+    @Test func otherHooksAtAbsoluteAndOtherPathsGetBothFixes() {
+        let other = "/Users/me/Downloads/HookMeUp.app/Contents/MacOS/hook-me-up"
+        let tilde = "~/Applications/Hook Me Up.app/Contents/MacOS/hook-me-up"
+        let probe = healthy()
+        probe.files[settingsPath] = withOtherStopHooks([
+            "'\(other)' finished", #"~/Applications/Hook\\ Me\\ Up.app/Contents/MacOS/hook-me-up finished"#,
+        ])
+        let check = run(probe).check("Other installation")
+        #expect(
+            check?.fix == """
+                If that copy is gone or unused, remove its hooks (shows the changes and asks first):
+                '\(app)/Contents/MacOS/hook-me-up-setup' uninstall --settings \(settingsPath) --hook \(other)
+                Remove by hand from \(settingsPath):
+                the entries that run \(tilde), which is not an absolute path
+                """)
     }
 
     @Test func disabledHooksFail() {
