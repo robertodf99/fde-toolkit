@@ -27,7 +27,9 @@ curl -fsSL https://raw.githubusercontent.com/robertodf99/hook-me-up/main/uninsta
 ```
 
 It stops the agent, removes Hook Me Up's hooks from your settings (again after showing
-the diff and asking), and removes the app. Your settings backups stay where they are.
+the diff and asking), and removes the app and its support folder. Your settings backups
+stay where they are. When Homebrew's copy of Hook Me Up is installed too, the support
+folder stays (that copy's agent uses it), and Homebrew's copy is left alone.
 
 Requirements: macOS 14 or later, and [Claude Code](https://docs.claude.com/en/docs/claude-code/overview).
 

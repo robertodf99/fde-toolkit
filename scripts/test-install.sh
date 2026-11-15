@@ -9,8 +9,10 @@
 # flags it gets on a first install and on an upgrade, and the next steps for each result;
 # install.sh refuses to install next to Homebrew's copy unless told to; a second install
 # changes nothing; a truncated download or a failed install leaves everything as it was;
-# uninstall restores the original settings and leaves the backups; a declined uninstall
-# leaves the agent installed; and the real HOME is never touched.
+# uninstall restores the original settings and leaves the backups; it keeps the support
+# folder (and the socket in it) when Homebrew's copy or its service plist is there, and
+# leaves that plist alone; a declined uninstall leaves the agent installed; and the real
+# HOME is never touched.
 #
 # Usage: scripts/test-install.sh   (HOOK_ME_UP_ZIP=<zip> to reuse a package)
 set -euo pipefail
@@ -253,6 +255,38 @@ check "LaunchAgent removed" '[ ! -e "$PLIST" ]'
 check "backups left in place" 'ls "$FAKE/.claude" | grep -q "^settings.json.bak-"'
 run uninstall.sh HOOK_ME_UP_YES=1 >"$LOGS/uninstall-3.txt" 2>&1
 check "uninstalling again is harmless" 'json_equal "$WORKDIR/original.json" "$SETTINGS"'
+
+echo "--- uninstall next to Homebrew's copy keeps the support folder (Homebrew's agent uses it)"
+SUPPORT="$FAKE/Library/Application Support/hook-me-up"
+check "homebrew_copy is the same in install.sh and uninstall.sh" \
+  'diff <(sed -n "/^homebrew_copy() {/,/^}/p" install.sh) <(sed -n "/^homebrew_copy() {/,/^}/p" uninstall.sh) >/dev/null'
+run install.sh HOOK_ME_UP_YES=1 HOOK_ME_UP_TEST_BREW_PREFIX="$WORKDIR/homebrew" HOOK_ME_UP_IGNORE_HOMEBREW=1 \
+  >"$LOGS/install-for-homebrew-uninstall.txt" 2>&1
+# A stand-in for the socket of Homebrew's agent (bound with a relative path: the full
+# one is too long for a socket address; nobody listens on it afterwards).
+(cd "$SUPPORT" && /usr/bin/python3 -I -c 'import socket; socket.socket(socket.AF_UNIX).bind("agent.sock")')
+inode() { stat -f %i "$1"; }
+support_inode="$(inode "$SUPPORT")"
+socket_inode="$(inode "$SUPPORT/agent.sock")"
+run uninstall.sh HOOK_ME_UP_YES=1 HOOK_ME_UP_TEST_BREW_PREFIX="$WORKDIR/homebrew" >"$LOGS/uninstall-homebrew.txt" 2>&1
+check "the app and the installer's LaunchAgent are removed" '[ ! -e "$APP" ] && [ ! -e "$PLIST" ]'
+check "the support folder and the socket in it are kept (same inodes)" \
+  '[ "$(inode "$SUPPORT")" = "$support_inode" ] && [ -S "$SUPPORT/agent.sock" ] && [ "$(inode "$SUPPORT/agent.sock")" = "$socket_inode" ]'
+check "and says why" \
+  'grep -qxF "Kept $SUPPORT: Homebrew'"'"'s copy of Hook Me Up uses it." "$LOGS/uninstall-homebrew.txt"'
+check "the hooks are removed all the same" 'json_equal "$WORKDIR/original.json" "$SETTINGS"'
+# Only Homebrew's service plist (sh.brew.…, Homebrew 7's label) is left: the folder stays too.
+run install.sh HOOK_ME_UP_YES=1 >"$LOGS/install-for-brew-plist-uninstall.txt" 2>&1
+BREW_PLIST="$FAKE/Library/LaunchAgents/sh.brew.hook-me-up.plist"
+printf '<plist version="1.0"><dict><key>Label</key><string>sh.brew.hook-me-up</string></dict></plist>\n' >"$BREW_PLIST"
+cp "$BREW_PLIST" "$WORKDIR/brew-plist-copy"
+run uninstall.sh HOOK_ME_UP_YES=1 >"$LOGS/uninstall-brew-plist.txt" 2>&1
+check "with only Homebrew's service plist: app removed, folder kept, that plist untouched" \
+  '[ ! -e "$APP" ] && [ ! -e "$PLIST" ] && [ -d "$SUPPORT" ] && cmp -s "$WORKDIR/brew-plist-copy" "$BREW_PLIST" \
+   && grep -q "^Kept .*: Homebrew.s copy of Hook Me Up uses it.$" "$LOGS/uninstall-brew-plist.txt"'
+rm -f "$BREW_PLIST"
+run uninstall.sh HOOK_ME_UP_YES=1 >"$LOGS/uninstall-after-homebrew.txt" 2>&1
+check "without Homebrew, the next uninstall removes the folder" '[ ! -e "$SUPPORT" ]'
 
 echo "--- a package whose hook-me-up-setup has no notifications command (0.1.x)"
 # The same package with hook-me-up-setup replaced by a stand-in for 0.1.x: install and
