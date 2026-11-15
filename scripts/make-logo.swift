@@ -4,11 +4,14 @@
 // drawn by scripts/make-icon.swift. Only the constants below go into the images, so
 // every run draws the same files.
 //
-// Usage: swift scripts/make-logo.swift <output-folder>
+// Usage: make logo   (redraws docs/images; picks the toolchain as the Makefile does)
+//        swift scripts/make-logo.swift <output-folder>
 //          writes logo.png (256 px, rounded corners), social-preview.png (1280 × 640)
 //          and product-hunt-thumbnail.png (960 px, square corners)
 //        swift scripts/make-logo.swift --logo <pixels> <output.png>
 //          writes the rounded logo alone at that size (scripts/make-demo.sh uses it)
+// Run directly, it needs a Swift toolchain that matches the SDK: with the Command Line
+// Tools selected, prefix DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer.
 import AppKit
 import CoreText
 import Foundation

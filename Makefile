@@ -15,7 +15,7 @@ endif
 SWIFT ?= swift
 FORMAT_PATHS := Package.swift Sources Tests scripts
 
-.PHONY: build test app dist signing-check selftest format lint install-dry-run install uninstall test-install plugin-check clean
+.PHONY: build test app dist signing-check selftest format lint logo install-dry-run install uninstall test-install plugin-check clean
 
 # Where `make app` puts the bundle.
 APP_DIR ?= .build
@@ -35,6 +35,11 @@ format:
 
 lint:
 	$(SWIFT) format lint --strict --recursive --parallel $(FORMAT_PATHS)
+
+# The project logo, GitHub's social preview and the Product Hunt thumbnail in docs/images
+# (scripts/make-logo.swift; the app icon is drawn separately, by make app).
+logo:
+	$(SWIFT) scripts/make-logo.swift docs/images
 
 # Signs with $(CODESIGN_IDENTITY) if set ("-" = ad-hoc), else the first "Apple
 # Development:" identity in the keychain, else ad-hoc (see scripts/build-app.sh).
