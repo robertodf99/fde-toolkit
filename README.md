@@ -54,7 +54,11 @@ It is a formula, not a cask, so the download isn't quarantined (see
 [Why macOS says "unidentified developer"](#why-macos-says-unidentified-developer)).
 Homebrew doesn't change your settings by itself, nor add the editor extension; to add it,
 run `code --install-extension "$(brew --prefix)/opt/hook-me-up/Hook Me Up.app/Contents/Resources/hook-me-up.vsix" --force`
-(or `code-insiders`, `cursor`, `windsurf`). After `brew upgrade hook-me-up`, run
+(or `code-insiders`, `cursor`, `windsurf`), and to remove it,
+`code --uninstall-extension hook-me-up.hook-me-up`. `brew uninstall hook-me-up` doesn't
+remove it either (nor does the installer's uninstaller while Homebrew's copy is there):
+left behind, it does nothing, since no agent writes requests any more; remove it with
+that command or from the editor's Extensions view. After `brew upgrade hook-me-up`, run
 `brew services restart hook-me-up`. To remove it, run the `hook-me-up-setup uninstall
 --hook …` command with the same path first, then `brew services stop hook-me-up` and
 `brew uninstall hook-me-up`. Use Homebrew or the installer above, not both: only one
@@ -113,9 +117,11 @@ notification, and tells you what is left to do:
   same folder), Hook Me Up briefly sets the title of the session's own terminal to a
   random marker, asks Ghostty which terminal shows it, puts the old title back and
   focuses that terminal; the title is back within about a second. When Ghostty doesn't
-  show the marker (a fixed `title = …` in its config, or the session changed its title
-  first), when the session has ended, when no terminal is in the folder, or when Ghostty's
-  AppleScript is off (`macos-applescript = false`), Ghostty just comes to the front.
+  show the marker in time (a fixed `title = …` in its config, or the session changed its
+  title first), the title is cleared instead, so no marker is left behind (a title the
+  session set meanwhile shows again when it next sets one), and Ghostty just comes to
+  the front, as it does when the session has ended, when no terminal is in the folder, or
+  when Ghostty's AppleScript is off (`macos-applescript = false`).
   VS Code and Cursor (and VS Code Insiders and Windsurf) focus the open window that
   contains the folder Claude Code was started in: that folder's window, the window of
   the repository a worktree or subfolder belongs to, or a saved `.code-workspace` that
@@ -163,6 +169,9 @@ click works exactly as before: it focuses the window.
   You can also remove it from the editor's Extensions view (it is "Hook Me Up", id
   `hook-me-up.hook-me-up`).
 - `hook-me-up-setup doctor` shows which editors have it (an INFO line; it never fails).
+- Profiles: Hook Me Up checks the extension in the default profile's list (where the
+  installer adds it). A window that uses another profile runs it only if that profile has
+  it too; otherwise the click focuses that window as before.
 
 ## How it works
 

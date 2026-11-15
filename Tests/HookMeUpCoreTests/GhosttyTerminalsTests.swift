@@ -242,6 +242,24 @@ private let bel: UInt8 = 0x07
         #expect(GhosttyTerminals.sanitizedTitle(String(repeating: "\u{07}", count: 300) + "ok") == "ok")
     }
 
+    /// The title written back: the earlier one, unless there was none or it holds a marker
+    /// (left by an earlier click), which must never be written back.
+    @Test func aTitleWithAMarkerIsNeverWrittenBack() {
+        #expect(GhosttyTerminals.restorableTitle("✳ Claude Code") == "✳ Claude Code")
+        #expect(GhosttyTerminals.restorableTitle(nil) == "")
+        #expect(GhosttyTerminals.restorableTitle("") == "")
+        for marked in [
+            "hmu-0123456789abcdef", "✳ hmu-0123456789abcdef", "xhmu-0123456789abcdefx", "a hmu-1 hmu-fedcba9876543210",
+        ] {
+            #expect(GhosttyTerminals.containsMarker(marked), "\(marked)")
+            #expect(GhosttyTerminals.restorableTitle(marked) == "", "\(marked)")
+        }
+        for plain in ["hmu-0123", "hmu-0123456789ABCDEF", "hmu-0123456789abcdeg", "hmu 0123456789abcdef", "zsh"] {
+            #expect(!GhosttyTerminals.containsMarker(plain), "\(plain)")
+            #expect(GhosttyTerminals.restorableTitle(plain) == plain, "\(plain)")
+        }
+    }
+
     @Test(arguments: [
         ("ttys003", "/dev/ttys003"), ("/dev/ttys012", "/dev/ttys012"), ("ttys000", "/dev/ttys000"),
         ("ttys1023", "/dev/ttys1023"), ("/dev/ttys9999", "/dev/ttys9999"),

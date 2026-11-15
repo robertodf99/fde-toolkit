@@ -97,30 +97,44 @@ private final class FakeGhostty {
         #expect(ghostty.written.last == GhosttyTerminals.titleSequence(""))
     }
 
-    /// Ghostty ignores the title (`title = …` in its config) or the session changed it first:
-    /// nothing to write back; Ghostty only comes forward.
+    /// Ghostty ignores the title (`title = …` in its config), the session changed it first, or
+    /// Ghostty shows it too late: which title it replaced can't be told, so an empty title is
+    /// written (the marker must never stay); Ghostty only comes forward.
     @Test func aMarkerNotSeenBringsGhosttyForward() {
         let ghostty = FakeGhostty()
         ghostty.found = ""
         #expect(TerminalActivator.ghosttyFocus(folder: folder, using: ghostty.io) == .markerNotSeen(2))
-        #expect(ghostty.events == ["list", "titles", "write", "find", "activate"])
-        #expect(ghostty.written == [GhosttyTerminals.titleSequence(token)])
+        #expect(ghostty.events == ["list", "titles", "write", "find", "write", "activate"])
+        #expect(ghostty.written == [GhosttyTerminals.titleSequence(token), GhosttyTerminals.titleSequence("")])
     }
 
+    /// The find script failed or timed out: the marker may be showing all the same.
     @Test func aFailedFindScriptCountsAsNotSeen() {
         let ghostty = FakeGhostty()
         ghostty.found = nil
         #expect(TerminalActivator.ghosttyFocus(folder: folder, using: ghostty.io) == .markerNotSeen(2))
-        #expect(ghostty.events == ["list", "titles", "write", "find", "activate"])
+        #expect(ghostty.events == ["list", "titles", "write", "find", "write", "activate"])
+        #expect(ghostty.written.last == GhosttyTerminals.titleSequence(""))
     }
 
     /// Two terminals show it: which one is the session's can't be told, nor which title to
-    /// write back.
+    /// write back, so an empty one is.
     @Test func aMarkerInTwoTerminalsFocusesNothing() {
         let ghostty = FakeGhostty()
         ghostty.found = lines([idA, idB])
         #expect(TerminalActivator.ghosttyFocus(folder: folder, using: ghostty.io) == .markerNotSeen(2))
-        #expect(ghostty.events == ["list", "titles", "write", "find", "activate"])
+        #expect(ghostty.events == ["list", "titles", "write", "find", "write", "activate"])
+        #expect(ghostty.written.last == GhosttyTerminals.titleSequence(""))
+    }
+
+    /// A marker left by an earlier click (one Ghostty showed too late, say) is never taken
+    /// for the earlier title: an empty title is written back instead, so it can't live on.
+    @Test(arguments: ["hmu-fedcba9876543210", "✳ hmu-fedcba9876543210 build"])
+    func aLeftoverMarkerIsNeverWrittenBack(_ leftover: String) {
+        let ghostty = FakeGhostty()
+        ghostty.titles = lines(["\(idA)\tclaude", "\(idB)\t\(leftover)"])
+        #expect(TerminalActivator.ghosttyFocus(folder: folder, using: ghostty.io) == .focusedByMarker)
+        #expect(ghostty.written == [GhosttyTerminals.titleSequence(token), GhosttyTerminals.titleSequence("")])
     }
 
     /// The terminal that shows it is not in the session's folder: its title is written back,
@@ -197,5 +211,60 @@ private final class FakeGhostty {
         ghostty.list = lines(["\(idA)\t\(folder)"])
         ghostty.focus = "missing"
         #expect(TerminalActivator.ghosttyFocus(folder: folder, using: ghostty.io) == .scriptFailed)
+    }
+}
+
+/// Records the steps of several runs, from any thread.
+private final class StepLog: @unchecked Sendable {
+    private let lock = NSLock()
+    private var steps: [String] = []
+
+    func add(_ step: String) {
+        lock.lock()
+        steps.append(step)
+        lock.unlock()
+    }
+
+    var all: [String] {
+        lock.lock()
+        defer { lock.unlock() }
+        return steps
+    }
+}
+
+/// Two clicks on Ghostty notifications at almost the same time: the second one's scripts and
+/// writes start only after the first one's are done, so their markers and titles never mix.
+@Suite struct GhosttyClickOrderTests {
+    @Test func ghosttyClicksRunOneAtATime() {
+        let log = StepLog()
+        let done = DispatchGroup()
+        for click in 1...2 {
+            done.enter()
+            TerminalActivator.ghosttyClicks.async {
+                let io = TerminalActivator.GhosttyIO(
+                    run: { command in
+                        log.add("\(click) begin")
+                        Thread.sleep(forTimeInterval: 0.02)
+                        log.add("\(click) end")
+                        // Two terminals in the folder; no titles; the marker is never seen.
+                        return command == GhosttyTerminals.list
+                            ? lines(["\(idA)\t\(folder)", "\(idB)\t\(folder)"]) : ""
+                    },
+                    writeToSession: { _ in
+                        log.add("\(click) write")
+                        return true
+                    }, makeToken: { token }, resolve: { $0 })
+                _ = TerminalActivator.ghosttyFocus(folder: folder, using: io)
+                done.leave()
+            }
+        }
+        #expect(done.wait(timeout: .now() + 10) == .success)
+        let steps = log.all
+        let clicks = steps.map { $0.prefix(1) }
+        // All of one click's steps, then all of the other's.
+        let firstClick = clicks.first
+        let switchIndex = clicks.firstIndex { $0 != firstClick } ?? clicks.endIndex
+        #expect(clicks[switchIndex...].allSatisfy { $0 != firstClick }, "\(steps)")
+        #expect(steps.filter { $0.hasSuffix("write") }.count == 4)
     }
 }

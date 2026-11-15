@@ -47,3 +47,10 @@ jobs:
 
       - name: Claude Code plugin manifests and skills
         run: make plugin-check
+
+      # GitHub's macOS images come with Node. Without it this step fails, saying so
+      # ("node is not installed"), instead of skipping the editor extension's only tests.
+      - name: "Editor extension (Node, with a stand-in for VS Code)"
+        run: |
+          node --version
+          make editor-extension-check

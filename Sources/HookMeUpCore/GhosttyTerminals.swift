@@ -254,6 +254,26 @@ public enum GhosttyTerminals {
         return scalars.dropFirst(4).allSatisfy { ("0"..."9").contains($0) || ("a"..."f").contains($0) }
     }
 
+    /// Whether `title` holds a marker (`makeToken`'s form) anywhere: one an earlier click
+    /// left there, say.
+    public static func containsMarker(_ title: String) -> Bool {
+        let scalars = Array(title.unicodeScalars)
+        let prefix = Array("hmu-".unicodeScalars)
+        guard scalars.count >= 20 else { return false }
+        for start in 0...(scalars.count - 20) where Array(scalars[start..<start + 4]) == prefix {
+            if isValidToken(String(String.UnicodeScalarView(scalars[start..<start + 20]))) { return true }
+        }
+        return false
+    }
+
+    /// The title to write back over the marker: the terminal's earlier title, or an empty one
+    /// when it had none listed or it holds a marker itself (which must never be written back,
+    /// or it would live on).
+    public static func restorableTitle(_ earlier: String?) -> String {
+        guard let earlier, !containsMarker(earlier) else { return "" }
+        return earlier
+    }
+
     /// The bytes that set a terminal's title to `title` (sanitised first, see
     /// `sanitizedTitle`): OSC 2 (ESC ] 2 ;), the title in UTF-8, then BEL.
     public static func titleSequence(_ title: String) -> [UInt8] {

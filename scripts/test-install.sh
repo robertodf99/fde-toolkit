@@ -14,8 +14,9 @@
 # leaves that plist alone; a declined uninstall leaves the agent installed; the editor
 # extension, with stand-ins for the editors' command-line tools (on PATH or inside a fake
 # app), is added with --force and the app's .vsix, skipped when opted out or when no tool
-# is found, never fails the install, is removed by uninstall and kept next to Homebrew's
-# copy; and the real HOME is never touched. Every run gets a PATH of system folders only
+# is found, never fails the install (a tool that hangs is stopped with the process it
+# started), is removed by uninstall and kept next to Homebrew's copy (naming only the
+# editors whose registry lists it); and the real HOME is never touched. Every run gets a PATH of system folders only
 # and a fake Applications folder, so the real editors are never asked anything.
 #
 # Usage: scripts/test-install.sh   (HOOK_ME_UP_ZIP=<zip> to reuse a package)
@@ -443,6 +444,12 @@ mkdir -p "$EDITORS/bin" "$EDITORS/apps/Cursor.app/Contents/Resources/app/bin"
 cat >"$EDITORS/bin/code" <<'STUB'
 #!/bin/bash
 echo "$(basename "$0") $*" >>"$EDITOR_LOG"
+if [ -n "${EDITOR_HANG:-}" ]; then
+  # Like VS Code's own `code`, a wrapper whose editor process is a child it waits for.
+  /bin/sleep 300 &
+  echo "$!" >"$EDITOR_HANG"
+  wait
+fi
 exit "${EDITOR_STATUS:-0}"
 STUB
 chmod +x "$EDITORS/bin/code"
@@ -473,6 +480,20 @@ check "HOOK_ME_UP_NO_EDITOR_EXTENSION=1: no tool is run" \
   '[ ! -s "$LOGS/editor-install-opt-out.txt" ] \
    && grep -qx "Editor extension skipped (HOOK_ME_UP_NO_EDITOR_EXTENSION=1)." "$LOGS/install-opt-out.txt"'
 if editor_run install-tool-fails install.sh EDITOR_STATUS=1; then status=0; else status=$?; fi
+editor_run install-tool-hangs install.sh EDITOR_HANG="$WORKDIR/hung-editor.pid" HOOK_ME_UP_TEST_EDITOR_TIMEOUT=1
+hung="$(cat "$WORKDIR/hung-editor.pid" 2>/dev/null || true)"
+gone() { # pid: true once it no longer runs (within 2 s)
+  local tries=0
+  while kill -0 "$1" 2>/dev/null; do
+    [ "$tries" -ge 20 ] && return 1
+    sleep 0.1
+    tries=$((tries + 1))
+  done
+}
+check "a tool that hangs is stopped with the process it started, and the install goes on" \
+  '[ -n "$hung" ] && gone "$hung" && grep -q "could not add the Hook Me Up extension to VS Code" "$LOGS/install-tool-hangs.txt" \
+   && grep -q "^Hook Me Up is installed" "$LOGS/install-tool-hangs.txt"'
+if [ -n "$hung" ]; then kill "$hung" 2>/dev/null || true; fi
 check "a tool that fails doesn't fail the install" \
   '[ "$status" = 0 ] && grep -q "could not add the Hook Me Up extension to VS Code" "$LOGS/install-tool-fails.txt" \
    && grep -q "^Hook Me Up is installed" "$LOGS/install-tool-fails.txt" && ! grep -q "Reload the windows" "$LOGS/install-tool-fails.txt"'
@@ -486,10 +507,21 @@ check "an editor without the extension: uninstall says nothing about it and succ
   'grep -q "^code --uninstall-extension" "$LOGS/editor-uninstall-not-there.txt" && [ ! -e "$APP" ] \
    && ! grep -q "extension" "$LOGS/uninstall-not-there.txt"'
 editor_run reinstall-for-homebrew install.sh HOOK_ME_UP_TEST_BREW_PREFIX="$WORKDIR/homebrew" HOOK_ME_UP_IGNORE_HOMEBREW=1
+# The stand-in installs nothing: these registries, as the editors write them, say VS Code
+# has the extension and Cursor doesn't.
+mkdir -p "$FAKE/.vscode/extensions" "$FAKE/.cursor/extensions"
+printf '[{"identifier":{"id":"hook-me-up.hook-me-up"},"version":"0.1.0"}]' >"$FAKE/.vscode/extensions/extensions.json"
+printf '[{"identifier":{"id":"ms-python.python"},"version":"1.0.0"}]' >"$FAKE/.cursor/extensions/extensions.json"
 editor_run uninstall-homebrew uninstall.sh HOOK_ME_UP_TEST_BREW_PREFIX="$WORKDIR/homebrew"
-check "next to Homebrew's copy, uninstall keeps the extension (and says so)" \
+check "next to Homebrew's copy, uninstall keeps the extension and names the editors that have it" \
   '[ ! -s "$LOGS/editor-uninstall-homebrew.txt" ] && [ ! -e "$APP" ] \
-   && grep -qx "Kept the Hook Me Up extension in your editors: Homebrew.s copy uses it too." "$LOGS/uninstall-homebrew.txt"'
+   && grep -qx "Kept the Hook Me Up extension in VS Code: Homebrew.s copy uses it too." "$LOGS/uninstall-homebrew.txt"'
+rm -rf "$FAKE/.vscode" "$FAKE/.cursor"
+editor_run reinstall-for-homebrew-2 install.sh HOOK_ME_UP_TEST_BREW_PREFIX="$WORKDIR/homebrew" HOOK_ME_UP_IGNORE_HOMEBREW=1
+editor_run uninstall-homebrew-no-extension uninstall.sh HOOK_ME_UP_TEST_BREW_PREFIX="$WORKDIR/homebrew"
+check "next to Homebrew's copy, with the extension in no editor: not a word about it" \
+  '[ ! -e "$APP" ] && grep -q "^Kept .*: Homebrew.s copy of Hook Me Up uses it.$" "$LOGS/uninstall-homebrew-no-extension.txt" \
+   && ! grep -qi "extension" "$LOGS/uninstall-homebrew-no-extension.txt"'
 rm -rf "$SUPPORT"
 run install.sh HOOK_ME_UP_YES=1 >"$LOGS/install-no-tool.txt" 2>&1
 run uninstall.sh HOOK_ME_UP_YES=1 >"$LOGS/uninstall-no-tool.txt" 2>&1

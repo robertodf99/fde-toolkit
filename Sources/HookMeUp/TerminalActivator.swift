@@ -150,12 +150,18 @@ struct TerminalActivator: TerminalActivating {
         case scriptFailed
     }
 
+    /// Where Ghostty clicks run, one at a time: two clicks close together would otherwise
+    /// write their markers and titles over each other.
+    nonisolated static let ghosttyClicks = DispatchQueue(
+        label: "io.github.robertodf99.hook-me-up.ghostty-clicks", qos: .userInitiated)
+
     /// Ghostty: focuses the session's terminal, then brings Ghostty forward.
     private static func focusGhosttyTerminal(
         folder: String, tty: String?, sessionPID: pid_t?, owner: TerminalMapping.Owner
     ) {
-        // osascript can block (macOS asks for Automation permission the first time): off the main thread.
-        DispatchQueue.global(qos: .userInitiated).async {
+        // osascript can block (macOS asks for Automation permission the first time): off the
+        // main thread, after any earlier Ghostty click.
+        ghosttyClicks.async {
             let result = ghosttyFocus(folder: folder, using: .live(tty: tty, sessionPID: sessionPID))
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
@@ -237,12 +243,16 @@ struct TerminalActivator: TerminalActivating {
     }
 
     /// Several terminals in the folder: lists every terminal's title, writes a fresh token as
-    /// the title of the session's own tty, asks Ghostty which terminal shows it, writes that
-    /// terminal's earlier title back (sanitised; empty when it wasn't listed) before
-    /// anything else, and focuses it when it is one of `candidates` and the only one that
-    /// shows the token. Without a usable tty nothing is written; when the token isn't seen
-    /// in exactly one terminal, nothing is written back (which title it replaced can't be
-    /// told) and Ghostty only comes forward.
+    /// the title of the session's own tty, asks Ghostty which terminal shows it, writes a
+    /// title back over the token before anything else, and focuses that terminal when it is
+    /// one of `candidates` and the only one that shows the token. The title written back is
+    /// the terminal's earlier one (sanitised) when exactly one terminal shows the token; when
+    /// none or several do (Ghostty ignores titles, the session changed its title first, the
+    /// find script failed, or Ghostty shows the token later), which title it replaced can't
+    /// be told, so it is an empty title: the token must never stay, at the cost of clearing
+    /// a title the session may have set meanwhile (it sets it again on its next change). An
+    /// earlier title that holds a token (left by an earlier click) is never written back
+    /// either. Without a usable tty nothing is written; Ghostty then only comes forward.
     nonisolated private static func focusMarked(among candidates: [String], using io: GhosttyIO) -> GhosttyResult {
         let count = candidates.count
         let comeForward = { (result: GhosttyResult) -> GhosttyResult in
@@ -256,7 +266,8 @@ struct TerminalActivator: TerminalActivating {
         guard let find = GhosttyTerminals.findMarker(token: token) else { return comeForward(.markerNotSeen(count)) }
         guard write(GhosttyTerminals.titleSequence(token)) else { return comeForward(.noUsableTTY(count)) }
         let seen = GhosttyTerminals.ids(fromOutput: io.run(find) ?? "")
-        if seen.count == 1 { _ = write(GhosttyTerminals.titleSequence(titles[seen[0]] ?? "")) }
+        let earlier = seen.count == 1 ? titles[seen[0]] : nil
+        _ = write(GhosttyTerminals.titleSequence(GhosttyTerminals.restorableTitle(earlier)))
         guard let id = GhosttyTerminals.marked(ids: seen, candidates: candidates) else {
             return comeForward(.markerNotSeen(count))
         }

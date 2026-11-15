@@ -17,7 +17,7 @@ over a Unix socket. Everything else is libraries, so the logic is tested without
 | `hook-me-up` | executable | Reads stdin, calls `runHook`, prints its output; always exits 0. |
 | `hook-me-up-setup` | executable | `install` / `uninstall` around SetupKit, `doctor` and `notifications` around DoctorKit. |
 | `HookMeUp` | app | AppKit and UserNotifications adapters only: `AppDelegate`, `StatusMenu`, `UserNotificationPresenter`, `TerminalActivator` (with `SessionProbe`, `TTYWriter`, which writes a title marker to the session's own tty only, and `EditorRequestFile`, which writes the editor extension's request atomically). |
-| `editor-extension/` | VS Code extension | Plain JavaScript, no dependencies, no build step (`scripts/build-vsix.sh` packs it): in every window of VS Code, VS Code Insiders, Cursor and Windsurf, watches the agent's request file and shows the integrated terminal whose process is one of the request's pids. Tested with Node and a stand-in for VS Code by `make editor-extension-check` (not part of CI). |
+| `editor-extension/` | VS Code extension | Plain JavaScript, no dependencies, no build step (`scripts/build-vsix.sh` packs it): in every window of VS Code, VS Code Insiders, Cursor and Windsurf, watches the agent's request file and shows the integrated terminal whose process is one of the request's pids. Tested with Node and a stand-in for VS Code by `make editor-extension-check` (in CI too). |
 
 Dependencies point inward: `HookMeUpCore` ← `HookMeUpIPC` ← `HookKit`, `AgentKit`;
 `HookMeUpCore` ← `SetupKit`; `HookMeUpIPC`, `SetupKit` ← `DoctorKit`; the executables
@@ -49,7 +49,10 @@ brings the app forward. Ghostty with several terminals in the session's folder: 
 `titles` script lists every terminal's title, a fresh token is written as an OSC 2 title
 to the session's tty (`TTYWriter`), the `findMarker` script (token as an argument) polls
 Ghostty for up to a second for the terminal that shows it, that terminal's earlier title
-is written back, and only then is it focused. Editors: the request
+is written back (an empty title when not exactly one terminal shows it, or when the
+earlier title itself holds a marker, so a marker never stays), and only then is it
+focused. Ghostty clicks run one at a time on their own serial queue, so two clicks close
+together never mix their markers and titles. Editors: the request
 (`editor-focus-request.json` in the support folder, `0600`, written to a temporary file
 and renamed) holds a nonce, the click time and the session's pids up to the editor's own;
 the window that has one of those pids as a terminal process shows it, and the window is
@@ -163,7 +166,7 @@ old to answer.
   extension with each editor's command-line tool it finds (`code`, `code-insiders`,
   `cursor`, `windsurf` on `PATH`, else inside the app in `/Applications` or
   `~/Applications`): `--install-extension <app>/Contents/Resources/hook-me-up.vsix
-  --force`, at most 2 minutes each, never failing the install (`HOOK_ME_UP_NO_EDITOR_EXTENSION=1`
+  --force`, at most 2 minutes each (then the tool and the editor process it started are stopped), never failing the install (`HOOK_ME_UP_NO_EDITOR_EXTENSION=1`
   skips it). `uninstall.sh` reverses it (`--uninstall-extension hook-me-up.hook-me-up`,
   except while Homebrew's copy uses the support folder) and keeps the settings backups.
   `scripts/test-install.sh` runs both against a throwaway HOME, with system folders only
