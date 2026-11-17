@@ -160,7 +160,8 @@ your decision, and the hook prints it for Claude Code. If there is no decision (
 agent isn't running, notifications are off, the agent is paused, something fails, or
 the request times out), the hook prints nothing and Claude Code shows its own terminal
 dialog. You can always answer in the terminal instead; the notification then goes
-away when the session finishes its turn or you send the next prompt. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the details.
+away when the session finishes its turn or you send the next prompt. See
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the details.
 
 ## Security model
 

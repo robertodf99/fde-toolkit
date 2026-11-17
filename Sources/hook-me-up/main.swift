@@ -7,7 +7,7 @@ import HookKit
 import HookMeUpCore
 
 signal(SIGPIPE, SIG_IGN)
-// Claude Code sends SIGTERM when the user answers in the terminal: leave
+// Ended by a signal (Claude Code interrupts the hook, or the session ends): leave
 // quietly with status 0 and no output. _exit is async-signal-safe.
 for signalNumber in [SIGTERM, SIGINT, SIGHUP] {
     signal(signalNumber) { _ in _exit(0) }

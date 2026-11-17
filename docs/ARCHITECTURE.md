@@ -63,10 +63,16 @@ fire-and-forget. When the user answers in the terminal dialog instead, Claude Co
 not stop the waiting hook. The session moving on is the signal: on its `Stop`
 (`notify` finished), `UserPromptSubmit` or `SessionEnd` (`clear`), the agent answers
 each of that session's requests still waiting with `.paused` (the hook prints nothing),
-closes the connection and removes the entry and its notification, so no "Timed out"
-heads-up follows and no second decision is ever sent. This happens even while paused or
-with notifications off; `waiting` releases nothing. A request connection that closes
-first (the hook interrupted with Esc, or its process gone) also removes its entry.
+closes the connection and removes the entry and its notification. No second decision
+is ever sent, and no "Timed out" heads-up follows when the turn ends within ~590 s of
+the request (a longer turn shows one until it ends). This happens even while paused;
+`waiting` releases nothing. A request connection that closes first (the hook is
+interrupted or its session process exits) also removes its entry.
+
+Known limitation: a request from a background subagent shares its parent's session id.
+If the main turn ends or a new prompt is sent while that request is still unanswered,
+its notification is withdrawn and it has to be answered in the terminal (fail-open:
+nothing is decided).
 
 `hook-me-up-setup doctor` and `hook-me-up-setup notifications` send a `statusQuery` on
 the same socket (same client, UID check and framing). The agent answers with one

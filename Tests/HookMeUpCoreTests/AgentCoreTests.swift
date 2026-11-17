@@ -56,9 +56,9 @@ private func response(_ id: UUID, _ outcome: ResponseOutcome) -> WireMessage {
         #expect(core.store.entries.isEmpty)
     }
 
-    @Test func terminalAnswerClosesConnectionAndRemovesEntry() {
-        // The hook's connection closes before a decision: it was interrupted (Esc) or its
-        // process is gone.
+    @Test func connectionCloseRemovesEntry() {
+        // The hook's connection closes before a decision: the hook was interrupted or its
+        // session process exited.
         var core = AgentCore()
         let r = request()
         _ = core.receive(.request(r), from: 1, now: t0)
@@ -241,6 +241,26 @@ private func response(_ id: UUID, _ outcome: ResponseOutcome) -> WireMessage {
         #expect(core.store.entries.isEmpty)
     }
 
+    /// While paused, `finished` still releases the session's live request; its timed-out
+    /// entry (whose hook has not closed its connection yet) gets nothing.
+    @Test func finishedWhilePausedReleasesOnlyTheLiveRequest() {
+        var core = AgentCore()
+        let timedOut = request()
+        let live = request()
+        _ = core.receive(.request(timedOut), from: 1, now: t0)
+        _ = core.receive(.request(live), from: 2, now: t0 + 100)
+        _ = core.receive(.timedOut(id: timedOut.id), from: 1, now: t0 + 590)
+        #expect(core.store.entries.map(\.state) == [.timedOut, .pending])
+        core.pause(until: t0 + 1800)
+        #expect(
+            core.receive(notify(.finished), from: 3, now: t0 + 600) == [
+                .send(2, response(live.id, .paused)), .close(2),
+            ])
+        #expect(core.store.entries.map(\.id) == [timedOut.id])  // no Finished entry while paused
+        #expect(core.store.entries.map(\.state) == [.timedOut])
+        #expect(core.connectionClosed(1, now: t0 + 601) == [])
+    }
+
     @Test func aRequestAfterFinishedStaysLive() {
         var core = AgentCore()
         _ = core.receive(notify(.finished), from: 1, now: t0)
@@ -347,12 +367,12 @@ private func response(_ id: UUID, _ outcome: ResponseOutcome) -> WireMessage {
         #expect(core.questionProgress(for: r.id)?.hint == nil)
     }
 
-    @Test func terminalAnswerMidwayDropsPartialAnswers() {
+    @Test func connectionCloseMidwayDropsPartialAnswers() {
         var core = AgentCore()
         let r = questionRequest()
         _ = core.receive(.request(r), from: 1, now: t0)
         _ = core.answerQuestion(id: r.id, step: 0, labels: ["Blue"], now: t0)
-        _ = core.connectionClosed(1, now: t0)  // answered in the terminal
+        _ = core.connectionClosed(1, now: t0)  // the hook went away midway
         #expect(core.questionProgress(for: r.id) == nil)
         #expect(core.answerQuestion(id: r.id, step: 1, labels: ["Blue"], now: t0) == [])
     }
