@@ -65,9 +65,10 @@ not stop the waiting hook. The session moving on is the signal: on its `Stop`
 each of that session's requests still waiting with `.paused` (the hook prints nothing),
 closes the connection and removes the entry and its notification. No second decision
 is ever sent, and no "Timed out" heads-up follows when the turn ends within ~590 s of
-the request (a longer turn shows one until it ends). This happens even while paused;
-`waiting` releases nothing. A request connection that closes first (the hook is
-interrupted or its session process exits) also removes its entry.
+the request (a longer turn shows one until the turn ends or, while paused, until the
+next prompt). This happens even while paused; `waiting` releases nothing. A request
+connection that closes first (the hook is interrupted or its session process exits)
+also removes its entry.
 
 Known limitation: a request from a background subagent shares its parent's session id.
 If the main turn ends or a new prompt is sent while that request is still unanswered,

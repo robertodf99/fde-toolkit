@@ -343,8 +343,8 @@ public enum NativeNotification {
     // MARK: Store -> post / remove
 
     /// Post what is new or changed (e.g. the next question, a hint); remove what is gone
-    /// (answered, cancelled in the terminal, the session finished its turn, cleared,
-    /// session gone).
+    /// (answered, the hook interrupted or its process gone, the session finished its turn,
+    /// cleared, session gone).
     public static func changes(before: [NotificationSpec], after: [NotificationSpec]) -> NotificationChanges {
         let old = Dictionary(before.map { ($0.identifier, $0) }, uniquingKeysWith: { first, _ in first })
         let kept = Set(after.map(\.identifier))
