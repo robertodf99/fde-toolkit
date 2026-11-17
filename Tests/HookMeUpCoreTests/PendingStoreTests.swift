@@ -46,7 +46,8 @@ private func titles(_ entries: [PendingStore.Entry]) -> [String] { entries.map(\
         store.add(entry("waiting-1", session: "s1", kind: .waiting))
         store.add(entry("waiting-2", session: "s2", kind: .waiting))
         store.clear(sessionID: "s1")
-        // Permission/question/plan entries end when their hook connection closes.
+        // Permission/question/plan entries end with their hook: a decision, its connection
+        // closing, or AgentCore releasing it before it clears the session.
         #expect(titles(store.entries) == ["perm-1", "waiting-2"])
 
         store.add(entry("finished-1", session: "s1", kind: .finished))

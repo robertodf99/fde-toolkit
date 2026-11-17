@@ -46,7 +46,9 @@ public struct PendingStore: Sendable {
             self.sessionFolder = sessionFolder
         }
 
-        /// Blocking entries have a hook waiting on a connection; they end with it.
+        /// Blocking entries have a hook waiting on a connection; they end with a decision,
+        /// with that connection closing, or when the agent releases them (the session moved
+        /// on, notifications turned off).
         var isBlocking: Bool { kind == .permission || kind == .question || kind == .plan }
         /// Still tied to a live hook. A timed-out entry is only a heads-up: its hook is
         /// gone, so it goes away with the session's waiting/finished entries.
@@ -77,9 +79,9 @@ public struct PendingStore: Sendable {
     }
 
     /// The session moved on (new prompt, session end): drop its waiting/finished and
-    /// timed-out entries. Live permission/question/plan entries are not cleared here;
-    /// they are removed when their hook's connection closes (the terminal answer
-    /// cancels the hook), so a request that is still live never disappears.
+    /// timed-out entries. Live permission/question/plan entries are not cleared here:
+    /// `AgentCore` first answers their hooks (`.paused`) and removes them, so a request
+    /// never disappears while its hook still waits for an answer.
     mutating func clear(sessionID: String) {
         entries.removeAll { $0.sessionID == sessionID && !$0.isLive }
     }

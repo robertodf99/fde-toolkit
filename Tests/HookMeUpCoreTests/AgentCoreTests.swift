@@ -57,7 +57,8 @@ private func response(_ id: UUID, _ outcome: ResponseOutcome) -> WireMessage {
     }
 
     @Test func terminalAnswerClosesConnectionAndRemovesEntry() {
-        // Claude Code cancels the hook when the user answers in the terminal.
+        // The hook's connection closes before a decision: it was interrupted (Esc) or its
+        // process is gone.
         var core = AgentCore()
         let r = request()
         _ = core.receive(.request(r), from: 1, now: t0)
@@ -166,6 +167,92 @@ private func response(_ id: UUID, _ outcome: ResponseOutcome) -> WireMessage {
         #expect(core.store.entries.map(\.summary.title) == ["Waiting for your reply"])  // replaced Finished
     }
 
+    // MARK: The session moves on: its waiting requests are released
+
+    /// Claude Code does not stop the hook when the request is answered in the terminal
+    /// dialog. The session's Stop hook (`finished`) tells the agent it moved on: every
+    /// request of that session still waiting gets `.paused` (the hook prints nothing)
+    /// instead of timing out later.
+    @Test func finishedReleasesTheSessionsWaitingRequests() {
+        var core = AgentCore()
+        let first = request()
+        let second = request(kind: .plan)
+        let other = request(session: "s2")
+        _ = core.receive(.request(first), from: 1, now: t0)
+        _ = core.receive(.request(second), from: 2, now: t0)
+        _ = core.receive(.request(other), from: 3, now: t0)
+        #expect(
+            core.receive(notify(.finished), from: 4, now: later) == [
+                .send(1, response(first.id, .paused)), .close(1),
+                .send(2, response(second.id, .paused)), .close(2),
+            ])
+        #expect(core.store.entries.map(\.id).first == other.id)
+        #expect(core.store.entries.map(\.sessionID) == ["s2", "s1"])
+        #expect(core.store.entries.last?.kind == .finished)
+        #expect(core.request(for: other.id) == other)  // another session's request is untouched
+        // Released once: no second response, a late close changes nothing.
+        #expect(core.resolve(id: first.id, .approve, now: later + 1) == [])
+        #expect(core.connectionClosed(1, now: later + 1) == [])
+        #expect(core.connectionClosed(2, now: later + 1) == [])
+        #expect(core.store.entries.count == 2)
+    }
+
+    /// A new prompt or the session's end releases its waiting requests the same way; its
+    /// timed-out heads-up just goes (its hook already gave up).
+    @Test func clearReleasesTheSessionsWaitingRequests() {
+        var core = AgentCore()
+        let waiting = request()
+        let timedOut = request()
+        let other = request(session: "s2")
+        _ = core.receive(.request(waiting), from: 1, now: t0)
+        _ = core.receive(.request(timedOut), from: 2, now: t0)
+        _ = core.receive(.timedOut(id: timedOut.id), from: 2, now: t0 + 590)
+        _ = core.receive(.request(other), from: 3, now: t0)
+        #expect(
+            core.receive(.clear(sessionID: "s1"), from: 4, now: t0 + 600) == [
+                .send(1, response(waiting.id, .paused)), .close(1),
+            ])
+        #expect(core.store.entries.map(\.id) == [other.id])
+        #expect(core.resolve(id: waiting.id, .deny, now: t0 + 601) == [])
+        #expect(core.connectionClosed(1, now: t0 + 601) == [])
+        #expect(core.connectionClosed(2, now: t0 + 601) == [])
+        #expect(core.request(for: other.id) == other)
+    }
+
+    /// Waiting for input does not mean the session moved on: its requests stay.
+    @Test func waitingNotifyReleasesNothing() {
+        var core = AgentCore()
+        let r = request()
+        _ = core.receive(.request(r), from: 1, now: t0)
+        #expect(core.receive(notify(.waiting), from: 2, now: later) == [])
+        #expect(core.store.entries.map(\.id).first == r.id)
+        #expect(core.store.entries.map(\.kind) == [.permission, .waiting])
+        #expect(core.request(for: r.id) == r)
+    }
+
+    /// A pause drops the Finished heads-up but not the release: the hook would otherwise
+    /// time out on a request already answered.
+    @Test func finishedWhilePausedStillReleasesButAddsNoHeadsUp() {
+        var core = AgentCore()
+        let r = request()
+        _ = core.receive(.request(r), from: 1, now: t0)
+        core.pause(until: t0 + 1800)
+        #expect(core.receive(notify(.finished), from: 2, now: later) == [.send(1, response(r.id, .paused)), .close(1)])
+        #expect(core.store.entries.isEmpty)
+    }
+
+    @Test func aRequestAfterFinishedStaysLive() {
+        var core = AgentCore()
+        _ = core.receive(notify(.finished), from: 1, now: t0)
+        let r = request()
+        #expect(core.receive(.request(r), from: 2, now: later) == [])
+        #expect(core.store.entries.map(\.id) == [r.id])  // replaced the Finished heads-up
+        #expect(
+            core.resolve(id: r.id, .approve, now: later + 1) == [
+                .send(2, response(r.id, .decided(.approve))), .close(2),
+            ])
+    }
+
     @Test func requestKindIsAlwaysABlockingKind() {
         var core = AgentCore()
         let odd = request(kind: .finished)
@@ -268,6 +355,21 @@ private func response(_ id: UUID, _ outcome: ResponseOutcome) -> WireMessage {
         _ = core.connectionClosed(1, now: t0)  // answered in the terminal
         #expect(core.questionProgress(for: r.id) == nil)
         #expect(core.answerQuestion(id: r.id, step: 1, labels: ["Blue"], now: t0) == [])
+    }
+
+    /// A question answered in the terminal midway: releasing it forgets the answers so far.
+    @Test func releasedQuestionForgetsItsProgress() {
+        var core = AgentCore()
+        let r = questionRequest()
+        _ = core.receive(.request(r), from: 1, now: t0)
+        _ = core.answerQuestion(id: r.id, step: 0, labels: ["Blue"], now: t0)
+        core.setReplyHint(id: r.id, step: 1, hint: "Reply with option numbers")
+        #expect(
+            core.receive(.clear(sessionID: "s1"), from: 2, now: t0)
+                == [.send(1, .response(ResponseEnvelope(id: r.id, outcome: .paused))), .close(1)])
+        #expect(core.questionProgress(for: r.id) == nil)
+        #expect(core.answerQuestion(id: r.id, step: 1, labels: ["Blue"], now: t0) == [])
+        #expect(core.store.entries.isEmpty)
     }
 
     @Test func withoutNotificationPermissionRequestsFailOpenAndNotificationsAreDropped() {

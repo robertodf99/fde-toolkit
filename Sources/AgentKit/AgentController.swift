@@ -216,8 +216,11 @@ public final class AgentController: ObservableObject {
             if message.wantsNotification {
                 await controller.refreshAuthorization()
             }
-            controller.apply(controller.core.receive(message, from: connection, now: controller.clock.now))
-            controller.log("connection \(connection): \(Self.describe(message)) -> \(controller.counts)")
+            let effects = controller.core.receive(message, from: connection, now: controller.clock.now)
+            controller.apply(effects)
+            controller.log(
+                "connection \(connection): \(Self.describe(message))\(Self.released(effects, by: message))"
+                    + " -> \(controller.counts)")
         }
     }
 
@@ -382,6 +385,19 @@ public final class AgentController: ObservableObject {
         case .status: "unexpected status"
         case .testNotification: "test notification"
         }
+    }
+
+    /// "; released N waiting request(s)" when the session moving on (finished, clear)
+    /// answered hooks still waiting with `.paused`; empty otherwise.
+    private static func released(_ effects: [AgentCore.Effect], by message: WireMessage) -> String {
+        switch message {
+        case .notify, .clear: break
+        default: return ""
+        }
+        let count = effects.filter {
+            if case .send(_, .response(let response)) = $0 { response.outcome == .paused } else { false }
+        }.count
+        return count > 0 ? "; released \(count) waiting request\(count == 1 ? "" : "s")" : ""
     }
 
     private static func name(of outcome: NotificationOutcome) -> String {

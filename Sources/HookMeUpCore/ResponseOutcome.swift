@@ -2,7 +2,8 @@
 public enum ResponseOutcome: Codable, Equatable, Sendable {
     /// The user decided; the hook turns this into its output.
     case decided(UserDecision)
-    /// No decision (paused, or notifications are off): the hook prints nothing and
-    /// Claude Code shows its terminal dialog.
+    /// No decision: the hook prints nothing. Sent while paused or with notifications off
+    /// (Claude Code then shows its terminal dialog), and when the session moved on after
+    /// the request was answered in the terminal.
     case paused
 }

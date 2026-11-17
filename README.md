@@ -113,8 +113,9 @@ notification, and tells you what is left to do:
   A reply that can't be understood brings the question back with a hint.
 - Answering needs an unlocked Mac, so nothing can be approved from the lock screen.
 - Notifications are grouped per repository, play the default sound once, and
-  disappear when the request is answered (here or in the terminal), cancelled, or the
-  session moves on.
+  disappear when the request is answered here, cancelled, or the session moves on. A
+  request you answer in the terminal goes away when the session finishes its turn or
+  you send the next prompt, not at once.
 
 The ✻ menu-bar item shows how many requests are waiting and offers **Pause for 30
 minutes**, **Resume** and **Quit**.
@@ -159,7 +160,7 @@ your decision, and the hook prints it for Claude Code. If there is no decision (
 agent isn't running, notifications are off, the agent is paused, something fails, or
 the request times out), the hook prints nothing and Claude Code shows its own terminal
 dialog. You can always answer in the terminal instead; the notification then goes
-away. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the details.
+away when the session finishes its turn or you send the next prompt. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the details.
 
 ## Security model
 

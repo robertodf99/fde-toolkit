@@ -327,6 +327,51 @@ private struct Harness {
         #expect(h.presenter.visible.isEmpty)
     }
 
+    /// Claude Code does not stop the hook when the request is answered in the terminal
+    /// dialog; the session's Stop hook (Finished) releases it instead of a "Timed out"
+    /// heads-up minutes later.
+    @Test func aRequestAnsweredInTheTerminalGoesAwayWhenTheSessionFinishes() async {
+        let h = Harness()
+        let r = request()
+        let (connection, id) = await h.send(.request(r))
+        #expect(h.presenter.visible[r.id.uuidString] != nil)
+
+        let (_, finishedID) = await h.send(
+            .notify(NotifyEnvelope(sessionID: "s1", project: acme, kind: .finished, message: "Done.", terminal: hint)))
+        #expect(connection.sent == [.response(ResponseEnvelope(id: r.id, outcome: .paused))])
+        #expect(connection.isClosed)
+        #expect(h.presenter.removed.contains(r.id.uuidString))
+        #expect(h.presenter.visible[r.id.uuidString] == nil)
+        #expect(h.presenter.visible.values.map(\.title) == ["acme-api · Finished"])
+        #expect(
+            h.log.lines.contains(
+                "connection \(finishedID): notify kind=finished; released 1 waiting request -> 1 entries (0 timed out)")
+        )
+
+        // The hook's own give-up and its close, should they still arrive, change nothing.
+        h.controller.received(.timedOut(id: r.id), from: id)
+        h.controller.closed(id)
+        await h.controller.settle()
+        #expect(connection.sent.count == 1)
+        #expect(!h.presenter.posted.contains { $0.title.hasSuffix("Timed out") })
+        #expect(h.controller.store.entries.map(\.kind) == [.finished])
+    }
+
+    /// The next prompt (or the session's end) releases it the same way.
+    @Test func aRequestAnsweredInTheTerminalGoesAwayWithTheNextPrompt() async {
+        let h = Harness()
+        let r = request(kind: .plan, input: .object(["plan": "# Add a cache"]))
+        let (connection, _) = await h.send(.request(r))
+        let (_, clearID) = await h.send(.clear(sessionID: "s1"))
+        #expect(connection.sent == [.response(ResponseEnvelope(id: r.id, outcome: .paused))])
+        #expect(connection.isClosed)
+        #expect(h.presenter.removed.contains(r.id.uuidString))
+        #expect(h.presenter.visible.isEmpty)
+        #expect(h.controller.store.entries.isEmpty)
+        #expect(
+            h.log.lines.last == "connection \(clearID): clear; released 1 waiting request -> 0 entries (0 timed out)")
+    }
+
     @Test func aTimedOutRequestStaysAsASilentHeadsUp() async {
         let h = Harness()
         let r = request()

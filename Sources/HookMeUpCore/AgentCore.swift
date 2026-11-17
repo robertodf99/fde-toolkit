@@ -9,10 +9,15 @@ public typealias ConnectionID = Int
 /// Invariants:
 /// - at most one response per request, only on that request's connection, and only
 ///   for a live (pending) entry;
-/// - a request connection closing before a decision removes its entry (the user
-///   answered in the terminal and Claude Code cancelled the hook), except a
-///   timed-out entry, which stays as a heads-up until the session moves on;
+/// - a request connection closing before a decision removes its entry (the hook was
+///   interrupted, or its process is gone), except a timed-out entry, which stays as a
+///   heads-up until the session moves on;
+/// - the session moving on (its Stop hook's `finished`, or `clear` from a new prompt or
+///   the session's end) releases its requests still waiting with `.paused` and removes
+///   them: Claude Code does not stop the hook when the request is answered in the
+///   terminal dialog, so without this it would wait until it times out;
 /// - fire-and-forget connections (notify, clear) never remove anything when they close;
+///   only the `finished` and `clear` messages they carry release requests;
 /// - while paused, requests get `.paused` at once and notifications are dropped; so does a
 ///   question that cannot be asked one at a time (repeated or missing question texts);
 public struct AgentCore: Sendable {
@@ -77,9 +82,11 @@ public struct AgentCore: Sendable {
             return []
 
         case .notify(let note):
+            // Released even while paused or without notifications: only the heads-up is dropped.
+            let released = note.kind == .finished ? releaseLiveRequests(of: note.sessionID) : []
             guard !store.isPaused(now: now), notificationsAllowed, note.kind == .waiting || note.kind == .finished
             else {
-                return []
+                return released
             }
             let title = note.kind == .finished ? "Finished" : "Waiting for your reply"
             let entry = PendingStore.Entry(
@@ -89,11 +96,12 @@ public struct AgentCore: Sendable {
                     origin: nil),
                 project: note.project, terminal: note.terminal, sessionFolder: note.sessionFolder)
             store.add(entry)
-            return []
+            return released
 
         case .clear(let sessionID):
+            let released = releaseLiveRequests(of: sessionID)
             store.clear(sessionID: sessionID)
-            return []
+            return released
 
         case .timedOut(let id):
             // Only the hook that owns the request can time it out.
@@ -157,8 +165,21 @@ public struct AgentCore: Sendable {
         let wasAllowed = notificationsAllowed
         notificationsAllowed = allowed
         guard wasAllowed, !allowed else { return [] }
+        return release(store.entries)
+    }
+
+    /// The session moved on, so its requests still waiting were answered in the terminal
+    /// (or are no longer asked): each hook gets `.paused` and prints nothing, and the
+    /// entries go. Timed-out entries are left to the store (their hook already gave up).
+    private mutating func releaseLiveRequests(of sessionID: String) -> [Effect] {
+        release(store.entries.filter { $0.sessionID == sessionID && $0.isLive })
+    }
+
+    /// Answers each of `entries`' hooks still waiting with `.paused`, closes it and
+    /// removes the entry, in arrival order.
+    private mutating func release(_ entries: [PendingStore.Entry]) -> [Effect] {
         var effects: [Effect] = []
-        for entry in store.entries {
+        for entry in entries {
             if let request = takeRequest(entry.id) {
                 effects += [
                     .send(request.connection, .response(ResponseEnvelope(id: entry.id, outcome: .paused))),

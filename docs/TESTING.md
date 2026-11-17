@@ -138,9 +138,9 @@ said otherwise, so that permission prompts actually appear.
 | 5 | Question with one choice (AskUserQuestion) | "project · Question", one button per option (up to 4) plus Reply… for your own answer (a reply of "1" is sent as "1", not as the first option). More than 4 options: numbered in the body, Reply… is the only action and shows as the button (number, label or your own text). |
 | 6 | Two questions, the second multi-select | "Question 1 of 2" → answer → "Question 2 of 2" appears (no second sound) with numbered options → Reply… "1, 3" → Claude reports both answers (multi-select joined with ", "). Reply "9" first → the question comes back with "⚠︎ Reply with option numbers, e.g. 1, 3" and nothing is sent. |
 | 7 | Plan mode (`ExitPlanMode`): Approve plan; another time Request changes… with text; once with empty text | "project · Plan to approve", body = plan title and first lines. Approve → Claude leaves plan mode and proceeds. Request changes → Claude stays in plan mode and revises with your text. Empty text → the notification comes back, nothing sent. |
-| 8 | Answer in the terminal while the notification shows | The notification disappears within a second; no second decision. |
+| 8 | Answer in the terminal while the notification shows | The notification disappears when the session finishes its turn (or with the next prompt); it does not become "Timed out" (when the turn ends within ~590 s of the request; a longer turn shows "Timed out" until it ends); no second decision. The log says `released 1 waiting request`. |
 | 9 | Clear the notification (Notification Center → Clear) without answering | Nothing is decided; the terminal dialog still works. |
-| 10 | Wait 10 minutes on a request | At ~590 s it becomes "project · Timed out" (silent, "Answer in the terminal: …"); the terminal dialog still works; it goes away with the session's next prompt. |
+| 10 | Wait 10 minutes on a request nobody answers | At ~590 s it becomes "project · Timed out" (silent, "Answer in the terminal: …"); the terminal dialog still works; it goes away with the session's next prompt. |
 
 ## 2. Heads-ups
 

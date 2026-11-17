@@ -59,8 +59,14 @@ the window that has one of those pids as a terminal process shows it, and the wi
 focused as before.
 
 Heads-ups (`notify` for waiting/finished, `clear` when the session moves on) are
-fire-and-forget. When the user answers in the terminal instead, Claude Code stops the
-hook; the agent sees the connection close and removes the entry and its notification.
+fire-and-forget. When the user answers in the terminal dialog instead, Claude Code does
+not stop the waiting hook. The session moving on is the signal: on its `Stop`
+(`notify` finished), `UserPromptSubmit` or `SessionEnd` (`clear`), the agent answers
+each of that session's requests still waiting with `.paused` (the hook prints nothing),
+closes the connection and removes the entry and its notification, so no "Timed out"
+heads-up follows and no second decision is ever sent. This happens even while paused or
+with notifications off; `waiting` releases nothing. A request connection that closes
+first (the hook interrupted with Esc, or its process gone) also removes its entry.
 
 `hook-me-up-setup doctor` and `hook-me-up-setup notifications` send a `statusQuery` on
 the same socket (same client, UID check and framing). The agent answers with one

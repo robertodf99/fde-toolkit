@@ -7,9 +7,12 @@ import Foundation
 public enum WireMessage: Codable, Equatable, Sendable {
     /// Hook → agent: a request that waits for a decision.
     case request(RequestEnvelope)
-    /// Hook → agent: a heads-up (waiting, finished).
+    /// Hook → agent: a heads-up (waiting, finished). `finished` (the Stop hook) also
+    /// releases the session's requests still waiting, with `.paused`: they were answered
+    /// in the terminal, and Claude Code does not stop their hooks.
     case notify(NotifyEnvelope)
-    /// Hook → agent: the session moved on; drop its heads-ups.
+    /// Hook → agent: the session moved on (new prompt, session end); drop its heads-ups
+    /// and release its requests still waiting, with `.paused`.
     case clear(sessionID: String)
     /// Hook → agent: the hook gave up waiting for request `id`.
     case timedOut(id: UUID)
