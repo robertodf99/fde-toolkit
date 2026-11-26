@@ -1,0 +1,5 @@
+{
+  "name": "agent-workflow",
+  "version": "0.1.0",
+  "description": "Metodología multiagente para desarrollo con Claude Code, Codex y Herdr Core."
+}

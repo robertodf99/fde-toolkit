@@ -1,0 +1,38 @@
+name: Methodology
+
+on:
+  push:
+    paths:
+      - 'methodology/**'
+      - '.claude-plugin/**'
+      - '.github/workflows/methodology.yml'
+      - 'scripts/check-marketplace.sh'
+      - 'AGENTS.md'
+      - 'CLAUDE.md'
+      - 'INSTALL.md'
+      - 'scripts/check-setup.sh'
+  pull_request:
+    paths:
+      - 'methodology/**'
+      - '.claude-plugin/**'
+      - '.github/workflows/methodology.yml'
+      - 'scripts/check-marketplace.sh'
+      - 'AGENTS.md'
+      - 'CLAUDE.md'
+      - 'INSTALL.md'
+      - 'scripts/check-setup.sh'
+
+permissions:
+  contents: read
+
+jobs:
+  methodology:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Role parity and privacy
+        run: bash methodology/agent-workflow/tests/check-roles.sh
+      - name: Installer in a fake HOME
+        run: bash methodology/agent-workflow/tests/test-install.sh
+      - name: Marketplace
+        run: bash scripts/check-marketplace.sh

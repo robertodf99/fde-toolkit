@@ -2,12 +2,12 @@
 
 Tools for my daily work as a Forward Deployed Engineer.
 
+Setting up with an agent? Point it to [INSTALL.md](INSTALL.md).
+
 | Tool | What it does |
 |---|---|
 | [Hook Me Up](tools/hook-me-up/) | Answer Claude Code from native macOS notifications. |
-
-`agent-workflow`, a development methodology with independent agent roles, is coming
-in a later update.
+| [agent-workflow](methodology/agent-workflow/) | Multiagent development methodology for Claude Code, Codex and Herdr Core. |
 
 ## Install Hook Me Up
 
