@@ -11,8 +11,6 @@ on:
       - '.editorconfig'
       - '.gitignore'
       - 'Makefile'
-      - 'install.sh'
-      - 'uninstall.sh'
       - 'LICENSE'
   pull_request:
     paths: *hook-me-up-paths
@@ -70,8 +68,6 @@ jobs:
           node --version
           make editor-extension-check
 
-      - name: Toolkit marketplace and installer shims
+      - name: Toolkit marketplace
         working-directory: .
-        run: |
-          scripts/check-marketplace.sh
-          scripts/test-shims.sh
+        run: scripts/check-marketplace.sh

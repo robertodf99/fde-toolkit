@@ -155,7 +155,7 @@ func outro(logo: CGImage) -> CGImage? {
         in: context)
 
     let command = line(
-        "curl -fsSL https://raw.githubusercontent.com/robertodf99/fde-toolkit/main/install.sh | bash",
+        "curl -fsSL https://raw.githubusercontent.com/robertodf99/fde-toolkit/main/tools/hook-me-up/install.sh | bash",
         font: "Menlo-Regular", size: 27, color: white)
     let box = CGRect(x: 960 - (width(of: command) + 72) / 2, y: 630, width: width(of: command) + 72, height: 92)
     context.addPath(roundedRect(box, 18))

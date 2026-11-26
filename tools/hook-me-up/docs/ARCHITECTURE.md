@@ -168,8 +168,8 @@ old to answer.
   GIF by `scripts/make-demo.sh`, from screen recordings that are never committed (the
   shot list is a table at the top of the script).
 - Only Hook Me Up stable releases are marked latest in the shared repository; tags
-  with a prerelease suffix are published as prereleases. The installer accepts both
-  `hook-me-up-v*` and legacy `v*` release tags and rejects other tools from `latest`.
+  with a prerelease suffix are published as prereleases. The installer accepts only
+  `hook-me-up-v*` release tags and rejects other tags from `latest`.
 - `install.sh` downloads that release (checksum verified), installs
   `~/Applications/Hook Me Up.app` exactly as packaged (its signature intact),
   adds the hooks only with consent (asked on `/dev/tty`, or `HOOK_ME_UP_YES=1`), and

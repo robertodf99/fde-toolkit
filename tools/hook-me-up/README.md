@@ -14,7 +14,7 @@ simply shows its usual terminal dialog.
 ## Install
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/robertodf99/fde-toolkit/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/robertodf99/fde-toolkit/main/tools/hook-me-up/install.sh | bash
 ```
 
 The installer downloads the latest release (and checks its SHA-256), installs
@@ -27,7 +27,7 @@ at login. Run it again to upgrade.
 Uninstall:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/robertodf99/fde-toolkit/main/uninstall.sh | bash
+curl -fsSL https://raw.githubusercontent.com/robertodf99/fde-toolkit/main/tools/hook-me-up/uninstall.sh | bash
 ```
 
 It stops the agent, removes Hook Me Up's hooks from your settings (again after showing
@@ -226,21 +226,18 @@ repository ([Building from source](#building-from-source)).
   release. That catches a corrupted or cut-short download. It doesn't protect against
   a compromised account or release: whoever can replace the zip can replace its
   checksum too.
-- Releases from v0.2.0 on carry a GitHub build provenance attestation, which ties the
+- Releases carry a GitHub build provenance attestation, which ties the
   zip to the workflow run and the commit that built it:
 
   ```sh
-  gh release download v0.2.0 --repo robertodf99/fde-toolkit --pattern '*.zip'
-  gh attestation verify hook-me-up-0.2.0-macos.zip --owner robertodf99 \
-    --signer-workflow robertodf99/hook-me-up/.github/workflows/release.yml
+  version=0.5.0
+  gh release download "hook-me-up-v$version" --repo robertodf99/fde-toolkit --pattern '*.zip'
+  gh attestation verify "hook-me-up-$version-macos.zip" --owner robertodf99 \
+    --signer-workflow robertodf99/fde-toolkit/.github/workflows/release.yml
   # Compare it with the installed app:
-  ditto -x -k hook-me-up-0.2.0-macos.zip unpacked
+  ditto -x -k "hook-me-up-$version-macos.zip" unpacked
   diff -r unpacked/HookMeUp.app ~/Applications/"Hook Me Up.app"
   ```
-
-  Use the original `robertodf99/hook-me-up` signer workflow for releases made before
-  the repository rename; new releases use `robertodf99/fde-toolkit`. Verification
-  uses `--owner robertodf99` so both repository names are accepted.
 
   This shows the zip was built by this repository's release workflow from that
   commit. It says nothing about what the code at that commit does: reading the source,
@@ -252,16 +249,20 @@ The installer and uninstaller read these environment variables:
 
 | Variable | Effect |
 |---|---|
-| `HOOK_ME_UP_REF=<ref>` | Git ref from which the root shim downloads the real installer (default: `main`) |
-| `HOOK_ME_UP_VERSION=1.2.3` | Install that version (also accepts `v1.2.3` or `hook-me-up-v1.2.3`), trying the new tag before the legacy `v*` tag |
+| `HOOK_ME_UP_VERSION=1.2.3` | Install that version from its `hook-me-up-v*` tag (also accepts `hook-me-up-v1.2.3`) |
 | `HOOK_ME_UP_YES=1` | Change `~/.claude/settings.json` without asking (non-interactive installs) |
 | `HOOK_ME_UP_ZIP=<path>` | Install a local package (its `.sha256` must sit next to it) |
 | `HOOK_ME_UP_NO_ONBOARDING=1` | Skip the notification check after starting the agent (no waiting, no test notification, System Settings stays closed) |
 | `HOOK_ME_UP_NO_EDITOR_EXTENSION=1` | Don't add the [editor extension](#editor-extension) to VS Code, VS Code Insiders, Cursor or Windsurf |
 
-Example: `curl -fsSL …/install.sh | HOOK_ME_UP_YES=1 bash`. Without a terminal and
-without `HOOK_ME_UP_YES=1`, the installer changes nothing in your settings and prints
-the command to run.
+Example:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/robertodf99/fde-toolkit/main/tools/hook-me-up/install.sh | HOOK_ME_UP_YES=1 bash
+```
+
+Without a terminal and without `HOOK_ME_UP_YES=1`, the installer changes nothing in
+your settings and prints the command to run.
 
 To take a break, use **Pause for 30 minutes** in the menu bar: requests go to the
 terminal until it ends or you choose **Resume**.

@@ -3,8 +3,7 @@
 ## Automated
 
 Run these commands from `tools/hook-me-up/` (or use `make -C tools/hook-me-up`).
-From the repository root also run `scripts/check-marketplace.sh` and
-`scripts/test-shims.sh`.
+From the repository root also run `scripts/check-marketplace.sh`.
 
 ```sh
 make test          # unit tests (Swift Testing)
@@ -62,8 +61,8 @@ tool doesn't fail the install, a tool that hangs is stopped
 nothing about it. It also checks that the installed app holds the `.vsix` with its six
 entries.
 
-`make test-install` also uses a stand-in for curl to check the three version
-formats, new and legacy tags, latest, rejection of another tool's latest release,
+`make test-install` also uses a stand-in for curl to check the two version
+formats, tool tags, latest, rejection of other latest tags and invalid input versions,
 missing downloads and checksum failures without changing an existing installation.
 
 CI runs `lint`, `test`, `selftest`, `test-install`, `plugin-check` and
@@ -116,9 +115,7 @@ said otherwise, so that permission prompts actually appear.
    minute → "macOS is still waiting for your answer", System Settings opens, Next
    steps start with "Allow notifications". Upgrade with Banners → only the hint, no
    System Settings. Upgrade with notifications off → System Settings opens.
-   `HOOK_ME_UP_NO_ONBOARDING=1` → "Notification check skipped". `HOOK_ME_UP_VERSION=v0.1.2`
-   → "Notification check skipped (this version's hook-me-up-setup has no notifications
-   command)" and the install completes.
+   `HOOK_ME_UP_NO_ONBOARDING=1` → "Notification check skipped".
 5. System Settings → Notifications → Hook Me Up: Allow notifications on, **style set
    to Alerts** (they stay on screen until you answer), sounds on. The log says
    `notifications: authorized, style alert`. Notifications show the app icon: a white

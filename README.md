@@ -15,7 +15,7 @@ Requires macOS 14 or later and Claude Code. The installer shows the settings dif
 and asks before adding hooks.
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/robertodf99/fde-toolkit/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/robertodf99/fde-toolkit/main/tools/hook-me-up/install.sh | bash
 ```
 
 Or use the Claude Code plugin:
