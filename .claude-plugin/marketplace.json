@@ -1,14 +1,14 @@
 {
-  "name": "hook-me-up",
+  "name": "fde-toolkit",
   "owner": {
     "name": "robertodf99",
     "url": "https://github.com/robertodf99"
   },
-  "description": "Hook Me Up: answer Claude Code from native macOS notifications.",
+  "description": "Tools for daily work as a Forward Deployed Engineer.",
   "plugins": [
     {
       "name": "hook-me-up",
-      "source": "./plugins/hook-me-up",
+      "source": "./tools/hook-me-up/plugin",
       "description": "Install, check and uninstall Hook Me Up (answer Claude Code from native macOS notifications) from Claude Code. Commands only: the hooks themselves go in ~/.claude/settings.json, after you confirm."
     }
   ]
