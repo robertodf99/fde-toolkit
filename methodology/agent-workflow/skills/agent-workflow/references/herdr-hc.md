@@ -7,6 +7,9 @@ Este protocolo usa Herdr Core 0.1.22 (`herdr-core` o `hc`) y Desktop. Los runner
 privados siguen su propio contrato; aquí solo se cubren sesiones interactivas.
 Este es el despacho canónico mixto: Claude en planificación/revisión y Codex
 en implementación. Ejecuta solo los roles del nivel, en orden y uno por fase.
+Las plantillas Codex incluyen `--sandbox danger-full-access --no-daemon` y
+`-c approval_policy="never"` para evitar bloqueos por aprobaciones invisibles.
+El worker sigue limitado al encargo y nunca concede autorizaciones propias.
 
 | Rol | Plantilla | CLI, modelo y permisos | Entrega |
 | --- | --- | --- | --- |
@@ -69,7 +72,10 @@ en implementación. Ejecuta solo los roles del nivel, en orden y uno por fase.
    Etiqueta con `hc label "$t" "work=$slug" "role=$rol"`. Comprueba con
    `herdr-app ls` que el terminal está en su pestaña del espacio esperado.
    Usa `hc get "$t"` y `hc read "$t" --lines 120` para verificar arranque y
-   recepción de la tarea. Si `hc read` muestra un diálogo (confianza de carpeta
+   recepción de la tarea. Antes de fiarte de `hc wait`, confirma con `hc read`
+   que el turno empezó: actividad o respuesta atribuible al encargo. El reposo
+   inicial no demuestra recepción ni que el turno haya terminado.
+   Si `hc read` muestra un diálogo (confianza de carpeta
    o arranque) o el prompt vacío, inspecciónalo y reenvía con `hc send "$t" "$task"`
    solo si confirmas que la tarea no llegó. Espera por ID y realiza la limpieza
    explícita porque Desktop los crea sin vínculo con el coordinador.
@@ -88,12 +94,15 @@ en implementación. Ejecuta solo los roles del nivel, en orden y uno por fase.
    si hace falta. Ante `name_taken` con `hc run`, localiza y reutiliza el terminal
    si pertenece al mismo encargo y turno. Evita duplicarlo. Registra el ID
    y comprueba arranque y tarea con `hc get` y `hc read` igual que en Desktop.
+   Según `herdr-app --skill`, la etiqueta `herdr.space` también puede crear
+   automáticamente la pestaña de `hc run`; no asumas que siempre falta.
    Comprueba `herdr-app ls`; si falta la pestaña,
    el coordinador ejecuta `herdr-app do terminal.keep --terminal "$t"` y vuelve
    a comprobar. Registra el uso de `terminal.keep` y el espacio resultante, pues
    el comando carece de selector de espacio. Si aparece en otro espacio o
    sigue sin verse, informa de la ubicación o del bloqueo sin cambiar el foco.
    El usuario nunca tiene que ejecutar `terminal.keep` a mano.
+   `terminal.keep` es el respaldo tras verificar que la pestaña no existe.
 
 ## Intercambio, verificación y cierre
 

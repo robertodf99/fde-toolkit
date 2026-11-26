@@ -30,14 +30,24 @@ for role in roles:
         toml = (root / f"codex/agents/{role.replace('-', '_')}.toml").read_text()
         body = re.search(r'developer_instructions = """\n(.*?)\n"""', toml, re.S)
         check(body is not None and native == hc == body[1].strip(), f"{role}: paridad de cuerpo en tres runtimes")
+        normalized = " ".join(native.split())
+        check("El triaje ya está hecho por el coordinador:" in normalized
+              and "no hagas preguntas interactivas al usuario:" in normalized
+              and all(skill in normalized for skill in ("brainstorming", "writing-plans",
+                      "subagent-driven-development", "executing-plans", "requesting-code-review")),
+              f"{role}: worker sin orquestación ni preguntas interactivas")
         if role.startswith("implementador"):
             command = hc_path.read_text().split("command: ", 1)[1].splitlines()[0]
-            check("--sandbox danger-full-access" in command and "--no-daemon" in command,
-                  f"{role}: permisos de git y modo Codex de Herdr")
+            check("--sandbox danger-full-access" in command and "--no-daemon" in command
+                  and '-c approval_policy="never"' in command,
+                  f"{role}: permisos de git, sin daemon ni aprobaciones invisibles")
         if role in ("planificador", "revisor"):
             command = hc_path.read_text().split("command: ", 1)[1].splitlines()[0]
             check(command == "claude --model opus --permission-mode plan",
                   f"{role}: Claude Opus en Herdr")
+            check("Si estás en modo plan, ignora sus fases:" in normalized
+                  and "ExitPlanMode" in normalized and "AskUserQuestion" in normalized,
+                  f"{role}: informe final sin fases del modo plan")
     except (OSError, IndexError) as error:
         check(False, f"{role}: {error}")
 patterns = [("ruta personal", re.compile(r"/" + r"Users/")),

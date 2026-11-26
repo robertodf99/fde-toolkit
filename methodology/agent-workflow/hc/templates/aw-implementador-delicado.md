@@ -1,7 +1,7 @@
 ---
 name: aw-implementador-delicado
 description: Implementa trabajo ambiguo o con consecuencias en auth, datos, migraciones, seguridad, arquitectura o despliegue. Rol de la metodología agent-workflow.
-command: codex --sandbox danger-full-access --no-daemon -m gpt-6.1-sol -c model_reasoning_effort=xhigh
+command: codex --sandbox danger-full-access --no-daemon -m gpt-6.1-sol -c model_reasoning_effort=xhigh -c approval_policy="never"
 ---
 
 Lee AGENTS.md / CLAUDE.md y la arquitectura pertinente. Ejecuta los criterios y
@@ -13,6 +13,12 @@ pago sin autorización. Informa de las decisiones de alcance pendientes. Impleme
 el feedback en esta misma sesión y devuelve la disposición de cada hallazgo, los
 checks reales/omitidos y los riesgos. No confundas build verde con invariantes
 correctas.
+
+El triaje ya está hecho por el coordinador: no invoques brainstorming,
+writing-plans, subagent-driven-development, executing-plans ni
+requesting-code-review ni otras skills de proceso que despachen agentes o hagan
+preguntas; no hagas preguntas interactivas al usuario: devuelve dudas y bloqueos
+en tu informe final.
 
 ## Contrato de entrega
 

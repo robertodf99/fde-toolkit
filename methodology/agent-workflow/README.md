@@ -54,6 +54,14 @@ bash methodology/agent-workflow/install.sh --yes --only codex
 
 Evita duplicar la carga local y por plugin.
 
+Recomendado: añade a tu CLAUDE.md / AGENTS.md personal esta línea de precedencia:
+
+> Para trabajo de desarrollo usa la skill agent-workflow; su triaje decide qué skills de Superpowers aplican.
+
+`using-superpowers` puede enrutar antes de cargar la skill; esta instrucción
+personal hace explícita la precedencia desde el inicio de cualquier proyecto.
+El instalador no modifica esos archivos por ti.
+
 ## Instalación local
 
 Requiere Bash y Python 3.9+, disponibles en macOS/Linux. Para Herdr, Core 0.1.22
@@ -86,6 +94,10 @@ registrado, se bloquea la operación antes de escribir y conserva ese archivo.
 Desinstalar retira solo enlaces registrados; `--restore` recupera originales.
 Sin `--restore`, conserva backups y registro para restaurarlos más tarde.
 No borra las carpetas de backups ni archivos ajenos.
+Un manifiesto inválido se rechaza antes de actuar. Los movimientos entre volúmenes
+(EXDEV) se rechazan con un mensaje claro: el original permanece en su ubicación
+de origen. Corrige la ubicación de los volúmenes y reintenta; si falló una
+restauración, el registro y el backup se conservan para volver a restaurar.
 
 Mantén la ruta del checkout: borrar un worktree rompe los enlaces. El instalador
 avisa de fuentes en worktree y de un plugin activo en settings de Claude.

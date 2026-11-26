@@ -24,10 +24,15 @@ adicionales; las equivalentes del repo pueden sustituirlas.
 |---|---|---|---|---|
 | Cambiar el color de un botón, valor exacto y ubicación conocida, un token | N0: un valor sin comportamiento que discutir | Coordinador inline | Ninguna | Diff y comprobación visual del color |
 | Corregir una errata, una palabra en texto estático | N0: una línea sin comportamiento que discutir | Coordinador inline | Ninguna | Texto corregido y diff |
-| Añadir un endpoint con tests, contrato y módulo existentes, sin auth/SQL ni diseño abierto | N2: comportamiento entendido; sus tests son parte de una tarea | Implementador + revisor nuevo | test-driven-development, requesting-code-review | Prueba falla antes, pasa después, respuesta del endpoint y SHA revisado |
-| Bug con síntoma claro en tres archivos del mismo comportamiento, sin área delicada | N2: varios archivos no implican varios módulos/tareas | Implementador + revisor nuevo | systematic-debugging, test-driven-development, requesting-code-review | Reproducción previa y prueba de regresión sobre causa verificada |
-| Migración de base de datos con diseño ya aprobado y una tarea | N3: migraciones son delicadas | Planificador + implementador-delicado + revisor nuevo | subagent-driven-development, requesting-code-review; test-driven-development para el cambio de comportamiento | Invariantes y prueba de migración en datos sintéticos; sin producción |
-| Feature con requisitos ambiguos que se descompone en varias tareas | N3: criterios ausentes y diseño abierto | Planificador + implementador + revisor nuevo | brainstorming, writing-plans, subagent-driven-development, test-driven-development, requesting-code-review | Diseño y plan revisables, aprobación antes de escribir, tests por criterio |
+| Añadir un endpoint con tests, contrato y módulo existentes, sin auth/SQL ni diseño abierto | N2: comportamiento entendido; sus tests son parte de una tarea | Implementador + revisor nuevo | test-driven-development | Prueba falla antes, pasa después, respuesta del endpoint y SHA revisado |
+| Bug con síntoma claro en tres archivos del mismo comportamiento, sin área delicada | N2: varios archivos no implican varios módulos/tareas | Implementador + revisor nuevo | systematic-debugging, test-driven-development | Reproducción previa y prueba de regresión sobre causa verificada |
+| Migración de base de datos con diseño ya aprobado y una tarea | N3: migraciones son delicadas | Planificador + implementador-delicado + revisor nuevo | test-driven-development para el cambio de comportamiento | Invariantes y prueba de migración en datos sintéticos; sin producción |
+| Feature con requisitos ambiguos que se descompone en varias tareas | N3: criterios ausentes y diseño abierto | Planificador + implementador + revisor nuevo | brainstorming, writing-plans, test-driven-development | Diseño y plan revisables, aprobación antes de escribir, tests por criterio |
+
+En Herdr ninguna fila invoca subagent-driven-development ni requesting-code-review:
+se aplican sus prácticas extraídas y el revisor es el rol de esta metodología.
+Brainstorming y writing-plans los invoca el coordinador en los casos indicados;
+los workers no invocan skills de proceso ni preguntan al usuario.
 
 La migración de una sola tarea con diseño cerrado no invoca brainstorming ni
 writing-plans. Si requiere varias tareas, añade writing-plans; si abre decisiones,
@@ -61,8 +66,13 @@ modelos independientes y la prueba de pestañas en Desktop.
 | Feature N3 con diseño abierto, sin áreas delicadas | Herdr: planificador Claude Opus, implementador Codex gpt-6.1-sol/high, revisor Claude Opus; uno por fase |
 | Bug N2 entendido, sin áreas delicadas | Herdr: implementador Codex gpt-6.1-sol/high y después revisor Claude Opus; sin planificador |
 | Trabajo mecánico N1 | Herdr: implementador-simple Codex gpt-6-luna/high; el coordinador verifica sin revisor |
-| Herdr falla y hay urgencia, sin autorización de fallback | Bloqueo; la urgencia y el fallo no autorizan despacho nativo |
+| Herdr no está instalado o no responde en sesión interactiva, sin autorización de fallback | Bloqueo informado; la urgencia y el fallo no significan «Herdr no aplica» |
+| Sesión no interactiva claude -p/codex exec o modo desatendido | Únicos casos de «Herdr no aplica»; el fallback nativo mantiene los contratos de roles |
 | Usuario autoriza explícitamente fallback nativo | Un solo runtime según roles.md; no se presenta como el reparto mixto canónico |
 | Worker desatendido entrega ready sin comprobar o recibe resume ante puerta humana | El dispatcher verifica; ready no verificado baja a draft o blocked. Resume no abre la puerta: exige approve del usuario sobre el hash exacto |
+| Brainstorming termina el diseño de una sola tarea y sugiere writing-plans | El coordinador vuelve a N3; no invoca writing-plans, SDD ni executing-plans por ese traspaso |
+| Writing-plans termina un plan de varias tareas y ofrece ejecutarlo | El coordinador vuelve a N3 y despacha un único implementador por Herdr; nunca ejecuta el plan inline ni invoca SDD/executing-plans |
+| Planificador/revisor arranca en modo plan con fases Explore y preguntas | Ignora esas fases, no lanza agentes ni escribe archivos de plan ni llama a ExitPlanMode/AskUserQuestion; devuelve informe final |
+| Worker encuentra una duda y una skill le ordena preguntar | No abre interacción: devuelve la duda o bloqueo en su informe final al coordinador |
 
 Estos son casos escritos; no se lanzaron agentes ni runners para ejecutarlos.

@@ -14,6 +14,12 @@ corregirlos y verifica comportamiento, no solo tipos. Escala los cambios de
 alcance y las áreas delicadas. Implementa el feedback en esta misma sesión y
 devuelve la disposición de cada hallazgo y los checks reales/omitidos.
 
+El triaje ya está hecho por el coordinador: no invoques brainstorming,
+writing-plans, subagent-driven-development, executing-plans ni
+requesting-code-review ni otras skills de proceso que despachen agentes o hagan
+preguntas; no hagas preguntas interactivas al usuario: devuelve dudas y bloqueos
+en tu informe final.
+
 ## Contrato de entrega
 
 Si el primer mensaje es un encargo de rol, ejecuta solo este rol.

@@ -1,7 +1,7 @@
 ---
 name: aw-implementador-simple
 description: Implementa cambios mecánicos de alcance claro y bajo impacto en el proyecto. Rol de la metodología agent-workflow.
-command: codex --sandbox danger-full-access --no-daemon -m gpt-6-luna -c model_reasoning_effort=high
+command: codex --sandbox danger-full-access --no-daemon -m gpt-6-luna -c model_reasoning_effort=high -c approval_policy="never"
 ---
 
 Lee AGENTS.md / CLAUDE.md y sigue los criterios y el plan del coordinador, en la
@@ -13,6 +13,12 @@ escrituras y devuelve el trabajo al coordinador para reclasificar. No amplíes
 scope. Implementa el feedback en esta misma sesión; resuelve o rebate cada
 hallazgo con evidencia. Reporta archivos cambiados, checks reales, omisiones y
 riesgos pendientes.
+
+El triaje ya está hecho por el coordinador: no invoques brainstorming,
+writing-plans, subagent-driven-development, executing-plans ni
+requesting-code-review ni otras skills de proceso que despachen agentes o hagan
+preguntas; no hagas preguntas interactivas al usuario: devuelve dudas y bloqueos
+en tu informe final.
 
 ## Contrato de entrega
 

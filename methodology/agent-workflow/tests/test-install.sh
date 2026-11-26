@@ -17,10 +17,10 @@ with tempfile.TemporaryDirectory(prefix="aw-test-") as temporary:
     home = Path(temporary) / "home con espacios"
     home.mkdir()
     env = dict(os.environ, HOME=str(home))
-    def run(*args, ok=True, source=root):
+    def run(*args, ok=True, source=root, extra_env=None):
         global count
         result = subprocess.run(["bash", str(source / "install.sh"), *args],
-                                env=env, text=True, capture_output=True)
+                                env=dict(env, **(extra_env or {})), text=True, capture_output=True)
         assert (result.returncode == 0) == ok, (args, result.stdout, result.stderr)
         count += 1
         return result.stdout + result.stderr
@@ -110,5 +110,52 @@ with tempfile.TemporaryDirectory(prefix="aw-test-") as temporary:
     run("--yes", "--uninstall", "--restore", source=relocated)
     assert (skill / "original.txt").read_text() == "original"
     assert agent.is_symlink() and os.readlink(agent) == "no-existe"
+    # Un manifiesto corrupto se rechaza sin traza ni mutaciones, incluso con --yes.
+    valid_manifest = state.read_text()
+    invalid_manifests = [
+        [],
+        {"version": 1, "entries": {str(skill): {}}},
+        {"version": 1, "entries": {str(skill): {"runtime": "otro", "target": str(root), "backup": None}}},
+        {"version": 1, "entries": {str(skill): {"runtime": "claude", "target": 123, "backup": None}}},
+        {"version": 1, "entries": {str(skill): {"runtime": "claude", "target": str(root), "backup": []}}},
+    ]
+    for invalid in invalid_manifests:
+        encoded = json.dumps(invalid)
+        state.write_text(encoded)
+        before = snapshot()
+        output = run("--yes", "--uninstall", ok=False)
+        assert "ERROR:" in output and "manifiesto" in output and "Traceback" not in output, output
+        assert snapshot() == before and state.read_text() == encoded
+        assert (skill / "original.txt").read_text() == "original"
+    state.write_text(valid_manifest)
+    # EXDEV se inyecta en Path.rename: no requiere montar un segundo volumen.
+    injection = Path(temporary) / "inject-exdev"
+    injection.mkdir()
+    (injection / "sitecustomize.py").write_text('''import errno
+import os
+from pathlib import Path
+original_rename = Path.rename
+def rename(self, target):
+    if str(self) == os.environ["AW_TEST_EXDEV_SOURCE"]:
+        raise OSError(errno.EXDEV, "fallo entre volúmenes simulado")
+    return original_rename(self, target)
+Path.rename = rename
+''')
+    injected_env = {"PYTHONPATH": str(injection), "AW_TEST_EXDEV_SOURCE": str(skill),
+                    "PYTHONDONTWRITEBYTECODE": "1"}
+    output = run("--yes", "--only", "claude", ok=False, extra_env=injected_env)
+    assert "ERROR:" in output and "volúmenes" in output and "Traceback" not in output, output
+    assert (skill / "original.txt").read_text() == "original"
+    assert state.read_text() == valid_manifest
+    run("--yes", "--only", "claude")
+    installed_manifest = state.read_text()
+    backup = Path(json.loads(installed_manifest)["entries"][str(skill)]["backup"])
+    injected_env["AW_TEST_EXDEV_SOURCE"] = str(backup)
+    output = run("--yes", "--uninstall", "--restore", "--only", "claude", ok=False, extra_env=injected_env)
+    assert "ERROR:" in output and "volúmenes" in output and "Traceback" not in output, output
+    assert (backup / "original.txt").read_text() == "original"
+    assert state.read_text() == installed_manifest
+    run("--yes", "--uninstall", "--restore", "--only", "claude")
+    assert (skill / "original.txt").read_text() == "original"
 print(f"test-install: {count} invocaciones verificadas en HOME falso")
 PY

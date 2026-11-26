@@ -17,8 +17,9 @@ gpt-6.1-sol/high para normal y gpt-6.1-sol/xhigh para delicado.
 El despacho canónico es [Herdr](references/herdr-hc.md): ejecuta en orden los
 roles que pide el triaje, uno por fase, esperando su resultado antes de la siguiente.
 El despacho nativo usa un solo runtime y es un fallback: solo si el usuario lo
-autoriza o Herdr no aplica. Un fallo o ausencia de Herdr, por sí solo, no autoriza
-ese cambio.
+autoriza o Herdr no aplica. «Herdr no aplica» solo en sesión no interactiva
+(`claude -p`, `codex exec`) o modo desatendido. En sesión interactiva, Herdr no
+instalado o sin respuesta = bloqueo informado, no fallback automático.
 
 ## Precedencia y selección de skills
 
@@ -56,17 +57,20 @@ irreversibles y despliegue son delicados, además de lo que marque el repo.
 - **N2:** brief y plan breve del coordinador, implementador, reproducción antes
   de corregir bugs, pruebas de comportamiento y revisor con contexto nuevo
   sobre el SHA final. No se requiere planificador independiente.
-- **N3:** planificador independiente. Brainstorming **solo** si quedan decisiones
-  de diseño abiertas; writing-plans **solo** si hay más de una tarea. Presenta
-  artifact revisable en la puerta humana si falta aprobación; una aprobación
-  vigente permite continuar. Implementador-delicado si hay áreas delicadas;
+- **N3:** planificador independiente. El coordinador usa brainstorming **solo**
+  con diseño abierto y writing-plans **solo** si hay más de una tarea. Al acabar
+  diseño o plan vuelve a este flujo N3: **NO sigue la cadena de traspasos**
+  brainstorming → writing-plans → SDD/executing-plans. Presenta artifact si falta
+  aprobación; conserva las vigentes. Implementador-delicado en áreas delicadas,
   implementador en los demás casos. Revisor nuevo sobre cada SHA corregido.
 
 En «planifica» entrega el plan y termina sin implementar, sea cual sea el nivel.
 Usa verification-before-completion siempre. En N2/N3 usa test-driven-development
 para features/bugs y systematic-debugging para bugs o fallos inesperados.
-En N3 usa subagent-driven-development con los overrides de esta metodología.
-La tabla y las prácticas están en [superpowers.md](references/superpowers.md).
+Con Herdr **NO invoques subagent-driven-development ni requesting-code-review**;
+usa sus [prácticas extraídas](references/superpowers.md). El revisor es siempre el
+rol revisor de esta metodología. **Executing-plans nunca**: el coordinador solo
+implementa en N0.
 
 ## Límites de ejecución
 
@@ -94,18 +98,15 @@ Con ticket, lee criterios, relaciones y bloqueadores del tracker vía MCP
 (p. ej. Linear) y verifica identidad del proyecto. Cambios del tracker requieren
 instrucción del usuario o regla explícita del repo y los ejecuta el coordinador.
 
-Lee [roles.md](references/roles.md) para modelos, contratos y permisos.
-En sesiones interactivas sigue [herdr-hc.md](references/herdr-hc.md) y los overrides
-privados opcionales de
-`~/.config/agent-workflow/HERDR.md`. Cada rol debe aparecer en su pestaña del
-espacio resuelto en vivo. Si falta Herdr requerido, informa bloqueo; no sustituyas
-el despacho por agentes nativos.
+Lee [roles.md](references/roles.md) para modelos, contratos y permisos. En sesiones
+interactivas sigue [Herdr](references/herdr-hc.md) y los overrides opcionales de
+`~/.config/agent-workflow/HERDR.md`. Cada rol aparece en su pestaña del espacio
+resuelto en vivo. Si falta Herdr requerido, informa bloqueo, sin sustitución nativa.
 
 Solo para el fallback nativo autorizado o si Herdr no aplica, usa
 [claude-code.md](references/claude-code.md) o [codex.md](references/codex.md).
 Esta metodología autoriza los modelos de roles.md para ese despacho.
-Si no puedes delegar, declara la limitación; una
-revisión inline no es independiente.
+Si no puedes delegar, declara la limitación; una revisión inline no es independiente.
 
 ## Entrega y registro
 

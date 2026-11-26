@@ -6,6 +6,9 @@ Herdr es el despacho canónico: roles en orden, uno por fase, según el triaje.
 Las columnas nativas son un fallback de un solo runtime, permitido únicamente
 si el usuario lo autoriza o Herdr no aplica. Su ausencia o fallo no autoriza
 una sustitución automática; si Herdr aplica y falta, informa bloqueo.
+«Herdr no aplica» solo significa sesión no interactiva (`claude -p`, `codex exec`)
+o modo desatendido. En una sesión interactiva, Herdr no instalado o sin respuesta
+es bloqueo informado, no una condición de fallback.
 
 Los modelos son preferencias de despacho, no promesas de coste o calidad.
 Comprueba el catálogo y esquema del runtime; registra por separado modelo
@@ -28,7 +31,7 @@ Los tres formatos conservan el mismo cuerpo, comprobado por `tests/check-roles.s
 ## Contratos
 
 - Planificador: solo inspección; comportamiento actual, reproducción, nivel
-  N0–N3 y motivos, criterios, exclusiones, pasos, validación y bloqueos.
+  asignado N0–N3 y motivos, criterios, exclusiones, pasos, validación y bloqueos.
 - Implementadores: único escritor en el worktree indicado; SHA, archivos,
   evidencia por criterio, checks ejecutados/omitidos y riesgos. El delicado
   incluye invariantes. Cada hallazgo recibido lleva disposición y evidencia.
@@ -39,6 +42,10 @@ Los tres formatos conservan el mismo cuerpo, comprobado por `tests/check-roles.s
 Ningún rol crea agentes, publica, cambia el tracker ni hace merge. El coordinador
 conserva la sesión del implementador para dos rondas de reparación como máximo;
 planificador y revisores se retiran tras registrar sus informes.
+El triaje ya está hecho: ningún worker invoca skills de proceso que despachen
+agentes o pregunten al usuario; devuelve dudas y bloqueos en el informe final.
+Planificador/revisor en modo plan ignoran sus fases: no lanzan Explore u otros
+agentes, no escriben planes ni llaman a ExitPlanMode o AskUserQuestion.
 
 ## Áreas delicadas y permisos
 
@@ -53,4 +60,6 @@ Codex nativo no ofrece sandbox por agente en la API descrita aquí; el TOML es
 fuente de instrucciones, no garantía de permisos. En Herdr los implementadores
 usan `--sandbox danger-full-access`: `workspace-write` deja `.git` en solo lectura
 en este flujo y bloquea commits. El contrato limita sus acciones al encargo.
-`--no-daemon` es obligatorio para Codex dentro de hc.
+`--no-daemon` y `-c approval_policy="never"` son obligatorios para Codex dentro
+de hc. Junto a danger-full-access evitan aprobaciones invisibles que bloqueen al
+worker; no amplían el alcance del encargo ni autorizan acciones nuevas.

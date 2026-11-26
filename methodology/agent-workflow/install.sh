@@ -5,6 +5,7 @@ root=$(cd "$(dirname "$0")" && pwd)
 exec python3 -B - "$root" "$@" <<'PY'
 import argparse
 from datetime import datetime, timezone
+import errno
 import json
 import os
 from pathlib import Path
@@ -38,10 +39,28 @@ def save(path, value):
     temporary.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n")
     temporary.replace(path)
 
+def absolute_path(value):
+    return isinstance(value, str) and "\0" not in value and Path(value).is_absolute() and ".." not in Path(value).parts
+
+def move(source, destination):
+    try:
+        source.rename(destination)
+    except OSError as error:
+        reason = "movimiento entre volúmenes no admitido (EXDEV)" if error.errno == errno.EXDEV else str(error)
+        sys.exit(f"ERROR: no se pudo mover {source} -> {destination}: {reason}. El original se conserva en {source}; revisa los volúmenes antes de reintentar.")
+
 try:
     state = json.loads(state_path.read_text()) if state_path.exists() else {"version": 1, "entries": {}}
-    if state.get("version") != 1 or not isinstance(state.get("entries"), dict):
+    if not isinstance(state, dict) or type(state.get("version")) is not int or state["version"] != 1 or not isinstance(state.get("entries"), dict):
         raise ValueError("formato no admitido")
+    for destination, entry in state["entries"].items():
+        if (not absolute_path(destination) or home not in Path(destination).parents
+                or not isinstance(entry, dict) or not {"runtime", "target", "backup"} <= entry.keys()
+                or entry["runtime"] not in ("claude", "codex", "hc")
+                or not absolute_path(entry["target"])
+                or (entry["backup"] is not None and (not absolute_path(entry["backup"])
+                    or state_dir / "backups" not in Path(entry["backup"]).parents))):
+            raise ValueError(f"entrada inválida para {destination!r}: revisa destino, runtime, target y backup")
 except (OSError, ValueError) as error:
     sys.exit(f"ERROR: manifiesto ilegible: {error}")
 entries = state["entries"]
@@ -131,7 +150,7 @@ for operation, path, entry, extra in actions:
                 # Registra intención antes de mover el original para facilitar recuperación.
                 backup_manifest["entries"][str(path)] = {"backup": str(backup_path), "target": str(source), "runtime": runtime}
                 save(backup_dir / "manifest.json", backup_manifest)
-                path.rename(backup_path)
+                move(path, backup_path)
                 backup = str(backup_path)
         path.parent.mkdir(parents=True, exist_ok=True)
         entry = {"target": str(source), "runtime": runtime, "backup": backup}
@@ -145,7 +164,7 @@ for operation, path, entry, extra in actions:
             path.unlink()
         if args.restore and backup:
             path.parent.mkdir(parents=True, exist_ok=True)
-            backup.rename(path)
+            move(backup, path)
         if args.restore or not backup:
             del entries[str(path)]
         # Sin --restore se conserva el registro del backup para restaurarlo después.
