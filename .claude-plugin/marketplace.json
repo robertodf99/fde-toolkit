@@ -10,6 +10,11 @@
       "name": "hook-me-up",
       "source": "./tools/hook-me-up/plugin",
       "description": "Install, check and uninstall Hook Me Up (answer Claude Code from native macOS notifications) from Claude Code. Commands only: the hooks themselves go in ~/.claude/settings.json, after you confirm."
+    },
+    {
+      "name": "agent-workflow",
+      "source": "./methodology/agent-workflow",
+      "description": "Metodología multiagente para desarrollo con Claude Code, Codex y Herdr Core."
     }
   ]
 }
