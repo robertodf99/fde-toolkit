@@ -2,6 +2,8 @@
 
 Repositorio de herramientas y metodología de desarrollo reutilizables.
 
+Si el encargo es instalar o configurar las herramientas, sigue [INSTALL.md](INSTALL.md).
+
 - `tools/hook-me-up/`: notificaciones nativas para responder a Claude Code.
 - `methodology/agent-workflow/`: skill común, roles e instalación para Claude Code,
   Codex y Herdr Core.

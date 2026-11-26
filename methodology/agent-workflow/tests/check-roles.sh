@@ -59,7 +59,7 @@ if private.is_file():
     terms = [line.strip() for line in private.read_text().splitlines()
              if line.strip() and not line.lstrip().startswith("#")]
 repo = root.parent.parent
-instructions = [repo / "AGENTS.md", repo / "CLAUDE.md"]
+instructions = [repo / "AGENTS.md", repo / "CLAUDE.md", repo / "INSTALL.md", repo / "scripts/check-setup.sh"]
 for path in instructions + [root / "skills/agent-workflow/references/unattended.md"]:
     check(path.is_file(), f"{path.relative_to(repo)} presente")
 for path in sorted(list(root.rglob("*")) + instructions):
