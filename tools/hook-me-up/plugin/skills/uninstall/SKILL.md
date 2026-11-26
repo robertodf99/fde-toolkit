@@ -21,7 +21,7 @@ never edit `~/.claude/settings.json` yourself.
    would change:
 
    ```sh
-   curl -fsSL https://raw.githubusercontent.com/robertodf99/hook-me-up/main/uninstall.sh | HOOK_ME_UP_NO_TTY=1 bash
+   curl -fsSL https://raw.githubusercontent.com/robertodf99/fde-toolkit/main/uninstall.sh | HOOK_ME_UP_NO_TTY=1 bash
    ```
 
 2. Read the output:
@@ -43,7 +43,7 @@ never edit `~/.claude/settings.json` yourself.
 4. Only if the user says yes, run:
 
    ```sh
-   curl -fsSL https://raw.githubusercontent.com/robertodf99/hook-me-up/main/uninstall.sh | HOOK_ME_UP_YES=1 HOOK_ME_UP_NO_TTY=1 bash
+   curl -fsSL https://raw.githubusercontent.com/robertodf99/fde-toolkit/main/uninstall.sh | HOOK_ME_UP_YES=1 HOOK_ME_UP_NO_TTY=1 bash
    ```
 
    and report what it says it removed and where the backups are. If the user says no,

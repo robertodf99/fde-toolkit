@@ -1,7 +1,7 @@
 #!/bin/bash
 # Hook Me Up installer (and upgrader: run it again to update).
 #
-#   curl -fsSL https://raw.githubusercontent.com/robertodf99/hook-me-up/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/robertodf99/fde-toolkit/main/install.sh | bash
 #
 # Installs ~/Applications/Hook Me Up.app, adds the hooks to ~/.claude/settings.json
 # (after showing the diff and asking), adds the editor extension to VS Code, VS Code
@@ -9,7 +9,7 @@
 # menu-bar agent at login.
 #
 # Environment:
-#   HOOK_ME_UP_VERSION=vX.Y.Z   install that release instead of the latest
+#   HOOK_ME_UP_VERSION=X.Y.Z    install that version (also vX.Y.Z or hook-me-up-vX.Y.Z)
 #   HOOK_ME_UP_YES=1            change ~/.claude/settings.json without asking
 #   HOOK_ME_UP_ZIP=<path>       install a local package (its .sha256 must sit next to it)
 #   HOOK_ME_UP_NO_ONBOARDING=1  skip the notification check after starting the agent
@@ -24,7 +24,7 @@
 # nothing.
 set -euo pipefail
 
-REPO="robertodf99/hook-me-up"
+REPO="robertodf99/fde-toolkit"
 LABEL="io.github.robertodf99.hook-me-up"
 BUNDLE_ID="io.github.robertodf99.hook-me-up"
 
@@ -154,19 +154,39 @@ main() {
     cp "$HOOK_ME_UP_ZIP.sha256" "$WORK/package.zip.sha256"
     say "Installing Hook Me Up from $HOOK_ME_UP_ZIP"
   else
-    local tag="${HOOK_ME_UP_VERSION:-}" release
-    if [ -z "$tag" ]; then
-      local no_release="could not find the latest release of $REPO on GitHub (none published yet, or the API rate limit). Pick a version with HOOK_ME_UP_VERSION=vX.Y.Z."
+    local requested="${HOOK_ME_UP_VERSION:-}" tag version release tags=()
+    if [ -z "$requested" ]; then
+      local no_release="could not find the latest release of $REPO on GitHub (none published yet, or the API rate limit). Pick a version with HOOK_ME_UP_VERSION=X.Y.Z."
       release="$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" 2>/dev/null)" || die "$no_release"
       tag="$(printf '%s' "$release" | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)"
       [ -n "$tag" ] || die "$no_release"
+      # This repository holds several tools. Only Hook Me Up publishes latest.
+      case "$tag" in
+        hook-me-up-v[0-9]* | v[0-9]*) ;;
+        *) die "latest release [$tag] is not a Hook Me Up tag. Pick a version with HOOK_ME_UP_VERSION=X.Y.Z." ;;
+      esac
+      tags=("$tag")
+    else
+      tag="$requested"
     fi
-    [[ "$tag" =~ ^v?[0-9A-Za-z][0-9A-Za-z.+-]*$ ]] || die "invalid version [$tag]."
-    local name="hook-me-up-${tag#v}-macos.zip"
-    local base="https://github.com/$REPO/releases/download/$tag"
-    say "Downloading Hook Me Up $tag"
-    curl -fsSL -o "$WORK/package.zip" "$base/$name" ||
-      die "could not download $name for $tag. Check the version (HOOK_ME_UP_VERSION) and your connection."
+    case "$tag" in
+      hook-me-up-v*) version="${tag#hook-me-up-v}" ;;
+      v*) version="${tag#v}" ;;
+      *) version="$tag" ;;
+    esac
+    [[ "$version" =~ ^[0-9][0-9A-Za-z.+-]*$ ]] || die "invalid version [$tag]."
+    if [ -n "$requested" ]; then tags=("hook-me-up-v$version" "v$version"); fi
+    local name="hook-me-up-$version-macos.zip" base downloaded=0
+    for tag in "${tags[@]}"; do
+      base="https://github.com/$REPO/releases/download/$tag"
+      say "Downloading Hook Me Up $tag"
+      if curl -fsSL -o "$WORK/package.zip" "$base/$name"; then
+        downloaded=1
+        break
+      fi
+    done
+    [ "$downloaded" = 1 ] ||
+      die "could not download $name. Check the version (HOOK_ME_UP_VERSION) and your connection."
     curl -fsSL -o "$WORK/package.zip.sha256" "$base/$name.sha256" ||
       die "could not download the checksum of $name."
   fi

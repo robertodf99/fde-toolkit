@@ -2,6 +2,10 @@
 
 ## Automated
 
+Run these commands from `tools/hook-me-up/` (or use `make -C tools/hook-me-up`).
+From the repository root also run `scripts/check-marketplace.sh` and
+`scripts/test-shims.sh`.
+
 ```sh
 make test          # unit tests (Swift Testing)
 make selftest      # the built hook with no agent: prints nothing, exits 0, quickly
@@ -58,9 +62,14 @@ tool doesn't fail the install, a tool that hangs is stopped
 nothing about it. It also checks that the installed app holds the `.vsix` with its six
 entries.
 
+`make test-install` also uses a stand-in for curl to check the three version
+formats, new and legacy tags, latest, rejection of another tool's latest release,
+missing downloads and checksum failures without changing an existing installation.
+
 CI runs `lint`, `test`, `selftest`, `test-install`, `plugin-check` and
 `editor-extension-check` on every push and pull request. With the claude CLI installed,
-`claude plugin validate .` and `claude plugin validate ./plugins/hook-me-up` check the
+`claude plugin validate .` and `claude plugin validate ./tools/hook-me-up/plugin`
+(from the repository root) check the
 plugin further (expected: passed, with a warning that no version is set; the version is
 left out on purpose, so users get the plugin as it is on `main`).
 

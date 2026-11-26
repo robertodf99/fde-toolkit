@@ -53,7 +53,7 @@ vsix:
 	./scripts/build-vsix.sh .build/hook-me-up.vsix
 
 # Release package: .build/dist/hook-me-up-$(VERSION)-macos.zip and its .sha256.
-# The release workflow runs: make dist VERSION=<tag> UNIVERSAL=1 CODESIGN_IDENTITY=-
+# The release workflow runs: make dist VERSION=<version> UNIVERSAL=1 CODESIGN_IDENTITY=-
 VERSION ?= dev
 dist:
 	VERSION="$(VERSION)" CODESIGN_IDENTITY="$(CODESIGN_IDENTITY)" ./scripts/package.sh

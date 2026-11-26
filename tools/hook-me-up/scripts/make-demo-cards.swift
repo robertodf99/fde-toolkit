@@ -155,7 +155,7 @@ func outro(logo: CGImage) -> CGImage? {
         in: context)
 
     let command = line(
-        "curl -fsSL https://raw.githubusercontent.com/robertodf99/hook-me-up/main/install.sh | bash",
+        "curl -fsSL https://raw.githubusercontent.com/robertodf99/fde-toolkit/main/install.sh | bash",
         font: "Menlo-Regular", size: 27, color: white)
     let box = CGRect(x: 960 - (width(of: command) + 72) / 2, y: 630, width: width(of: command) + 72, height: 92)
     context.addPath(roundedRect(box, 18))
@@ -163,7 +163,7 @@ func outro(logo: CGImage) -> CGImage? {
     context.fillPath()
     drawCentered(command, centerX: 960, baseline: box.midY + 10, in: context)
     drawCentered(
-        line("github.com/robertodf99/hook-me-up", font: "Helvetica", size: 46, color: tagline), centerX: 960,
+        line("github.com/robertodf99/fde-toolkit", font: "Helvetica", size: 46, color: tagline), centerX: 960,
         baseline: 860, in: context)
     return context.makeImage()
 }

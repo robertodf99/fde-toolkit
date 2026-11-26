@@ -1,14 +1,14 @@
 name: Release
 
-# Pushing a tag such as v1.0.0 builds the universal app, checks it and publishes a
+# Pushing a tag such as hook-me-up-v1.0.0 builds the universal app, checks it and publishes a
 # GitHub release with hook-me-up-<version>-macos.zip and its .sha256, which install.sh
 # downloads. The package is signed ad-hoc; install.sh installs it unchanged. The zip
 # gets a build provenance attestation:
-#   gh attestation verify <zip> --repo robertodf99/hook-me-up \
-#     --signer-workflow robertodf99/hook-me-up/.github/workflows/release.yml
+#   gh attestation verify <zip> --owner robertodf99 \
+#     --signer-workflow robertodf99/fde-toolkit/.github/workflows/release.yml
 on:
   push:
-    tags: ["v*"]
+    tags: ["hook-me-up-v*"]
 
 permissions:
   contents: read
@@ -17,6 +17,9 @@ jobs:
   build:
     runs-on: macos-latest
     timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: tools/hook-me-up
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -32,11 +35,13 @@ jobs:
         run: make test
 
       - name: Build the universal package (ad-hoc signed)
-        run: make dist VERSION="$GITHUB_REF_NAME" UNIVERSAL=1 CODESIGN_IDENTITY=-
+        run: |
+          version="${GITHUB_REF_NAME#hook-me-up-v}"
+          make dist VERSION="$version" UNIVERSAL=1 CODESIGN_IDENTITY=-
 
       - name: Check the package
         run: |
-          version="${GITHUB_REF_NAME#v}"
+          version="${GITHUB_REF_NAME#hook-me-up-v}"
           name="hook-me-up-${version}-macos.zip"
           (cd .build/dist && shasum -a 256 -c "$name.sha256")
           for executable in HookMeUp hook-me-up hook-me-up-setup; do
@@ -55,8 +60,8 @@ jobs:
         with:
           name: package
           path: |
-            .build/dist/*.zip
-            .build/dist/*.zip.sha256
+            tools/hook-me-up/.build/dist/*.zip
+            tools/hook-me-up/.build/dist/*.zip.sha256
           if-no-files-found: error
 
   publish:
@@ -74,7 +79,7 @@ jobs:
 
       - name: Check the package
         run: |
-          version="${GITHUB_REF_NAME#v}"
+          version="${GITHUB_REF_NAME#hook-me-up-v}"
           (cd dist && sha256sum -c "hook-me-up-${version}-macos.zip.sha256")
 
       # SLSA build provenance for the zip: which repository, workflow and commit built it.
@@ -87,8 +92,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          version="${GITHUB_REF_NAME#v}"
+          version="${GITHUB_REF_NAME#hook-me-up-v}"
+          # Only stable Hook Me Up releases are latest in this shared repository.
+          release_flags=(--latest)
+          if [[ "$version" == *-* ]]; then release_flags=(--prerelease); fi
           gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
             "dist/hook-me-up-${version}-macos.zip" \
             "dist/hook-me-up-${version}-macos.zip.sha256" \
-            --title "Hook Me Up $GITHUB_REF_NAME" --generate-notes
+            --title "Hook Me Up $version" --generate-notes "${release_flags[@]}"

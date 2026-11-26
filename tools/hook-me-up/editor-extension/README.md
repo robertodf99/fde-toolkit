@@ -1,6 +1,6 @@
 # Hook Me Up for VS Code
 
-Part of [Hook Me Up](https://github.com/robertodf99/hook-me-up), which answers Claude Code
+Part of [Hook Me Up](https://github.com/robertodf99/fde-toolkit), which answers Claude Code
 from native macOS notifications. With this extension, clicking a session's notification
 also shows that session's integrated terminal, even when the window has several.
 

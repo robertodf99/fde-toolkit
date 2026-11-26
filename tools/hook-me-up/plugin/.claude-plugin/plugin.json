@@ -5,8 +5,8 @@
     "name": "robertodf99",
     "url": "https://github.com/robertodf99"
   },
-  "homepage": "https://github.com/robertodf99/hook-me-up",
-  "repository": "https://github.com/robertodf99/hook-me-up",
+  "homepage": "https://github.com/robertodf99/fde-toolkit",
+  "repository": "https://github.com/robertodf99/fde-toolkit",
   "license": "MIT",
   "keywords": ["macos", "notifications", "hooks", "permissions"]
 }

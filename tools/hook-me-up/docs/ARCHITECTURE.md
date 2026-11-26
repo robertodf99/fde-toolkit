@@ -158,7 +158,7 @@ old to answer.
   npm or vsce; fixed timestamps, so the same sources give the same bytes), before the
   bundle is signed; `make dist` packages it as `hook-me-up-<version>-macos.zip` with a
   `.sha256`.
-- A `v*` tag runs `.github/workflows/release.yml`: tests, a universal ad-hoc-signed
+- A `hook-me-up-v*` tag runs the root `.github/workflows/release.yml`: tests, a universal ad-hoc-signed
   package, checks, a build provenance attestation for the zip (`gh attestation verify`),
   and a GitHub release with the zip and checksum. The app icon is drawn
   at build time by `scripts/make-icon.swift` from the committed symbol path
@@ -167,6 +167,9 @@ old to answer.
   (`make logo`); the demo video (`.build/demo/hook-me-up-demo.mp4`) and the README's
   GIF by `scripts/make-demo.sh`, from screen recordings that are never committed (the
   shot list is a table at the top of the script).
+- Only Hook Me Up stable releases are marked latest in the shared repository; tags
+  with a prerelease suffix are published as prereleases. The installer accepts both
+  `hook-me-up-v*` and legacy `v*` release tags and rejects other tools from `latest`.
 - `install.sh` downloads that release (checksum verified), installs
   `~/Applications/Hook Me Up.app` exactly as packaged (its signature intact),
   adds the hooks only with consent (asked on `/dev/tty`, or `HOOK_ME_UP_YES=1`), and

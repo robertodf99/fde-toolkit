@@ -14,7 +14,7 @@ simply shows its usual terminal dialog.
 ## Install
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/robertodf99/hook-me-up/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/robertodf99/fde-toolkit/main/install.sh | bash
 ```
 
 The installer downloads the latest release (and checks its SHA-256), installs
@@ -27,7 +27,7 @@ at login. Run it again to upgrade.
 Uninstall:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/robertodf99/hook-me-up/main/uninstall.sh | bash
+curl -fsSL https://raw.githubusercontent.com/robertodf99/fde-toolkit/main/uninstall.sh | bash
 ```
 
 It stops the agent, removes Hook Me Up's hooks from your settings (again after showing
@@ -43,11 +43,11 @@ Hook Me Up is also a Claude Code plugin with three commands that run the same in
 and ask for your confirmation in the chat:
 
 ```text
-/plugin marketplace add robertodf99/hook-me-up
-/plugin install hook-me-up@hook-me-up
+/plugin marketplace add robertodf99/fde-toolkit
+/plugin install hook-me-up@fde-toolkit
 ```
 
-(On Claude Code 2.1.275 or later, `/plugin install hook-me-up --marketplace robertodf99/hook-me-up`
+(On Claude Code 2.1.275 or later, `/plugin install hook-me-up --marketplace robertodf99/fde-toolkit`
 does both in one step.) Then:
 
 - `/hook-me-up:install` installs or upgrades Hook Me Up: it shows the changes to
@@ -230,13 +230,17 @@ repository ([Building from source](#building-from-source)).
   zip to the workflow run and the commit that built it:
 
   ```sh
-  gh release download v0.2.0 --repo robertodf99/hook-me-up --pattern '*.zip'
-  gh attestation verify hook-me-up-0.2.0-macos.zip --repo robertodf99/hook-me-up \
+  gh release download v0.2.0 --repo robertodf99/fde-toolkit --pattern '*.zip'
+  gh attestation verify hook-me-up-0.2.0-macos.zip --owner robertodf99 \
     --signer-workflow robertodf99/hook-me-up/.github/workflows/release.yml
   # Compare it with the installed app:
   ditto -x -k hook-me-up-0.2.0-macos.zip unpacked
   diff -r unpacked/HookMeUp.app ~/Applications/"Hook Me Up.app"
   ```
+
+  Use the original `robertodf99/hook-me-up` signer workflow for releases made before
+  the repository rename; new releases use `robertodf99/fde-toolkit`. Verification
+  uses `--owner robertodf99` so both repository names are accepted.
 
   This shows the zip was built by this repository's release workflow from that
   commit. It says nothing about what the code at that commit does: reading the source,
@@ -248,7 +252,7 @@ The installer and uninstaller read these environment variables:
 
 | Variable | Effect |
 |---|---|
-| `HOOK_ME_UP_VERSION=v1.2.3` | Install that release instead of the latest |
+| `HOOK_ME_UP_VERSION=1.2.3` | Install that version (also accepts `v1.2.3` or `hook-me-up-v1.2.3`), trying the new tag before the legacy `v*` tag |
 | `HOOK_ME_UP_YES=1` | Change `~/.claude/settings.json` without asking (non-interactive installs) |
 | `HOOK_ME_UP_ZIP=<path>` | Install a local package (its `.sha256` must sit next to it) |
 | `HOOK_ME_UP_NO_ONBOARDING=1` | Skip the notification check after starting the agent (no waiting, no test notification, System Settings stays closed) |
@@ -263,7 +267,8 @@ terminal until it ends or you choose **Resume**.
 
 ## Building from source
 
-Requires Xcode 16 or later (Swift 6).
+Requires Xcode 16 or later (Swift 6). From the repository root, first run
+`cd tools/hook-me-up` (or use `make -C tools/hook-me-up <target>`).
 
 ```sh
 make            # build the hook, the installer CLI and the agent
@@ -277,7 +282,7 @@ make dist VERSION=1.2.3 UNIVERSAL=1   # .build/dist/hook-me-up-1.2.3-macos.zip a
 ```
 
 [docs/TESTING.md](docs/TESTING.md) lists the automated checks and a manual end-to-end
-checklist. Pushing a `v*` tag publishes a release with GitHub Actions.
+checklist. Pushing a `hook-me-up-v*` tag publishes a release with GitHub Actions.
 
 ## Troubleshooting
 
@@ -324,9 +329,9 @@ The agent writes its log to `~/Library/Logs/hook-me-up.log`.
 ## Feedback
 
 Tried it? Tell me what worked and what broke in
-[Feedback & ideas](https://github.com/robertodf99/hook-me-up/discussions/1); questions go to
-[Q&A](https://github.com/robertodf99/hook-me-up/discussions/categories/q-a). For a bug,
-[open an issue](https://github.com/robertodf99/hook-me-up/issues/new/choose) with the output
+[Feedback & ideas](https://github.com/robertodf99/fde-toolkit/discussions/1); questions go to
+[Q&A](https://github.com/robertodf99/fde-toolkit/discussions/categories/q-a). For a bug,
+[open an issue](https://github.com/robertodf99/fde-toolkit/issues/new/choose) with the output
 of `hook-me-up-setup doctor`.
 
 ## Credits
@@ -336,4 +341,4 @@ The app icon is drawn from the Claude symbol on Wikimedia Commons (CC0 1.0); see
 
 ## License
 
-[MIT](LICENSE)
+[MIT](../../LICENSE)

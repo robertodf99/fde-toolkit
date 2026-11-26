@@ -10,7 +10,7 @@ public enum Doctor {
     public static let installerLabel = "io.github.robertodf99.hook-me-up"
     /// How long the agent has to connect and to answer.
     public static let agentTimeout: TimeInterval = 2
-    static let installer = "curl -fsSL https://raw.githubusercontent.com/robertodf99/hook-me-up/main/install.sh | bash"
+    static let installer = "curl -fsSL https://raw.githubusercontent.com/robertodf99/fde-toolkit/main/install.sh | bash"
     static let notificationSettings = "System Settings > Notifications > Hook Me Up"
     static let notHome = "not checked: --home is not your home folder"
 
