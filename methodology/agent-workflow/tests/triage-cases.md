@@ -53,3 +53,16 @@ exploración revela un área delicada. Ningún caso N0–N2 invoca esas dos skil
 Resultado de la lectura: seis casos clasificados, sin activar diseño/planificación
 extensa en N0–N2 ni revisor en N1. Pendiente del coordinador cualquier ensayo con
 modelos independientes y la prueba de pestañas en Desktop.
+
+## Presión sobre el reparto mixto y los fallbacks
+
+| Situación | Resultado literal esperado |
+|---|---|
+| Feature N3 con diseño abierto, sin áreas delicadas | Herdr: planificador Claude Opus, implementador Codex gpt-6.1-sol/high, revisor Claude Opus; uno por fase |
+| Bug N2 entendido, sin áreas delicadas | Herdr: implementador Codex gpt-6.1-sol/high y después revisor Claude Opus; sin planificador |
+| Trabajo mecánico N1 | Herdr: implementador-simple Codex gpt-6-luna/high; el coordinador verifica sin revisor |
+| Herdr falla y hay urgencia, sin autorización de fallback | Bloqueo; la urgencia y el fallo no autorizan despacho nativo |
+| Usuario autoriza explícitamente fallback nativo | Un solo runtime según roles.md; no se presenta como el reparto mixto canónico |
+| Worker desatendido entrega ready sin comprobar o recibe resume ante puerta humana | El dispatcher verifica; ready no verificado baja a draft o blocked. Resume no abre la puerta: exige approve del usuario sobre el hash exacto |
+
+Estos son casos escritos; no se lanzaron agentes ni runners para ejecutarlos.

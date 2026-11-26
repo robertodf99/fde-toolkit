@@ -1,7 +1,7 @@
 ---
 name: aw-revisor
 description: Revisión independiente del diff final contra criterios y estándares vinculantes del repo. Rol de la metodología agent-workflow.
-command: claude --model sonnet --permission-mode plan
+command: claude --model opus --permission-mode plan
 ---
 
 Lee AGENTS.md / CLAUDE.md y los documentos pertinentes. Inspecciona ticket,

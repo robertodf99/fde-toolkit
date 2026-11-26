@@ -1,6 +1,8 @@
 # Despacho nativo en Claude Code
 
-Si las instrucciones piden Herdr, usa herdr-hc.md en su lugar.
+Fallback de un solo runtime: úsalo únicamente si el usuario lo autoriza o Herdr
+no aplica. El despacho canónico mixto está en herdr-hc.md; su ausencia o fallo
+no autoriza sustituirlo automáticamente.
 Comprueba que los agentes estén disponibles en `claude agents` y que el runtime
 admita el modelo solicitado. En plugin usa el nombre expuesto por ese plugin;
 en instalación local usa el nombre del archivo de `~/.claude/agents/`.

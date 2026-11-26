@@ -1,5 +1,12 @@
 # Roles y contratos
 
+El coordinador es la sesión del usuario. El reparto por defecto combina Claude
+Opus para planificador/revisor y Codex para implementar según complejidad.
+Herdr es el despacho canónico: roles en orden, uno por fase, según el triaje.
+Las columnas nativas son un fallback de un solo runtime, permitido únicamente
+si el usuario lo autoriza o Herdr no aplica. Su ausencia o fallo no autoriza
+una sustitución automática; si Herdr aplica y falta, informa bloqueo.
+
 Los modelos son preferencias de despacho, no promesas de coste o calidad.
 Comprueba el catálogo y esquema del runtime; registra por separado modelo
 solicitado y confirmado. Si falta una capacidad requerida, informa bloqueo.
@@ -11,10 +18,9 @@ No cambies configuración global para forzarla.
 | implementador-simple | sonnet, high | gpt-6-luna, high | Codex gpt-6-luna, high |
 | implementador | opus, high | gpt-6.1-sol, high | Codex gpt-6.1-sol, high |
 | implementador-delicado | opus, xhigh | gpt-6.1-sol, xhigh | Codex gpt-6.1-sol, xhigh |
-| revisor | opus, high | gpt-6.1-sol, high | Claude sonnet, plan |
+| revisor | opus, high | gpt-6.1-sol, high | Claude opus, plan |
 
-La diferencia **intencionada** del revisor es Opus en el agente nativo de Claude
-y Sonnet en Herdr. No normalices esa diferencia al sincronizar cuerpos.
+Planificador y revisor usan Opus en todos los despachos con Claude.
 Los nombres públicos usan guiones; los archivos/nombres TOML de Codex usan
 `implementador_simple` e `implementador_delicado` por compatibilidad local.
 Los tres formatos conservan el mismo cuerpo, comprobado por `tests/check-roles.sh`.

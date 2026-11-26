@@ -9,6 +9,17 @@ Escala el proceso al alcance y las consecuencias. La misma fuente sirve para
 Claude Code, Codex y Herdr Core. Si el primer mensaje asigna un rol, ejecuta solo
 ese rol y devuelve su contrato de entrega; no orquestes agentes.
 
+## Reparto por defecto
+
+El coordinador es la sesión del usuario. Planificador y revisor usan **Claude
+Opus**; los implementadores usan **Codex**: gpt-6-luna/high para mecánico,
+gpt-6.1-sol/high para normal y gpt-6.1-sol/xhigh para delicado.
+El despacho canónico es [Herdr](references/herdr-hc.md): ejecuta en orden los
+roles que pide el triaje, uno por fase, esperando su resultado antes de la siguiente.
+El despacho nativo usa un solo runtime y es un fallback: solo si el usuario lo
+autoriza o Herdr no aplica. Un fallo o ausencia de Herdr, por sí solo, no autoriza
+ese cambio.
+
 ## Precedencia y selección de skills
 
 Instrucciones del usuario > AGENTS.md / CLAUDE.md del repo > esta skill >
@@ -84,15 +95,16 @@ Con ticket, lee criterios, relaciones y bloqueadores del tracker vía MCP
 instrucción del usuario o regla explícita del repo y los ejecuta el coordinador.
 
 Lee [roles.md](references/roles.md) para modelos, contratos y permisos.
-En sesiones interactivas, si las instrucciones aplicables piden Herdr, sigue
-[herdr-hc.md](references/herdr-hc.md) y los overrides privados opcionales de
+En sesiones interactivas sigue [herdr-hc.md](references/herdr-hc.md) y los overrides
+privados opcionales de
 `~/.config/agent-workflow/HERDR.md`. Cada rol debe aparecer en su pestaña del
 espacio resuelto en vivo. Si falta Herdr requerido, informa bloqueo; no sustituyas
 el despacho por agentes nativos.
 
-Cuando corresponda despacho nativo, usa [claude-code.md](references/claude-code.md)
-o [codex.md](references/codex.md). Esta metodología autoriza los modelos de
-roles.md para ese despacho. Si no puedes delegar, declara la limitación; una
+Solo para el fallback nativo autorizado o si Herdr no aplica, usa
+[claude-code.md](references/claude-code.md) o [codex.md](references/codex.md).
+Esta metodología autoriza los modelos de roles.md para ese despacho.
+Si no puedes delegar, declara la limitación; una
 revisión inline no es independiente.
 
 ## Entrega y registro
@@ -101,6 +113,5 @@ Sigue [delivery.md](references/delivery.md): SHA, archivos, evidencia por criter
 checks reales y omitidos, riesgos, rondas y disposición de cada hallazgo.
 El coordinador verifica por su cuenta SHA, diff, estado del worktree y evidencia.
 Registra IDs, modelos solicitados/confirmados y aprobaciones sin secretos en
-estado privado, nunca en el repo público. Los perfiles, runners y Symphony son
-opcionales y privados en `~/.config/agent-workflow`; no los selecciones ni
-arranques sin un encargo explícito.
+estado privado, nunca en el repo público.
+Modo desatendido opcional y privado: [contrato y aprobaciones](references/unattended.md).

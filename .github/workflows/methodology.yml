@@ -7,12 +7,16 @@ on:
       - '.claude-plugin/**'
       - '.github/workflows/methodology.yml'
       - 'scripts/check-marketplace.sh'
+      - 'AGENTS.md'
+      - 'CLAUDE.md'
   pull_request:
     paths:
       - 'methodology/**'
       - '.claude-plugin/**'
       - '.github/workflows/methodology.yml'
       - 'scripts/check-marketplace.sh'
+      - 'AGENTS.md'
+      - 'CLAUDE.md'
 
 permissions:
   contents: read

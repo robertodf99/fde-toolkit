@@ -5,6 +5,8 @@ es opcional.
 Los overrides personales opcionales viven en `~/.config/agent-workflow/HERDR.md`.
 Este protocolo usa Herdr Core 0.1.22 (`herdr-core` o `hc`) y Desktop. Los runners
 privados siguen su propio contrato; aquí solo se cubren sesiones interactivas.
+Este es el despacho canónico mixto: Claude en planificación/revisión y Codex
+en implementación. Ejecuta solo los roles del nivel, en orden y uno por fase.
 
 | Rol | Plantilla | CLI, modelo y permisos | Entrega |
 | --- | --- | --- | --- |
@@ -12,7 +14,7 @@ privados siguen su propio contrato; aquí solo se cubren sesiones interactivas.
 | Implementador simple | `aw-implementador-simple` | Codex `gpt-6-luna`, `high`, `danger-full-access` | SHA, evidencia por criterio y checks |
 | Implementador | `aw-implementador` | Codex `gpt-6.1-sol`, `high`, `danger-full-access` | SHA, evidencia por criterio y checks |
 | Implementador delicado | `aw-implementador-delicado` | Codex `gpt-6.1-sol`, `xhigh`, `danger-full-access` | SHA, invariantes, evidencia y checks |
-| Revisor | `aw-revisor` | Claude `sonnet`, modo `plan` | SHA revisado, hallazgos y veredicto |
+| Revisor | `aw-revisor` | Claude `opus`, modo `plan` | SHA revisado, hallazgos y veredicto |
 
 ## Comprobación y conservación de sesiones
 

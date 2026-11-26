@@ -15,6 +15,45 @@ En N0–N2 no se invocan brainstorming ni writing-plans. En N3 se activan solo
 con diseño abierto o más de una tarea, respectivamente. Superpowers debe estar
 instalado para las prácticas seleccionadas; este paquete no lo descarga ni copia.
 
+## Quick start
+
+Requisitos para el reparto mixto por defecto: Claude Code, Codex CLI, Herdr
+Desktop y Herdr Core 0.1.22, Superpowers instalado, Bash y Python 3.9+.
+Comprueba que los CLIs admitan los modelos y flags de
+[roles.md](skills/agent-workflow/references/roles.md).
+
+```sh
+git clone https://github.com/robertodf99/fde-toolkit
+cd fde-toolkit
+bash methodology/agent-workflow/install.sh        # dry-run
+bash methodology/agent-workflow/install.sh --yes  # aplica tras revisar el plan
+```
+
+Conserva este checkout en una ruta estable. Abre una sesión del agente en
+cualquier proyecto y di «usa la metodología agent-workflow» o invoca
+`$agent-workflow`. Sin instalación, indica la ruta del checkout y pide «usa la
+metodología de este repo»: el agente debe leer su SKILL.md y referencias.
+El coordinador es tu sesión; Herdr lanza los roles que exige el triaje en orden,
+uno por fase: Claude Opus para planificar/revisar y Codex para implementar según
+complejidad. El despacho nativo de un solo runtime es un fallback únicamente
+autorizado por el usuario o cuando Herdr no aplica.
+
+Alternativa para cargar la skill y agentes en Claude Code:
+
+```text
+/plugin marketplace add robertodf99/fde-toolkit
+/plugin install agent-workflow@fde-toolkit
+```
+
+Para añadir las plantillas de Herdr y los roles de Codex, desde la raíz del checkout:
+
+```sh
+bash methodology/agent-workflow/install.sh --yes --only hc
+bash methodology/agent-workflow/install.sh --yes --only codex
+```
+
+Evita duplicar la carga local y por plugin.
+
 ## Instalación local
 
 Requiere Bash y Python 3.9+, disponibles en macOS/Linux. Para Herdr, Core 0.1.22
@@ -89,7 +128,9 @@ bash scripts/check-marketplace.sh
 ```
 
 Los tests del instalador usan exclusivamente un HOME temporal. El check de roles
-comprueba paridad, flags de Herdr y privacidad genérica. Si existe
+comprueba paridad, modelos y flags de Herdr, y privacidad genérica en este paquete
+(incluido el [contrato desatendido](skills/agent-workflow/references/unattended.md))
+y en AGENTS.md / CLAUDE.md de la raíz. Si existe
 `~/.config/agent-workflow/private-terms.txt`, añade sus términos (una cadena por
 línea, comentarios con `#`) al barrido local sin imprimirlos. No se crea ese archivo.
 La [prueba de triaje](tests/triage-cases.md) es una lectura escrita, no un ensayo

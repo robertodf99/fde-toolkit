@@ -34,6 +34,10 @@ for role in roles:
             command = hc_path.read_text().split("command: ", 1)[1].splitlines()[0]
             check("--sandbox danger-full-access" in command and "--no-daemon" in command,
                   f"{role}: permisos de git y modo Codex de Herdr")
+        if role in ("planificador", "revisor"):
+            command = hc_path.read_text().split("command: ", 1)[1].splitlines()[0]
+            check(command == "claude --model opus --permission-mode plan",
+                  f"{role}: Claude Opus en Herdr")
     except (OSError, IndexError) as error:
         check(False, f"{role}: {error}")
 patterns = [("ruta personal", re.compile(r"/" + r"Users/")),
@@ -44,20 +48,24 @@ terms = []
 if private.is_file():
     terms = [line.strip() for line in private.read_text().splitlines()
              if line.strip() and not line.lstrip().startswith("#")]
-for path in sorted(root.rglob("*")):
+repo = root.parent.parent
+instructions = [repo / "AGENTS.md", repo / "CLAUDE.md"]
+for path in instructions + [root / "skills/agent-workflow/references/unattended.md"]:
+    check(path.is_file(), f"{path.relative_to(repo)} presente")
+for path in sorted(list(root.rglob("*")) + instructions):
     if not path.is_file():
         continue
     content = path.read_text()
     for label, pattern in patterns:
         # El comprobador define los patrones; no contiene ejemplos privados.
         if pattern.search(content):
-            check(False, f"privacidad ({label}): {path.relative_to(root)}")
+            check(False, f"privacidad ({label}): {path.relative_to(repo)}")
     if any(term.casefold() in content.casefold() for term in terms):
-        check(False, f"privacidad (término privado, valor oculto): {path.relative_to(root)}")
+        check(False, f"privacidad (término privado, valor oculto): {path.relative_to(repo)}")
 check(not failures, "privacidad genérica y términos privados locales")
 skill = root / "skills/agent-workflow/SKILL.md"
 if check(skill.is_file(), "SKILL.md presente"):
-    check(len(skill.read_text().splitlines()) <= 150, "SKILL.md de hasta 150 líneas")
+    check(len(skill.read_text().splitlines()) <= 120, "SKILL.md de hasta 120 líneas")
     check(bool(re.search(r"^description: Use when", skill.read_text(), re.M)), "description descubrible")
 if failures:
     sys.exit(1)
