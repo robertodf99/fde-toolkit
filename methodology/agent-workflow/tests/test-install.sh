@@ -55,14 +55,39 @@ with tempfile.TemporaryDirectory(prefix="aw-test-") as temporary:
     foreign.write_text("conservar")
     codex.unlink()
     codex.symlink_to(foreign)
-    run("--yes", "--only", "codex", ok=False)
-    run("--yes", "--uninstall", "--only", "codex", ok=False)
+    replaced = agent  # También debe conservar el backup original de este destino.
+    replaced.unlink()
+    replaced.write_text("archivo del usuario")
+    assert "--uninstall" not in run("--yes", "--only", "codex", ok=False)
+    output = run("--yes", "--uninstall")
+    assert "AVISO:" in output and "destino ajeno" in output
     assert codex.is_symlink() and codex.resolve() == foreign.resolve() and foreign.read_text() == "conservar"
-    codex.unlink()  # El fixture revierte el cambio ajeno; el instalador no lo hace.
-    codex.symlink_to(json.loads(manifest)["entries"][str(codex)]["target"])
+    assert replaced.read_text() == "archivo del usuario"
+    assert (skill / "original.txt").read_text() == "original", "El resto debe desinstalarse"
+    assert set(json.loads(state.read_text())["entries"]) == {str(codex), str(replaced)}
+    for path in (codex, replaced):  # El fixture revierte los cambios ajenos.
+        path.unlink()
+        path.symlink_to(json.loads(manifest)["entries"][str(path)]["target"])
     run("--yes", "--uninstall")
     assert (skill / "original.txt").read_text() == "original"
     assert agent.is_symlink() and os.readlink(agent) == "original-inexistente"
+    assert json.loads(state.read_text())["entries"] == {}
+    # Backup ausente: avisa, retira el enlace propio y procesa los demás destinos.
+    run("--yes", "--only", "claude")
+    backup = Path(json.loads(state.read_text())["entries"][str(skill)]["backup"])
+    parked = backup.with_name("original-apartado")
+    backup.rename(parked)
+    before, manifest = snapshot(), state.read_text()
+    assert "backup ausente" in run("--uninstall")
+    assert snapshot() == before and state.read_text() == manifest
+    output = run("--yes", "--uninstall")
+    assert "AVISO:" in output and "backup ausente" in output
+    assert not os.path.lexists(skill), "El enlace propio sí debe retirarse"
+    assert set(json.loads(state.read_text())["entries"]) == {str(skill)}
+    assert agent.is_symlink() and os.readlink(agent) == "original-inexistente"
+    parked.rename(backup)
+    run("--yes", "--uninstall")
+    assert (skill / "original.txt").read_text() == "original"
     assert json.loads(state.read_text())["entries"] == {}
     # Fallos antes y después de mover el original: el único manifiesto basta.
     injection = Path(temporary) / "inject"

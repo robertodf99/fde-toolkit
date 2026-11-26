@@ -24,7 +24,7 @@ Modelos, flags y permisos: [roles.md](roles.md); overrides privados opcionales e
    Sin coincidencias, informa bloqueo; con varias, pregunta cuál usar. No crees
    espacios sin petición ni reutilices un ID cacheado. No lances nada sin un ID único.
 
-## Pestaña y primer mensaje
+## Pestaña y tarea
 
 1. El encargo incluye rol, worktree absoluto, base, alcance, criterios, plan,
    validación, límites y entrega. Si autorizas informe largo, da su ruta privada;
@@ -40,9 +40,10 @@ Modelos, flags y permisos: [roles.md](roles.md); overrides privados opcionales e
    ```
 
    `split(" ")` exige separadores simples y argumentos sin espacios. No uses eval.
-   En Claude, `--allowedTools` y `--disallowedTools` son variádicos: la tarea va
-   por `--task`/primer mensaje, **nunca como argumento posicional tras esas flags**
-   (si se necesitase un argumento posicional, debe ir tras `--`).
+   `tab.new --task` añade la tarea como último argumento de argv. Los commands
+   de Claude ya terminan en ` --`: `split(" ")` conserva ese separador y la tarea
+   queda detrás como prompt, fuera de las flags variádicas de herramientas.
+   No quites el `--` final ni añadas el prompt antes de él.
 3. Lanza sin cambiar el foco:
 
    ```sh

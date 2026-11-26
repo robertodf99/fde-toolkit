@@ -37,13 +37,15 @@ for role in roles:
                   and '-c approval_policy="never"' in command,
                   f"{role}: permisos de git, sin daemon ni aprobaciones invisibles")
         if role in ("planificador", "revisor"):
-            argv = shlex.split(hc_path.read_text().split("command: ", 1)[1].splitlines()[0])
+            command = hc_path.read_text().split("command: ", 1)[1].splitlines()[0]
+            argv = shlex.split(command)
+            check(command.endswith(" --"), f"{role}: separador final protege el prompt de tab.new")
             flags = {flag: argv[argv.index(flag) + 1] for flag in
                      ("--model", "--permission-mode", "--allowedTools", "--disallowedTools") if flag in argv}
             check(flags.get("--model") == "opus" and flags.get("--permission-mode") == "dontAsk",
                   f"{role}: Claude Opus sin modo plan ni preguntas de permisos")
             check(set(flags.get("--allowedTools", "").split(",")) == {"Bash", "Read", "Grep", "Glob", "WebFetch", "WebSearch"}
-                  and set(flags.get("--disallowedTools", "").split(",")) == {"Edit", "Write", "NotebookEdit", "Agent", "Skill", "AskUserQuestion", "ExitPlanMode"},
+                  and set(flags.get("--disallowedTools", "").split(",")) == {"Edit", "Write", "NotebookEdit", "Agent", "Skill", "AskUserQuestion", "ExitPlanMode", "Workflow", "Artifact", "SendMessage"},
                   f"{role}: herramientas de lectura y límites de escritura/despacho")
     except (OSError, IndexError) as error:
         check(False, f"{role}: {error}")

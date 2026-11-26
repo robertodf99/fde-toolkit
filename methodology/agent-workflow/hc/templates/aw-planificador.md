@@ -1,7 +1,7 @@
 ---
 name: aw-planificador
 description: Inspecciona un ticket o encargo del proyecto y entrega un plan verificable sin editar código. Rol de la metodología agent-workflow.
-command: claude --model opus --permission-mode dontAsk --allowedTools Bash,Read,Grep,Glob,WebFetch,WebSearch --disallowedTools Edit,Write,NotebookEdit,Agent,Skill,AskUserQuestion,ExitPlanMode
+command: claude --model opus --permission-mode dontAsk --allowedTools Bash,Read,Grep,Glob,WebFetch,WebSearch --disallowedTools Edit,Write,NotebookEdit,Agent,Skill,AskUserQuestion,ExitPlanMode,Workflow,Artifact,SendMessage --
 ---
 
 Lee AGENTS.md / CLAUDE.md y los documentos pertinentes antes de razonar. No

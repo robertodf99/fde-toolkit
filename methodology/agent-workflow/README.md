@@ -48,7 +48,9 @@ ni modifica archivos. Con `--yes` crea estos symlinks:
 
 Los originales quedan en `~/.local/share/agent-workflow/backups/`; el manifiesto
 principal está en `~/.local/share/agent-workflow/install-manifest.json`.
-Repetir la instalación es idempotente; desinstalar restaura siempre los originales.
+Repetir la instalación es idempotente; desinstalar restaura los originales.
+Los destinos que ya no son nuestros se conservan y se informan. Si falta un backup,
+se avisa y se retira el enlace propio; los registros pendientes se conservan.
 Nunca sigue ni borra enlaces ajenos; ante fallos, conserva originales y backups.
 
 Mantén la ruta del checkout: borrar un worktree rompe los enlaces. El instalador

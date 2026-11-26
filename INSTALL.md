@@ -92,5 +92,7 @@ in every command below; never use `/tmp` or a worktree for methodology symlinks.
    `env -u HOOK_ME_UP_YES HOOK_ME_UP_NO_TTY=1 bash "$HOME/fde-toolkit/tools/hook-me-up/uninstall.sh"`.
    After explicit yes, run `HOOK_ME_UP_YES=1 bash "$HOME/fde-toolkit/tools/hook-me-up/uninstall.sh"`.
    Preview methodology removal with `bash "$HOME/fde-toolkit/methodology/agent-workflow/install.sh" --uninstall`;
-   after approval repeat with `--yes`. **Uninstall always restores originals.**
+   after approval repeat with `--yes`. Uninstall restores originals; destinations
+   no longer owned are preserved and reported. Missing backups are reported;
+   owned links are still removed and unresolved entries stay in the manifest.
    Keep the checkout until its links are removed. [Details](methodology/agent-workflow/README.md#instalación-local).

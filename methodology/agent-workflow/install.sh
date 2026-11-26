@@ -85,19 +85,20 @@ if args.uninstall:
         backup = Path(entry["backup"]) if entry.get("backup") else None
         intact = entry.get("pending") and backup and not exists(backup) and exists(path) and not owned(path, entry)
         if exists(path) and not owned(path, entry) and not intact:
-            errors.append(f"destino ajeno, se conserva: {path}")
-        elif backup and not exists(backup) and not intact:
-            errors.append(f"backup ausente: {backup}")
+            print(f"AVISO: destino ajeno, se conserva junto a su registro: {path}")
+            continue
+        if backup and not exists(backup) and not intact:
+            print(f"AVISO: backup ausente: {backup}; se retira solo el enlace propio y se conserva el registro de {path}")
         else:
             print(f"RECUPERAR {path}" if intact else f"RETIRAR {path}; RESTAURAR su original si existe")
-            actions.append((path, dict(entry), None))
+        actions.append((path, dict(entry), None))
 else:
     for runtime, source, path in mappings:
         entry = entries.get(str(path))
         if not source.exists():
             errors.append(f"fuente ausente: {source}")
         elif entry and exists(path) and not owned(path, entry):
-            errors.append(f"destino ajeno, se conserva: {path}; si falló una instalación, usa --uninstall")
+            errors.append(f"destino ajeno, se conserva: {path}; revisa el conflicto antes de instalar")
         elif owned(path, entry) and entry["target"] == str(source) and not entry.get("pending"):
             print(f"SIN CAMBIOS {path}")
         else:
@@ -115,7 +116,10 @@ try:
         previous = entries.get(str(path))
         backup = Path(entry["backup"]) if entry.get("backup") else None
         if source is None and backup and not exists(backup):
-            del entries[str(path)]  # Movimiento fallido o restauración ya terminada: original intacto.
+            if entry.get("pending") and exists(path) and not owned(path, entry):
+                del entries[str(path)]  # Original intacto tras un movimiento fallido o una restauración.
+            elif owned(path, entry):
+                path.unlink()  # Backup ausente: retira solo el enlace propio; conserva el registro.
             save()
             continue
         entry["pending"] = True

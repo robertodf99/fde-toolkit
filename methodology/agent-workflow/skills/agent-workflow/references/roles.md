@@ -56,6 +56,8 @@ worker; no amplían el alcance del encargo ni autorizan acciones nuevas.
 
 En Herdr, planificador y revisor usan `--permission-mode dontAsk`, permiten
 `Bash,Read,Grep,Glob,WebFetch,WebSearch` y deniegan
-`Edit,Write,NotebookEdit,Agent,Skill,AskUserQuestion,ExitPlanMode`. No usan modo plan.
-Bash puede escribir: el contrato de solo lectura sigue siendo obligatorio.
+`Edit,Write,NotebookEdit,Agent,Skill,AskUserQuestion,ExitPlanMode,Workflow,Artifact,SendMessage`.
+Ambos commands terminan en ` --` para separar el prompt de las listas variádicas.
+No usan modo plan. Bash sigue sin acotar: su solo lectura es contrato de rol,
+no aislamiento técnico.
 Los agentes nativos de Claude conservan su frontmatter y sus límites propios.
