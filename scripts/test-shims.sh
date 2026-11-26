@@ -36,7 +36,7 @@ exit "${TARGET_STATUS:-0}"
         target = checkout / "tools/hook-me-up" / name
         target.parent.mkdir(parents=True)
         target.write_text(payload)
-        target.chmod(0o755)
+        target.chmod(0o644)
         local = checkout / name
         local.write_bytes(original.read_bytes())
         remote = work / ("remote-" + name)

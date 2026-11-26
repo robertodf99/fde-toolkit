@@ -9,7 +9,7 @@ main() {
   if [ -n "$source" ] && [ -f "$source" ]; then
     directory="$(cd "$(dirname "$source")" && pwd)"
     if [ -f "$directory/tools/hook-me-up/uninstall.sh" ]; then
-      exec "$directory/tools/hook-me-up/uninstall.sh" "$@"
+      exec bash "$directory/tools/hook-me-up/uninstall.sh" "$@"
     fi
   fi
   script="$(curl -fsSL "https://raw.githubusercontent.com/robertodf99/fde-toolkit/${HOOK_ME_UP_REF:-main}/tools/hook-me-up/uninstall.sh")" || return $?

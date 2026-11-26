@@ -486,7 +486,7 @@ case "$url" in
   "$base.sha256")
     if [ "${DOWNLOAD_BAD_CHECKSUM:-0}" = 1 ]; then printf 'bad checksum\n' >"$out"; else cp "$DOWNLOAD_ZIP.sha256" "$out"; fi
     ;;
-  *) exit 22 ;;
+  *) printf 'curl: (22) HTTP 404 for %s\n' "$url" >&2; exit 22 ;;
 esac
 STUB
 chmod +x "$DOWNLOADS/bin/curl"
@@ -510,6 +510,8 @@ done
 if download_run legacy v0.5.0-rc.1 v0.5.0-rc.1; then status=0; else status=$?; fi
 check "an explicit version tries the new tag, then the legacy tag" \
   '[ "$status" = 0 ] && [ "$(cat "$LOGS/download-legacy.urls")" = "$(printf "%s\n%s\n%s" "$NEW_BASE" "$OLD_BASE" "$OLD_BASE.sha256")" ]'
+check "a successful legacy fallback hides the first download's 404" \
+  '! grep -q "curl: (22)" "$LOGS/download-legacy.txt"'
 for available in hook-me-up-v0.5.0-rc.1 v0.5.0-rc.1; do
   if download_run "latest-$available" "" "$available"; then status=0; else status=$?; fi
   check "latest $available installs from the tag returned by the API" \
@@ -529,6 +531,12 @@ done
 if download_run missing 0.5.0-rc.1 missing; then status=0; else status=$?; fi
 check "both tags missing: fails without changing the installation" \
   '[ "$status" != 0 ] && [ "$(cat "$LOGS/download-missing.urls")" = "$(printf "%s\n%s" "$NEW_BASE" "$OLD_BASE")" ] && same_tree "$DOWNLOAD_STATE"'
+check "only the last failed download's curl error stays visible" \
+  'grep -qF "curl: (22) HTTP 404 for $OLD_BASE" "$LOGS/download-missing.txt" && \
+   ! grep -qF "curl: (22) HTTP 404 for $NEW_BASE" "$LOGS/download-missing.txt"'
+if download_run latest-missing "" hook-me-up-v0.5.0-rc.1 DOWNLOAD_TAG=missing; then status=0; else status=$?; fi
+check "a latest release without fallback still shows its curl error" \
+  '[ "$status" != 0 ] && grep -qF "curl: (22) HTTP 404 for $NEW_BASE" "$LOGS/download-latest-missing.txt" && same_tree "$DOWNLOAD_STATE"'
 if download_run checksum 0.5.0-rc.1 hook-me-up-v0.5.0-rc.1 DOWNLOAD_BAD_CHECKSUM=1; then status=0; else status=$?; fi
 check "a wrong checksum fails without fallback or installation changes" \
   '[ "$status" != 0 ] && grep -q "checksum mismatch" "$LOGS/download-checksum.txt" && \

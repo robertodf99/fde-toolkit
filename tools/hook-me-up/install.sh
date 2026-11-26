@@ -180,7 +180,13 @@ main() {
     for tag in "${tags[@]}"; do
       base="https://github.com/$REPO/releases/download/$tag"
       say "Downloading Hook Me Up $tag"
-      if curl -fsSL -o "$WORK/package.zip" "$base/$name"; then
+      if {
+        if [ "$tag" = "${tags[${#tags[@]} - 1]}" ]; then
+          curl -fsSL -o "$WORK/package.zip" "$base/$name"
+        else
+          curl -fsSL -o "$WORK/package.zip" "$base/$name" 2>/dev/null
+        fi
+      }; then
         downloaded=1
         break
       fi

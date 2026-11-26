@@ -99,4 +99,4 @@ jobs:
           gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
             "dist/hook-me-up-${version}-macos.zip" \
             "dist/hook-me-up-${version}-macos.zip.sha256" \
-            --title "Hook Me Up $version" --generate-notes "${release_flags[@]}"
+            --title "Hook Me Up v$version" --generate-notes "${release_flags[@]}"

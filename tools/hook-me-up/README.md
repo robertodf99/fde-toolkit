@@ -252,6 +252,7 @@ The installer and uninstaller read these environment variables:
 
 | Variable | Effect |
 |---|---|
+| `HOOK_ME_UP_REF=<ref>` | Git ref from which the root shim downloads the real installer (default: `main`) |
 | `HOOK_ME_UP_VERSION=1.2.3` | Install that version (also accepts `v1.2.3` or `hook-me-up-v1.2.3`), trying the new tag before the legacy `v*` tag |
 | `HOOK_ME_UP_YES=1` | Change `~/.claude/settings.json` without asking (non-interactive installs) |
 | `HOOK_ME_UP_ZIP=<path>` | Install a local package (its `.sha256` must sit next to it) |
