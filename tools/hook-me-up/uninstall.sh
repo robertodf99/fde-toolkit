@@ -1,7 +1,7 @@
 #!/bin/bash
 # Hook Me Up uninstaller.
 #
-#   curl -fsSL https://raw.githubusercontent.com/robertodf99/hook-me-up/main/uninstall.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/robertodf99/fde-toolkit/main/tools/hook-me-up/uninstall.sh | bash
 #
 # Removes Hook Me Up's hooks from ~/.claude/settings.json (after showing the diff and
 # asking). Only then does it stop the agent and remove the app, its LaunchAgent, its

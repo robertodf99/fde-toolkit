@@ -3,7 +3,17 @@ name: CI
 on:
   push:
     branches: [main]
+    paths: &hook-me-up-paths
+      - 'tools/hook-me-up/**'
+      - 'scripts/**'
+      - '.claude-plugin/**'
+      - '.github/workflows/**'
+      - '.editorconfig'
+      - '.gitignore'
+      - 'Makefile'
+      - 'LICENSE'
   pull_request:
+    paths: *hook-me-up-paths
 
 permissions:
   contents: read
@@ -16,6 +26,9 @@ jobs:
   build-and-test:
     runs-on: macos-latest
     timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: tools/hook-me-up
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -54,3 +67,7 @@ jobs:
         run: |
           node --version
           make editor-extension-check
+
+      - name: Toolkit marketplace
+        working-directory: .
+        run: scripts/check-marketplace.sh

@@ -461,6 +461,83 @@ check "without any tool, uninstall succeeds without a word about the extension" 
   '[ ! -e "$APP" ] && ! grep -qi "extension" "$LOGS/uninstall-no-tool.txt"'
 check "and the settings are back to the original" 'json_equal "$WORKDIR/original.json" "$SETTINGS"'
 
+echo "--- release tags, with curl stood in for (no network)"
+DOWNLOADS="$WORKDIR/downloads"
+mkdir -p "$DOWNLOADS/bin"
+cat >"$DOWNLOADS/bin/curl" <<'STUB'
+#!/bin/bash
+set -euo pipefail
+out="" url=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -o) out="$2"; shift 2 ;;
+    -*) shift ;;
+    *) url="$1"; shift ;;
+  esac
+done
+printf '%s\n' "$url" >>"$DOWNLOAD_LOG"
+if [ "$url" = "https://api.github.com/repos/robertodf99/fde-toolkit/releases/latest" ]; then
+  printf '{"tag_name":"%s"}\n' "$DOWNLOAD_LATEST"
+  exit 0
+fi
+base="https://github.com/robertodf99/fde-toolkit/releases/download/$DOWNLOAD_TAG/hook-me-up-$DOWNLOAD_VERSION-macos.zip"
+case "$url" in
+  "$base") cp "$DOWNLOAD_ZIP" "$out" ;;
+  "$base.sha256")
+    if [ "${DOWNLOAD_BAD_CHECKSUM:-0}" = 1 ]; then printf 'bad checksum\n' >"$out"; else cp "$DOWNLOAD_ZIP.sha256" "$out"; fi
+    ;;
+  *) printf 'curl: (22) HTTP 404 for %s\n' "$url" >&2; exit 22 ;;
+esac
+STUB
+chmod +x "$DOWNLOADS/bin/curl"
+download_run() { # name, requested version (empty = latest), available tag, extra env...
+  local name="$1" requested="$2" available="$3"
+  shift 3
+  : >"$LOGS/download-$name.urls"
+  run install.sh HOOK_ME_UP_ZIP= HOOK_ME_UP_YES=1 HOOK_ME_UP_VERSION="$requested" \
+    PATH="$DOWNLOADS/bin:$SAFE_PATH" DOWNLOAD_LOG="$LOGS/download-$name.urls" \
+    DOWNLOAD_ZIP="$ZIP" DOWNLOAD_TAG="$available" DOWNLOAD_VERSION=0.5.0-rc.1 DOWNLOAD_LATEST="$available" \
+    "$@" >"$LOGS/download-$name.txt" 2>&1
+}
+BASE="https://github.com/robertodf99/fde-toolkit/releases/download/hook-me-up-v0.5.0-rc.1/hook-me-up-0.5.0-rc.1-macos.zip"
+for requested in 0.5.0-rc.1 hook-me-up-v0.5.0-rc.1; do
+  if download_run "$requested" "$requested" hook-me-up-v0.5.0-rc.1; then status=0; else status=$?; fi
+  check "$requested: the tool tag installs, with unchanged asset names" \
+    '[ "$status" = 0 ] && [ -x "$APP/Contents/MacOS/hook-me-up" ] && \
+     [ "$(cat "$LOGS/download-$requested.urls")" = "$(printf "%s\n%s" "$BASE" "$BASE.sha256")" ]'
+done
+check "the installer prints the canonical uninstall URL" \
+  'grep -qF "curl -fsSL https://raw.githubusercontent.com/robertodf99/fde-toolkit/main/tools/hook-me-up/uninstall.sh | bash" "$LOGS/download-0.5.0-rc.1.txt"'
+if download_run latest "" hook-me-up-v0.5.0-rc.1; then status=0; else status=$?; fi
+check "latest installs from the tool tag returned by the API" \
+  '[ "$status" = 0 ] && [ "$(cat "$LOGS/download-latest.urls")" = "$(printf "%s\n%s\n%s" "https://api.github.com/repos/robertodf99/fde-toolkit/releases/latest" "$BASE" "$BASE.sha256")" ]'
+DOWNLOAD_STATE="$(tree_state)"
+for available in agent-workflow-v1.0.0 hook-me-up-v vunknown v0.5.0-rc.1; do
+  if download_run "reject-$available" "" "$available"; then status=0; else status=$?; fi
+  check "latest $available is rejected before any asset is downloaded" \
+    '[ "$status" != 0 ] && [ "$(wc -l <"$LOGS/download-reject-$available.urls" | tr -d " ")" = 1 ] && same_tree "$DOWNLOAD_STATE"'
+done
+for requested in hook-me-up-vv0.5.0-rc.1 agent-workflow-v1.0.0 '../0.5.0' v0.5.0-rc.1; do
+  if download_run invalid "$requested" missing; then status=0; else status=$?; fi
+  check "invalid explicit version $requested is rejected before downloading" \
+    '[ "$status" != 0 ] && [ ! -s "$LOGS/download-invalid.urls" ] && same_tree "$DOWNLOAD_STATE"'
+done
+if download_run missing 0.5.0-rc.1 missing; then status=0; else status=$?; fi
+check "a missing tag fails after one attempt without changing the installation" \
+  '[ "$status" != 0 ] && [ "$(cat "$LOGS/download-missing.urls")" = "$BASE" ] && same_tree "$DOWNLOAD_STATE"'
+check "a failed download's curl error stays visible" \
+  'grep -qF "curl: (22) HTTP 404 for $BASE" "$LOGS/download-missing.txt"'
+if download_run latest-missing "" hook-me-up-v0.5.0-rc.1 DOWNLOAD_TAG=missing; then status=0; else status=$?; fi
+check "a latest release with a missing package shows its curl error" \
+  '[ "$status" != 0 ] && grep -qF "curl: (22) HTTP 404 for $BASE" "$LOGS/download-latest-missing.txt" && same_tree "$DOWNLOAD_STATE"'
+if download_run checksum 0.5.0-rc.1 hook-me-up-v0.5.0-rc.1 DOWNLOAD_BAD_CHECKSUM=1; then status=0; else status=$?; fi
+check "a wrong checksum fails without installation changes" \
+  '[ "$status" != 0 ] && grep -q "checksum mismatch" "$LOGS/download-checksum.txt" && \
+   [ "$(wc -l <"$LOGS/download-checksum.urls" | tr -d " ")" = 2 ] && same_tree "$DOWNLOAD_STATE"'
+run uninstall.sh HOOK_ME_UP_YES=1 >"$LOGS/uninstall-download.txt" 2>&1
+check "downloaded package uninstalls and restores the original settings" \
+  'json_equal "$WORKDIR/original.json" "$SETTINGS" && [ ! -e "$APP" ]'
+
 check "the real HOME was not touched" '[ "$BEFORE" = "$(fingerprint)" ]'
 
 if [ "$failures" -ne 0 ]; then

@@ -1,9 +1,10 @@
 #!/bin/bash
 # Checks the Claude Code plugin files without the claude CLI (which CI doesn't have):
-# the marketplace and plugin manifests parse as JSON, names and paths line up, the
+# the plugin manifest parses as JSON, its name is valid, the
 # plugin declares no hooks (they would run in addition to the ones in settings.json),
 # and every skill has a name, a description and disable-model-invocation: true.
-# With the claude CLI, `claude plugin validate .` checks more.
+# The toolkit marketplace is checked separately by scripts/check-marketplace.sh at
+# the repository root. With the claude CLI, `claude plugin validate ./plugin` checks more.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -24,24 +25,15 @@ def load(path):
         check(False, f"{path} is valid JSON ({error})")
         sys.exit(1)
 
-market = load(".claude-plugin/marketplace.json")
-check(True, ".claude-plugin/marketplace.json is valid JSON")
-check(market.get("name") == "hook-me-up", "marketplace name is hook-me-up")
-check(bool(market.get("owner", {}).get("name")), "marketplace has an owner name")
-plugins = market.get("plugins", [])
-check(len(plugins) == 1, "marketplace lists one plugin")
-entry = plugins[0] if plugins else {}
-source = entry.get("source", "")
-check(source.startswith("./") and ".." not in source and os.path.isdir(source), f"plugin source {source} is a folder here")
-
+source = "plugin"
 manifest_path = os.path.join(source, ".claude-plugin/plugin.json")
 manifest = load(manifest_path)
 check(True, f"{manifest_path} is valid JSON")
 name = manifest.get("name", "")
-check(name == entry.get("name"), "plugin name matches its marketplace entry")
+check(name == "hook-me-up", "plugin name is hook-me-up")
 check(re.fullmatch(r"[a-z0-9]+(-[a-z0-9]+)*", name) is not None and not name.startswith("claude"), f"plugin name {name} is kebab-case and not reserved")
 check("version" not in manifest, "plugin.json pins no version")
-check("hooks" not in manifest and "hooks" not in entry and not os.path.exists(os.path.join(source, "hooks")), "the plugin declares no hooks")
+check("hooks" not in manifest and not os.path.exists(os.path.join(source, "hooks")), "the plugin declares no hooks")
 
 skills = os.path.join(source, "skills")
 names = sorted(os.listdir(skills)) if os.path.isdir(skills) else []

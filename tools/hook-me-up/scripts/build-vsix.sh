@@ -74,7 +74,7 @@ cat >"$STAGE/extension.vsixmanifest" <<EOF
       <Property Id="Microsoft.VisualStudio.Code.ExtensionPack" Value=""/>
       <Property Id="Microsoft.VisualStudio.Code.ExtensionKind" Value="$(xml "$kind")"/>
       <Property Id="Microsoft.VisualStudio.Code.LocalizedLanguages" Value=""/>
-      <Property Id="Microsoft.VisualStudio.Services.Links.Source" Value="https://github.com/robertodf99/hook-me-up"/>
+      <Property Id="Microsoft.VisualStudio.Services.Links.Source" Value="https://github.com/robertodf99/fde-toolkit"/>
     </Properties>
     <License>extension/LICENSE.txt</License>
   </Metadata>

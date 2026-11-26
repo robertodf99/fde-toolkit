@@ -6,7 +6,7 @@ body:
     attributes:
       value: |
         Ideas are also welcome as a conversation in
-        [Feedback & ideas](https://github.com/robertodf99/hook-me-up/discussions/1).
+        [Feedback & ideas](https://github.com/robertodf99/fde-toolkit/discussions/1).
   - type: textarea
     id: problem
     attributes:

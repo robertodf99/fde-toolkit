@@ -26,7 +26,7 @@ with a backup.
    prints what it would change instead:
 
    ```sh
-   curl -fsSL https://raw.githubusercontent.com/robertodf99/hook-me-up/main/install.sh | HOOK_ME_UP_NO_TTY=1 bash
+   curl -fsSL https://raw.githubusercontent.com/robertodf99/fde-toolkit/main/tools/hook-me-up/install.sh | HOOK_ME_UP_NO_TTY=1 bash
    ```
 
    It downloads the latest release, checks its SHA-256, installs

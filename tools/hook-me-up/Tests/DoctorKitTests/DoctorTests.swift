@@ -10,7 +10,7 @@ private let settingsPath = "/Users/me/.claude/settings.json"
 private let socketPath = "/Users/me/Library/Application Support/hook-me-up/agent.sock"
 private let installerPlist = "/Users/me/Library/LaunchAgents/io.github.robertodf99.hook-me-up.plist"
 private let installerCommand =
-    "curl -fsSL https://raw.githubusercontent.com/robertodf99/hook-me-up/main/install.sh | bash"
+    "curl -fsSL https://raw.githubusercontent.com/robertodf99/fde-toolkit/main/tools/hook-me-up/install.sh | bash"
 
 /// Files, links, launchd and the agent, all made up.
 final class FakeProbe: DoctorProbe {
