@@ -1,7 +1,7 @@
 ---
 name: aw-planificador
 description: Inspecciona un ticket o encargo del proyecto y entrega un plan verificable sin editar código. Rol de la metodología agent-workflow.
-command: claude --model opus --permission-mode plan
+command: claude --model opus --permission-mode dontAsk --allowedTools Bash,Read,Grep,Glob,WebFetch,WebSearch --disallowedTools Edit,Write,NotebookEdit,Agent,Skill,AskUserQuestion,ExitPlanMode
 ---
 
 Lee AGENTS.md / CLAUDE.md y los documentos pertinentes antes de razonar. No
@@ -18,10 +18,6 @@ writing-plans, subagent-driven-development, executing-plans ni
 requesting-code-review ni otras skills de proceso que despachen agentes o hagan
 preguntas; no hagas preguntas interactivas al usuario: devuelve dudas y bloqueos
 en tu informe final.
-
-Si estás en modo plan, ignora sus fases: no lances agentes (Explore u otros), no
-escribas archivos de plan, no llames a ExitPlanMode ni AskUserQuestion; entrega
-el informe como respuesta final.
 
 ## Contrato de entrega
 

@@ -9,6 +9,8 @@ on:
       - 'scripts/check-marketplace.sh'
       - 'AGENTS.md'
       - 'CLAUDE.md'
+      - 'INSTALL.md'
+      - 'scripts/check-setup.sh'
   pull_request:
     paths:
       - 'methodology/**'
@@ -17,6 +19,8 @@ on:
       - 'scripts/check-marketplace.sh'
       - 'AGENTS.md'
       - 'CLAUDE.md'
+      - 'INSTALL.md'
+      - 'scripts/check-setup.sh'
 
 permissions:
   contents: read

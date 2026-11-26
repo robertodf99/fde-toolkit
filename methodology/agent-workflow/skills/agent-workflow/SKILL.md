@@ -16,10 +16,10 @@ Opus**; los implementadores usan **Codex**: gpt-6-luna/high para mecánico,
 gpt-6.1-sol/high para normal y gpt-6.1-sol/xhigh para delicado.
 El despacho canónico es [Herdr](references/herdr-hc.md): ejecuta en orden los
 roles que pide el triaje, uno por fase, esperando su resultado antes de la siguiente.
-El despacho nativo usa un solo runtime y es un fallback: solo si el usuario lo
-autoriza o Herdr no aplica. «Herdr no aplica» solo en sesión no interactiva
-(`claude -p`, `codex exec`) o modo desatendido. En sesión interactiva, Herdr no
-instalado o sin respuesta = bloqueo informado, no fallback automático.
+El despacho nativo usa un solo runtime como fallback no interactivo:
+`claude -p`, `codex exec` o modo desatendido («Herdr no aplica»).
+En sesión interactiva, Herdr no instalado o sin respuesta = bloqueo informado,
+sin fallback automático.
 
 ## Precedencia y selección de skills
 
@@ -103,8 +103,7 @@ interactivas sigue [Herdr](references/herdr-hc.md) y los overrides opcionales de
 `~/.config/agent-workflow/HERDR.md`. Cada rol aparece en su pestaña del espacio
 resuelto en vivo. Si falta Herdr requerido, informa bloqueo, sin sustitución nativa.
 
-Solo para el fallback nativo autorizado o si Herdr no aplica, usa
-[claude-code.md](references/claude-code.md) o [codex.md](references/codex.md).
+Referencias nativas: [Claude Code](references/claude-code.md) y [Codex](references/codex.md).
 Esta metodología autoriza los modelos de roles.md para ese despacho.
 Si no puedes delegar, declara la limitación; una revisión inline no es independiente.
 

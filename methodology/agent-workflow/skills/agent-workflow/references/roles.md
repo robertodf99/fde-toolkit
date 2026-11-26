@@ -1,14 +1,6 @@
 # Roles y contratos
 
-El coordinador es la sesión del usuario. El reparto por defecto combina Claude
-Opus para planificador/revisor y Codex para implementar según complejidad.
-Herdr es el despacho canónico: roles en orden, uno por fase, según el triaje.
-Las columnas nativas son un fallback de un solo runtime, permitido únicamente
-si el usuario lo autoriza o Herdr no aplica. Su ausencia o fallo no autoriza
-una sustitución automática; si Herdr aplica y falta, informa bloqueo.
-«Herdr no aplica» solo significa sesión no interactiva (`claude -p`, `codex exec`)
-o modo desatendido. En una sesión interactiva, Herdr no instalado o sin respuesta
-es bloqueo informado, no una condición de fallback.
+Despacho y precedencia: [SKILL.md](../SKILL.md#reparto-por-defecto).
 
 Los modelos son preferencias de despacho, no promesas de coste o calidad.
 Comprueba el catálogo y esquema del runtime; registra por separado modelo
@@ -17,11 +9,11 @@ No cambies configuración global para forzarla.
 
 | Rol | Claude nativo | Codex nativo (esfuerzo) | Herdr (CLI, modelo) |
 |---|---|---|---|
-| planificador | opus, high | gpt-6.1-sol, high | Claude opus, plan |
+| planificador | opus, high | gpt-6.1-sol, high | Claude opus, dontAsk |
 | implementador-simple | sonnet, high | gpt-6-luna, high | Codex gpt-6-luna, high |
 | implementador | opus, high | gpt-6.1-sol, high | Codex gpt-6.1-sol, high |
 | implementador-delicado | opus, xhigh | gpt-6.1-sol, xhigh | Codex gpt-6.1-sol, xhigh |
-| revisor | opus, high | gpt-6.1-sol, high | Claude opus, plan |
+| revisor | opus, high | gpt-6.1-sol, high | Claude opus, dontAsk |
 
 Planificador y revisor usan Opus en todos los despachos con Claude.
 Los nombres públicos usan guiones; los archivos/nombres TOML de Codex usan
@@ -44,8 +36,6 @@ conserva la sesión del implementador para dos rondas de reparación como máxim
 planificador y revisores se retiran tras registrar sus informes.
 El triaje ya está hecho: ningún worker invoca skills de proceso que despachen
 agentes o pregunten al usuario; devuelve dudas y bloqueos en el informe final.
-Planificador/revisor en modo plan ignoran sus fases: no lanzan Explore u otros
-agentes, no escriben planes ni llaman a ExitPlanMode o AskUserQuestion.
 
 ## Áreas delicadas y permisos
 
@@ -63,3 +53,9 @@ en este flujo y bloquea commits. El contrato limita sus acciones al encargo.
 `--no-daemon` y `-c approval_policy="never"` son obligatorios para Codex dentro
 de hc. Junto a danger-full-access evitan aprobaciones invisibles que bloqueen al
 worker; no amplían el alcance del encargo ni autorizan acciones nuevas.
+
+En Herdr, planificador y revisor usan `--permission-mode dontAsk`, permiten
+`Bash,Read,Grep,Glob,WebFetch,WebSearch` y deniegan
+`Edit,Write,NotebookEdit,Agent,Skill,AskUserQuestion,ExitPlanMode`. No usan modo plan.
+Bash puede escribir: el contrato de solo lectura sigue siendo obligatorio.
+Los agentes nativos de Claude conservan su frontmatter y sus límites propios.

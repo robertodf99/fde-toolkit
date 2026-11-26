@@ -1,8 +1,6 @@
 # Despacho nativo en Codex
 
-Fallback de un solo runtime: úsalo únicamente si el usuario lo autoriza o Herdr
-no aplica. El despacho canónico mixto está en herdr-hc.md; su ausencia o fallo
-no autoriza sustituirlo automáticamente.
+Despacho y precedencia: [SKILL.md](../SKILL.md#reparto-por-defecto).
 Lee explícitamente el TOML de `codex/agents/` de esta fuente (instalado en
 `~/.config/agent-workflow/.codex/agents/`). No se carga por nombrar el rol.
 

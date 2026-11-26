@@ -19,10 +19,6 @@ requesting-code-review ni otras skills de proceso que despachen agentes o hagan
 preguntas; no hagas preguntas interactivas al usuario: devuelve dudas y bloqueos
 en tu informe final.
 
-Si estás en modo plan, ignora sus fases: no lances agentes (Explore u otros), no
-escribas archivos de plan, no llames a ExitPlanMode ni AskUserQuestion; entrega
-el informe como respuesta final.
-
 ## Contrato de entrega
 
 Si el primer mensaje es un encargo de rol, ejecuta solo este rol.

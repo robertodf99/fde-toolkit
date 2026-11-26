@@ -34,8 +34,8 @@ bash methodology/agent-workflow/install.sh                 # dry-run
 bash methodology/agent-workflow/install.sh --yes           # aplica
 bash methodology/agent-workflow/install.sh --only codex    # solo muestra Codex
 bash methodology/agent-workflow/install.sh --yes --only hc
-bash methodology/agent-workflow/install.sh --uninstall --restore  # dry-run
-bash methodology/agent-workflow/install.sh --yes --uninstall --restore
+bash methodology/agent-workflow/install.sh --uninstall  # dry-run
+bash methodology/agent-workflow/install.sh --yes --uninstall
 ```
 
 `--only claude|codex|hc` limita instalación y desinstalación. Sin `--yes` no crea
@@ -46,24 +46,15 @@ ni modifica archivos. Con `--yes` crea estos symlinks:
   `~/.config/agent-workflow/.codex/agents/` (no modifica config global).
 - Herdr: cinco `~/.config/herdr-core/templates/aw-*.md`.
 
-Los originales se mueven, incluidos directorios y symlinks rotos, a
-`~/.local/share/agent-workflow/backups/<fecha-id>/files/`, con `manifest.json`.
-El registro activo es `~/.local/share/agent-workflow/install-manifest.json`.
-Repetir la instalación es idempotente. Si el usuario reemplaza un enlace
-registrado, se bloquea la operación antes de escribir y conserva ese archivo.
-Desinstalar retira solo enlaces registrados; `--restore` recupera originales.
-Sin `--restore`, conserva backups y registro para restaurarlos más tarde.
-No borra las carpetas de backups ni archivos ajenos.
-Un manifiesto inválido se rechaza antes de actuar. Los movimientos entre volúmenes
-(EXDEV) se rechazan con un mensaje claro: el original permanece en su ubicación
-de origen. Corrige la ubicación de los volúmenes y reintenta; si falló una
-restauración, el registro y el backup se conservan para volver a restaurar.
+Los originales quedan en `~/.local/share/agent-workflow/backups/`; el manifiesto
+principal está en `~/.local/share/agent-workflow/install-manifest.json`.
+Repetir la instalación es idempotente; desinstalar restaura siempre los originales.
+Nunca sigue ni borra enlaces ajenos; ante fallos, conserva originales y backups.
 
 Mantén la ruta del checkout: borrar un worktree rompe los enlaces. El instalador
 avisa de fuentes en worktree y de un plugin activo en settings de Claude.
 Usa una sola forma de cargar la skill en Claude para evitar duplicados.
-Los manifiestos son estado local: no los edites ni borres mientras dependas de
-los backups. No ejecutes dos instalaciones a la vez.
+No ejecutes dos instalaciones a la vez.
 
 ## Plugin Claude Code
 
@@ -84,12 +75,6 @@ Perfiles, runners y overrides siguen fuera del repositorio en
 No se necesitan perfiles ni tracker para un encargo explícito. Un tracker se
 consulta vía MCP (p. ej. Linear). Los punteros personales de AGENTS.md / CLAUDE.md
 se mantienen aparte.
-
-El protocolo [Herdr](skills/agent-workflow/references/herdr-hc.md) resuelve el
-espacio antes de cada lanzamiento, abre una pestaña por rol con `tab.new`, verifica
-la recepción y conserva sesiones. La alternativa `hc run` requiere comprobación
-y `terminal.keep` por el coordinador si falta pestaña; no garantiza el espacio
-resultante de ese comando. No se pide al usuario que ejecute keep manualmente.
 
 ## Validación
 

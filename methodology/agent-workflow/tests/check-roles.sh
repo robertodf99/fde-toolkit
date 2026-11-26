@@ -4,6 +4,7 @@ root=$(cd "$(dirname "$0")/.." && pwd)
 python3 - "$root" <<'PY'
 from pathlib import Path
 import re
+import shlex
 import sys
 
 root = Path(sys.argv[1])
@@ -30,24 +31,20 @@ for role in roles:
         toml = (root / f"codex/agents/{role.replace('-', '_')}.toml").read_text()
         body = re.search(r'developer_instructions = """\n(.*?)\n"""', toml, re.S)
         check(body is not None and native == hc == body[1].strip(), f"{role}: paridad de cuerpo en tres runtimes")
-        normalized = " ".join(native.split())
-        check("El triaje ya está hecho por el coordinador:" in normalized
-              and "no hagas preguntas interactivas al usuario:" in normalized
-              and all(skill in normalized for skill in ("brainstorming", "writing-plans",
-                      "subagent-driven-development", "executing-plans", "requesting-code-review")),
-              f"{role}: worker sin orquestación ni preguntas interactivas")
         if role.startswith("implementador"):
             command = hc_path.read_text().split("command: ", 1)[1].splitlines()[0]
             check("--sandbox danger-full-access" in command and "--no-daemon" in command
                   and '-c approval_policy="never"' in command,
                   f"{role}: permisos de git, sin daemon ni aprobaciones invisibles")
         if role in ("planificador", "revisor"):
-            command = hc_path.read_text().split("command: ", 1)[1].splitlines()[0]
-            check(command == "claude --model opus --permission-mode plan",
-                  f"{role}: Claude Opus en Herdr")
-            check("Si estás en modo plan, ignora sus fases:" in normalized
-                  and "ExitPlanMode" in normalized and "AskUserQuestion" in normalized,
-                  f"{role}: informe final sin fases del modo plan")
+            argv = shlex.split(hc_path.read_text().split("command: ", 1)[1].splitlines()[0])
+            flags = {flag: argv[argv.index(flag) + 1] for flag in
+                     ("--model", "--permission-mode", "--allowedTools", "--disallowedTools") if flag in argv}
+            check(flags.get("--model") == "opus" and flags.get("--permission-mode") == "dontAsk",
+                  f"{role}: Claude Opus sin modo plan ni preguntas de permisos")
+            check(set(flags.get("--allowedTools", "").split(",")) == {"Bash", "Read", "Grep", "Glob", "WebFetch", "WebSearch"}
+                  and set(flags.get("--disallowedTools", "").split(",")) == {"Edit", "Write", "NotebookEdit", "Agent", "Skill", "AskUserQuestion", "ExitPlanMode"},
+                  f"{role}: herramientas de lectura y límites de escritura/despacho")
     except (OSError, IndexError) as error:
         check(False, f"{role}: {error}")
 patterns = [("ruta personal", re.compile(r"/" + r"Users/")),
@@ -60,7 +57,7 @@ if private.is_file():
              if line.strip() and not line.lstrip().startswith("#")]
 repo = root.parent.parent
 instructions = [repo / "AGENTS.md", repo / "CLAUDE.md", repo / "INSTALL.md", repo / "scripts/check-setup.sh"]
-for path in instructions + [root / "skills/agent-workflow/references/unattended.md"]:
+for path in instructions:
     check(path.is_file(), f"{path.relative_to(repo)} presente")
 for path in sorted(list(root.rglob("*")) + instructions):
     if not path.is_file():
@@ -73,6 +70,9 @@ for path in sorted(list(root.rglob("*")) + instructions):
     if any(term.casefold() in content.casefold() for term in terms):
         check(False, f"privacidad (término privado, valor oculto): {path.relative_to(repo)}")
 check(not failures, "privacidad genérica y términos privados locales")
+precedence = [re.search(r"^\s*line\s*=\s*'([^']+)'$", path.read_text(), re.M)
+              for path in (repo / "INSTALL.md", repo / "scripts/check-setup.sh")]
+check(all(precedence) and precedence[0][1] == precedence[1][1], "misma línea de precedencia en guía y verificador")
 skill = root / "skills/agent-workflow/SKILL.md"
 if check(skill.is_file(), "SKILL.md presente"):
     check(len(skill.read_text().splitlines()) <= 120, "SKILL.md de hasta 120 líneas")

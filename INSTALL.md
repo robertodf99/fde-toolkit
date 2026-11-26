@@ -3,71 +3,68 @@
 Tell your agent: **“Follow https://github.com/robertodf99/fde-toolkit/blob/main/INSTALL.md”.**
 
 **Agent rules:** ask before installing software or changing user configuration;
-show the proposed changes first. Never read, paste or use credentials, buy a plan,
+show proposed changes first. Never read, paste or use credentials, buy a plan,
 or change global settings silently. Let the user handle sign-in. Stop and report
-any failed step; preserve existing files and approvals.
+failed steps; preserve existing files and approvals. Every command block is
+self-contained. If using another stable checkout path, replace `~/fde-toolkit`
+in every command below; never use `/tmp` or a worktree for methodology symlinks.
 
-1. **Check prerequisites.** Hook Me Up needs macOS 14+ (`sw_vers -productVersion`);
-   on Linux, skip it and install just the methodology. Check the terminal tools:
+1. **Check the two bootstrap tools:** `git --version && python3 --version`
+   (Python 3.9+). If missing, ask before installing [Git](https://git-scm.com/downloads/)
+   or [Python](https://www.python.org/downloads/).
 
-   ```sh
-   for tool in git claude codex herdr-app herdr-core python3 jq; do
-     command -v "$tool" || { printf 'Missing: %s\n' "$tool"; exit 1; }
-   done
-   ```
-
-   If missing, ask before following the official installation instructions:
-   [Git](https://git-scm.com/downloads/), [Claude Code](https://code.claude.com/docs/en/setup),
-   [Codex CLI](https://developers.openai.com/codex/cli),
-   [Herdr Desktop + Core](https://herdr.dev/download/),
-   [Python 3.9+](https://www.python.org/downloads/) and [jq](https://jqlang.org/download/).
-   Install/enable [Superpowers](https://github.com/obra/superpowers#installation)
-   in **both** Claude Code and Codex: Claude `/plugin install superpowers@claude-plugins-official`;
-   Codex `/plugins` → search Superpowers → Install Plugin. These are agent-menu
-   commands, not shell commands. [gh](https://cli.github.com/) is optional.
-
-2. **Use a stable checkout.** Default: `~/fde-toolkit`; choose another permanent
-   path if needed. Methodology symlinks point here: never use `/tmp` or a worktree.
-   If the folder exists, confirm it is this repository and has no local changes;
-   stop on a mismatch or conflict. Then run:
+2. **Clone or update.** For an existing folder, check origin and local changes
+   before pulling; stop if it is another repo, a worktree or has changes:
 
    ```sh
-   toolkit_dir="$HOME/fde-toolkit"
-   if [ -d "$toolkit_dir/.git" ]; then
-     git -C "$toolkit_dir" pull --ff-only
+   if [ -e "$HOME/fde-toolkit" ]; then
+     [ -d "$HOME/fde-toolkit/.git" ] || { printf 'Not a regular clone\n'; exit 1; }
+     origin=$(git -C "$HOME/fde-toolkit" remote get-url origin) || exit 1
+     case "$origin" in
+       https://github.com/robertodf99/fde-toolkit|https://github.com/robertodf99/fde-toolkit.git) ;;
+       *) printf 'Different origin; stop and report\n'; exit 1 ;;
+     esac
+     changes=$(git -C "$HOME/fde-toolkit" status --short) || exit 1
+     [ -z "$changes" ] || { printf 'Local changes; stop and report\n'; exit 1; }
+     git -C "$HOME/fde-toolkit" pull --ff-only
    else
-     git clone https://github.com/robertodf99/fde-toolkit "$toolkit_dir"
+     git clone https://github.com/robertodf99/fde-toolkit "$HOME/fde-toolkit"
    fi
-   cd "$toolkit_dir"
    ```
 
-   Run the remaining setup commands from this checkout.
+   Run `bash "$HOME/fde-toolkit/scripts/check-setup.sh"` for the full inventory
+   (✗ is expected before setup). Ask before installing missing components from
+   [Claude Code](https://code.claude.com/docs/en/setup),
+   [Codex CLI](https://developers.openai.com/codex/cli), [Herdr Desktop + Core](https://herdr.dev/download/)
+   or [jq](https://jqlang.org/download/). Install/enable [Superpowers](https://github.com/obra/superpowers#installation)
+   in both runtimes: Claude `/plugin install superpowers@claude-plugins-official`;
+   Codex `/plugins` → search Superpowers → Install Plugin (agent menus, not shell).
+   [gh](https://cli.github.com/) is optional. Hook Me Up needs macOS 14+
+   (`sw_vers -productVersion`); on Linux skip it.
 
-3. **Install Hook Me Up (Mac only), after permission.** It installs the app,
-   login agent and editor extension, and previews changes to `~/.claude/settings.json`:
+3. **Hook Me Up, after permission to install the app.** Preview the hooks without
+   `/dev/tty` prompts, clearing any inherited auto-yes flag:
 
    ```sh
-   HOOK_ME_UP_YES=0 bash tools/hook-me-up/install.sh
+   env -u HOOK_ME_UP_YES HOOK_ME_UP_NO_TTY=1 bash "$HOME/fde-toolkit/tools/hook-me-up/install.sh"
    ```
 
-   The installer asks through `/dev/tty`. Without a TTY it leaves settings alone:
-   show the printed diff to the user, then **only after their explicit yes** run
-   `HOOK_ME_UP_YES=1 bash tools/hook-me-up/install.sh`.
-   Allow notifications, select **Alerts**, and restart existing Claude Code sessions.
-   Verify with `"$HOME/Applications/Hook Me Up.app/Contents/MacOS/hook-me-up-setup" doctor`.
-   See [first run and troubleshooting](tools/hook-me-up/README.md#first-run) for detail.
+   This installs the app, login agent and editor extension but leaves hook settings
+   alone. Show the diff for `~/.claude/settings.json`; **only after explicit yes**:
+   `HOOK_ME_UP_YES=1 bash "$HOME/fde-toolkit/tools/hook-me-up/install.sh"`.
+   Allow notifications, choose **Alerts**, restart Claude Code sessions, then run
+   `"$HOME/Applications/Hook Me Up.app/Contents/MacOS/hook-me-up-setup" doctor`.
+   [First-run details](tools/hook-me-up/README.md#first-run).
 
-4. **Install the methodology.** Run `bash methodology/agent-workflow/install.sh`
-   first and show its dry-run plan. After approval, run
-   `bash methodology/agent-workflow/install.sh --yes`.
-   It links skills, five roles per runtime and Herdr templates; originals and their
-   manifest go under `~/.local/share/agent-workflow/backups/`.
-   For partial setups, use `--only claude|codex|hc`; the final checker targets the
-   full setup and will report omitted components. See [installation details](methodology/agent-workflow/README.md#instalación-local).
+4. **Methodology:** run `bash "$HOME/fde-toolkit/methodology/agent-workflow/install.sh"`
+   and show its dry-run plan. After approval, repeat with `--yes`.
+   It links skills, roles and Herdr templates, backing up originals under
+   `~/.local/share/agent-workflow/backups/`. For partial setups use
+   `--only claude|codex|hc`; the checker reports omitted components.
+   [Installation details](methodology/agent-workflow/README.md#instalación-local).
 
-5. **Propose personal precedence.** Explain this prevents Superpowers routing
-   before the methodology loads. **Only with permission**, append this exact line
-   to the two personal instruction files, preserving content and avoiding duplicates:
+5. **Personal precedence, only with permission.** This prevents Superpowers
+   routing before the methodology loads. Preserve content and avoid duplicates:
 
    ```sh
    line='Para trabajo de desarrollo usa la skill agent-workflow; su triaje decide qué skills de Superpowers aplican.'
@@ -77,24 +74,23 @@ any failed step; preserve existing files and approvals.
    done
    ```
 
-6. **Prepare Herdr.** Open Herdr Desktop. In each target project, run
-   `herdr-app ls` and reuse the space named after the repo. Only if missing, and
-   after permission, create it with
+6. **Herdr:** open Desktop and run `herdr-app ls`. Reuse the space named after
+   the target repo; stop if ambiguous. Only if absent, after permission, run this
+   with the command's working directory set to that project:
    `herdr-app do space.new --name "$(basename "$(git rev-parse --show-toplevel)")" --folder "$(git rev-parse --show-toplevel)"`.
-   If names are ambiguous, stop. Optional private `herdr_space` overrides and the
-   launch protocol are in [Herdr instructions](methodology/agent-workflow/skills/agent-workflow/references/herdr-hc.md).
+   Optional private `herdr_space` overrides: [Herdr protocol](methodology/agent-workflow/skills/agent-workflow/references/herdr-hc.md).
 
-7. **Verify:** `bash "$toolkit_dir/scripts/check-setup.sh"` (offline, read-only).
-   Fix each ✗; cached Superpowers files still need to be enabled in both menus.
-   With permission for a small change, ask in a disposable project:
+7. **Verify:** `bash "$HOME/fde-toolkit/scripts/check-setup.sh"` (offline, read-only).
+   Fix each ✗; confirm cached Superpowers is enabled in both menus. For a smoke
+   test, prepare a disposable project's **own Herdr space using step 6**, then ask:
    “usa la metodología agent-workflow para corregir estas dos erratas concretas
-   en archivos conocidos, nivel N1”. Confirm N1 and a Codex tab in that project's
-   Herdr space. A single-value change may be N0 and stay inline.
+   en archivos conocidos, nivel N1”. Confirm N1 and a Codex tab in that space.
+   A single-value change may be N0 and stay inline.
 
-8. **Update or remove.** Update with `git -C "$toolkit_dir" pull --ff-only`,
-   then repeat steps 3–4 (dry-run and consent before writes). To uninstall, after
-   permission run `bash "$toolkit_dir/tools/hook-me-up/uninstall.sh"` on Mac;
-   its settings consent rule is the same as step 3. Preview methodology removal
-   with `bash "$toolkit_dir/methodology/agent-workflow/install.sh" --uninstall --restore`,
-   then repeat with `--yes` after approval. Keep the checkout until its links are
-   removed. [Backup and restore details](methodology/agent-workflow/README.md#instalación-local).
+8. **Update/remove:** repeat step 2, then steps 3–4, including dry-run and consent.
+   To remove Hook Me Up, after permission, preview hook removal without prompts:
+   `env -u HOOK_ME_UP_YES HOOK_ME_UP_NO_TTY=1 bash "$HOME/fde-toolkit/tools/hook-me-up/uninstall.sh"`.
+   After explicit yes, run `HOOK_ME_UP_YES=1 bash "$HOME/fde-toolkit/tools/hook-me-up/uninstall.sh"`.
+   Preview methodology removal with `bash "$HOME/fde-toolkit/methodology/agent-workflow/install.sh" --uninstall`;
+   after approval repeat with `--yes`. **Uninstall always restores originals.**
+   Keep the checkout until its links are removed. [Details](methodology/agent-workflow/README.md#instalación-local).
