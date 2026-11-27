@@ -144,7 +144,9 @@ main() {
   if [ "$removed" != "1" ]; then
     # A chat-driven preview must show both clients before asking for consent, even
     # while Claude's hooks keep us from reaching the Codex removal below.
-    if [ "$codex" = 1 ] && ! has_tty && [ -x "$setup" ] && [ -f "$codex_settings" ]; then
+    if [ "${HOOK_ME_UP_YES:-0}" = 1 ]; then
+      warn "could not remove Claude Code hooks from $settings; stopping uninstall."
+    elif [ "$codex" = 1 ] && ! has_tty && [ -x "$setup" ] && [ -f "$codex_settings" ]; then
       if setup_has "$setup" --client; then
         "$setup" uninstall --client codex --settings "$codex_settings" --hook "$app/Contents/MacOS/hook-me-up" --state "$support/setup-state.json" --dry-run || true
         say "No terminal to ask, so $codex_settings was not changed."
@@ -158,7 +160,11 @@ main() {
       fi
     fi
     say "The hooks are still in $settings, so Hook Me Up keeps running and stays installed."
-    say "Run this again in a terminal, or with HOOK_ME_UP_YES=1, to finish."
+    if [ "${HOOK_ME_UP_YES:-0}" = 1 ]; then
+      say "Fix the error above, then run this again to finish."
+    else
+      say "Run this again in a terminal, or with HOOK_ME_UP_YES=1, to finish."
+    fi
     exit 0
   fi
 
@@ -210,7 +216,7 @@ main() {
   rm -rf "$HOME/Applications/Hook Me Up.app"
   rm -rf "$HOME/Library/Application Support/hook-me-up"
   say "Stopped the agent and removed $app, its LaunchAgent and $support."
-  local editor cli
+  local editor cli backup
   local limit="${HOOK_ME_UP_TEST_EDITOR_TIMEOUT:-120}"
   case "$limit" in "" | *[!0-9]*) limit=120 ;; esac
   # An editor without the extension refuses (exit 1): nothing to say then.
@@ -220,8 +226,13 @@ main() {
     fi
   done < <(editor_clis)
   say "Settings backups (settings.json.bak-*) were left in ~/.claude."
-  if [ "$codex" = 1 ] && [ -d "${CODEX_HOME:-$HOME/.codex}" ]; then
-    say "Codex backups (hooks.json.bak-*) were left beside $codex_settings."
+  if [ "$codex" = 1 ]; then
+    for backup in "$codex_settings".bak-*; do
+      if [ -f "$backup" ]; then
+        say "Codex backups (hooks.json.bak-*) were left beside $codex_settings."
+        break
+      fi
+    done
   fi
 }
 

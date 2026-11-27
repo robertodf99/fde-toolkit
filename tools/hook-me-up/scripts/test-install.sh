@@ -595,6 +595,16 @@ run uninstall.sh HOOK_ME_UP_YES=0 >"$LOGS/codex-uninstall-both-preview.txt" 2>&1
 check "default uninstall without consent previews both clients before exiting" \
   'grep -q "Exact text changes to .*settings.json" "$LOGS/codex-uninstall-both-preview.txt" && grep -q "Exact text changes to .*hooks.json" "$LOGS/codex-uninstall-both-preview.txt"'
 check "previewing both uninstall diffs leaves hooks, app and backups unchanged" 'same_tree "$CODEX_PREVIEW_STATE"'
+# A real setup failure after auto-consent is not a missing-terminal preview.
+cp "$SETTINGS" "$WORKDIR/settings-before-failed-uninstall.json"
+printf '{invalid settings\n' >"$SETTINGS"
+FAILED_UNINSTALL_STATE="$(tree_state)"
+run uninstall.sh HOOK_ME_UP_YES=1 >"$LOGS/codex-claude-failed-uninstall.txt" 2>&1
+check "failed Claude removal with auto-consent leaves hooks, app and backups unchanged" \
+  'same_tree "$FAILED_UNINSTALL_STATE"'
+check "failed Claude removal with auto-consent reports failure, not missing terminal" \
+  'grep -q "could not remove Claude Code hooks" "$LOGS/codex-claude-failed-uninstall.txt" && ! grep -q "No terminal to ask" "$LOGS/codex-claude-failed-uninstall.txt"'
+mv "$WORKDIR/settings-before-failed-uninstall.json" "$SETTINGS"
 if run_flag uninstall.sh --no-codex HOOK_ME_UP_YES=1 >"$LOGS/codex-kept.txt" 2>&1; then status=0; else status=$?; fi
 check "uninstall --no-codex warns and keeps app and Codex files byte identical" \
   '[ "$status" = 0 ] && [ -x "$APP/Contents/MacOS/hook-me-up-setup" ] && [ -f "$PLIST" ] && cmp -s "$CODEX/hooks.json" "$WORKDIR/codex-installed.json" && cmp -s "$CODEX/config.toml" "$WORKDIR/codex-config.toml" && grep -q "Codex hooks are still" "$LOGS/codex-kept.txt" && grep -q "Run this again without --no-codex" "$LOGS/codex-kept.txt"'
@@ -673,6 +683,15 @@ run install.sh CODEX_HOME= HOOK_ME_UP_YES=1 HOOK_ME_UP_ZIP="$OLD/hook-me-up-old-
 run uninstall.sh CODEX_HOME= HOOK_ME_UP_YES=1 >"$LOGS/codex-old-absent-uninstall.txt" 2>&1
 check "old uninstaller without Codex profile needs no --client support or backup message" \
   '[ ! -e "$APP" ] && [ ! -e "$FAKE/.codex" ] && ! grep -q "does not support --client" "$LOGS/codex-old-absent-uninstall.txt" && ! grep -q "Codex backups" "$LOGS/codex-old-absent-uninstall.txt"'
+
+# A profile and even a backup-shaped directory do not mean backup files exist.
+mkdir -p "$FAKE/.codex/hooks.json.bak-directory"
+cp "$WORKDIR/codex-original.json" "$FAKE/.codex/hooks.json"
+cp "$WORKDIR/codex-config.toml" "$FAKE/.codex/config.toml"
+run install.sh CODEX_HOME= HOOK_ME_UP_YES=1 HOOK_ME_UP_ZIP="$OLD/hook-me-up-old-macos.zip" >"$LOGS/codex-no-backups-install.txt" 2>&1
+run uninstall.sh CODEX_HOME= HOOK_ME_UP_YES=1 >"$LOGS/codex-no-backups-uninstall.txt" 2>&1
+check "Codex profile without backup files produces no backup location message" \
+  '[ ! -e "$APP" ] && ! grep -q "Codex backups" "$LOGS/codex-no-backups-uninstall.txt" && cmp -s "$FAKE/.codex/hooks.json" "$WORKDIR/codex-original.json" && cmp -s "$FAKE/.codex/config.toml" "$WORKDIR/codex-config.toml"'
 
 check "the real HOME was not touched" '[ "$BEFORE" = "$(fingerprint)" ]'
 
