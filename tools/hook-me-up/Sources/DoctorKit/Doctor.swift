@@ -324,10 +324,15 @@ public enum Doctor {
         guard let value = try? JSONDecoder().decode(JSONValue.self, from: data), value.objectValue != nil,
             value["hooks"] == nil || value["hooks"]?.objectValue != nil
         else {
+            let namesOurHook = String(decoding: data, as: UTF8.self).contains(install.hookPath)
             return [
                 DoctorCheck(
-                    "Codex hooks", .warn,
-                    "\(path) is not a valid hooks JSON object; unable to tell whether Hook Me Up is set up")
+                    "Codex hooks", namesOurHook ? .fail : .warn,
+                    "\(path) is not a valid hooks JSON object; "
+                        + (namesOurHook
+                            ? "it contains this installation's hook path"
+                            : "unable to tell whether Hook Me Up is set up"),
+                    fix: namesOurHook ? "Correct the JSON in \(path) before running Codex." : nil)
             ]
         }
         let found = SettingsMerger.inspect(

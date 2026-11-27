@@ -657,6 +657,21 @@ private func codexHooks(at path: String = app + "/Contents/MacOS/hook-me-up") ->
         #expect(report.exitCode == 0)
     }
 
+    @Test func corruptCodexJSONFailsOnlyWhenItNamesOurHook() {
+        for (hookPath, expected) in [
+            (app + "/Contents/MacOS/hook-me-up", DoctorCheck.Result.fail),
+            ("/old/Hook Me Up.app/Contents/MacOS/hook-me-up", .warn),
+        ] {
+            let probe = healthy()
+            // A truncated hook file is invalid JSON, but still contains its command path.
+            probe.files[codexPath] = Data(codexHooks(at: hookPath).dropLast())
+            let report = run(probe)
+            #expect(report.check("Codex hooks")?.result == expected)
+            #expect(report.exitCode == (expected == .fail ? 1 : 0))
+            if expected == .warn { #expect(report.check("Codex hooks")?.fix == nil) }
+        }
+    }
+
     @Test func recognizableHooksWithAMalformedEventStillFail() throws {
         let probe = healthy()
         var value = try JSONDecoder().decode(JSONValue.self, from: codexHooks()).objectValue!
