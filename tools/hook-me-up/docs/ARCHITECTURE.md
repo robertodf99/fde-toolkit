@@ -58,6 +58,18 @@ and renamed) holds a nonce, the click time and the session's pids up to the edit
 the window that has one of those pids as a terminal process shows it, and the window is
 focused as before.
 
+Herdr sessions inherit `HC_TERMINAL_ID`: the hook keeps it in the optional
+`TerminalHint.herdrTerminal` field only when it is 1–64 ASCII letters, digits,
+underscores or hyphens. Older hints without it still decode. Both `dev.herdr.core`
+and `dev.herdr.app` identify Herdr, but activation always targets Desktop
+(`dev.herdr.app`), never the background Core app. With a valid id, `SessionActivation`
+plans `focusHerdrTerminal`: off the main thread the adapter finds Desktop through
+NSWorkspace, reads its executable from the bundle and runs `do agent.focus --terminal`
+with the id as a separate argument, with a 10 s timeout. Then it brings Desktop
+forward (or opens it if it isn't running). Without an id, or if the command fails,
+it only brings Desktop forward. No shell is used; logs contain the result, never
+the id, executable path or command output.
+
 Heads-ups (`notify` for waiting/finished, `clear` when the session moves on) are
 fire-and-forget. When the user answers in the terminal dialog instead, Claude Code does
 not stop the waiting hook. The session moving on is the signal: on its `Stop`
@@ -145,7 +157,8 @@ old to answer.
   `AgentCore` and `PendingStore` are value types mutated only there.
 - **UserNotifications** callbacks arrive on arbitrary queues; the presenter copies the
   `Sendable` parts and hops to the main actor. "Open session" runs AppleScript in an
-  `osascript` child process off the main thread.
+  `osascript` child process, or Herdr's focus command in Desktop's executable, off the
+  main thread. Both use the same bounded process runner.
 - The package builds in the Swift 6 language mode with strict concurrency and no
   warnings.
 
