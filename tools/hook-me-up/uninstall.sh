@@ -81,10 +81,23 @@ run_limited() {
 setup_has() {
   local usage
   usage="$("$1" --help 2>&1 </dev/null)" || true
-  if [ "$2" = "--client" ]; then
-    case "$usage" in *"--client"*) return 0 ;; esac
+  if [[ "$2" = --* ]]; then
+    case "$usage" in *"$2"*) return 0 ;; esac
   else
     case "$usage" in *"hook-me-up-setup $2"*) return 0 ;; esac
+  fi
+  return 1
+}
+
+# A supported, read-only check exits 0 only when the requested operation needs no
+# changes. Keep its output only on success; errors/pending changes use the normal
+# consent flow below. Older packages keep that same flow without the new flag.
+setup_unchanged() {
+  local setup="$1" result
+  shift
+  if setup_has "$setup" --check && result="$("$setup" "$@" --check </dev/null 2>/dev/null)"; then
+    say "$result"
+    return 0
   fi
   return 1
 }
@@ -117,18 +130,28 @@ main() {
   local settings="$HOME/.claude/settings.json"
   local codex_settings="${CODEX_HOME:-$HOME/.codex}/hooks.json"
   local setup="$app/Contents/MacOS/hook-me-up-setup"
+  local removal_options="HOOK_ME_UP_YES=1"
+  if [ "$codex" = 1 ]; then removal_options="--codex and $removal_options"; fi
 
   # The hooks go first: while they remain, the agent and the app stay, so the hooks
   # never point at nothing.
-  local removed=0
+  local removed=0 no_hooks=0
   if [ ! -f "$settings" ]; then
-    removed=1
+    say "No settings file: $settings."
+    no_hooks=1
   elif [ ! -x "$setup" ]; then
     warn "$setup is missing: remove the hook-me-up entries from $settings by hand."
-    removed=1
+    if [ "${HOOK_ME_UP_YES:-0}" = 1 ] || has_tty; then
+      removed=1
+    else
+      say "Run this again with $removal_options (or in a terminal) to remove the remaining installation."
+      exit 0
+    fi
   else
     local args=(uninstall --settings "$settings" --hook "$app/Contents/MacOS/hook-me-up" --state "$support/setup-state.json")
-    if [ "${HOOK_ME_UP_YES:-0}" = "1" ]; then
+    if setup_unchanged "$setup" "${args[@]}"; then
+      no_hooks=1
+    elif [ "${HOOK_ME_UP_YES:-0}" = "1" ]; then
       if "$setup" "${args[@]}" --yes; then removed=1; fi
     elif has_tty; then
       if "$setup" "${args[@]}" </dev/tty; then removed=1; fi
@@ -139,19 +162,32 @@ main() {
     fi
   fi
 
+  # No hooks needing removal is not consent to remove the app. Chat previews
+  # must leave the installation intact until the user approves the second run.
+  if [ "$no_hooks" = 1 ] && { [ "${HOOK_ME_UP_YES:-0}" = 1 ] || has_tty; }; then
+    removed=1
+  fi
+
   if [ "$removed" != "1" ]; then
     # A chat-driven preview must show both clients before asking for consent, even
     # while Claude's hooks keep us from reaching the Codex removal below.
     if [ "$codex" = 1 ] && ! has_tty && [ -x "$setup" ] && [ -f "$codex_settings" ]; then
       if setup_has "$setup" --client; then
-        "$setup" uninstall --client codex --settings "$codex_settings" --hook "$app/Contents/MacOS/hook-me-up" --state "$support/setup-state.json" --dry-run || true
-        say "No terminal to ask, so $codex_settings was not changed."
+        local preview_args=(uninstall --client codex --settings "$codex_settings" --hook "$app/Contents/MacOS/hook-me-up" --state "$support/setup-state.json")
+        if ! setup_unchanged "$setup" "${preview_args[@]}"; then
+          "$setup" "${preview_args[@]}" --dry-run || true
+          say "No terminal to ask, so $codex_settings was not changed."
+        fi
       else
         warn "this package does not support --client; upgrade Hook Me Up before removing its Codex hooks."
       fi
     fi
-    say "The hooks are still in $settings, so Hook Me Up keeps running and stays installed."
-    say "Run this again in a terminal, or with HOOK_ME_UP_YES=1, to finish."
+    if [ "$no_hooks" = 1 ]; then
+      say "No Claude Code hooks to remove; run again with $removal_options (or in a terminal) to remove the app."
+    else
+      say "The hooks are still in $settings, so Hook Me Up keeps running and stays installed."
+      say "Run this again in a terminal, or with HOOK_ME_UP_YES=1, to finish."
+    fi
     exit 0
   fi
 

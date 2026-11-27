@@ -1,7 +1,7 @@
 // hook-me-up-setup install|uninstall: adds (or removes) Hook Me Up's hooks in a Claude
 // Code settings file, leaving every other key and hook untouched. Always shows the diff
-// first; writes only after "y" (or --yes), after a backup, atomically. --dry-run never
-// writes.
+// first; writes only after "y" (or --yes), after a backup, atomically. --dry-run and
+// --check never write.
 import DoctorKit
 import Foundation
 import HookMeUpCore
@@ -19,11 +19,13 @@ func runSettingsCommand(_ command: String, _ arguments: [String]) -> Never {
     var timeout = 600
     var statePath = HookMeUpPaths.defaultSocketURL
         .deletingLastPathComponent().appendingPathComponent("setup-state.json").path
+    var checkOnly = false
     var dryRun = false
     var assumeYes = false
     while let argument = arguments.first {
         arguments.removeFirst()
         switch argument {
+        case "--check": checkOnly = true
         case "--dry-run": dryRun = true
         case "--yes": assumeYes = true
         case "--settings", "--hook", "--timeout", "--state", "--client":
@@ -104,9 +106,9 @@ func runSettingsCommand(_ command: String, _ arguments: [String]) -> Never {
         print(
             "No changes: \(settingsURL.path) is already \(command == "install" ? "set up" : "free of Hook Me Up's hooks")."
         )
-        codexNextStep()
         exit(0)
     }
+    if checkOnly { exit(2) }
     // The text diff is against the file exactly as it is on disk.
     let originalText = document.original.map { String(decoding: $0, as: UTF8.self) } ?? ""
     let newText = String(decoding: SettingsFile.render(new), as: UTF8.self)

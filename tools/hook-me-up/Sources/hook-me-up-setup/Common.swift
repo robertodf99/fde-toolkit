@@ -2,7 +2,8 @@ import Foundation
 
 let usage = """
     usage: hook-me-up-setup install|uninstall [--settings <path>] [--hook <path>] [--state <path>] \
-    [--client claude|codex] [--timeout <seconds>] [--dry-run] [--yes]
+    [--client claude|codex] [--timeout <seconds>] [--dry-run] [--yes] [--check]
+    --check: read only; exit 0 if unchanged, 2 if changes are needed, 1 on error.
            hook-me-up-setup doctor [--settings <path>] [--app <path>] [--socket <path>] [--home <path>] [--codex-hooks <path>]
            hook-me-up-setup notifications [--wait <seconds>] [--test] [--open-settings | --open-settings-if-off] \
     [--socket <path>] [--result-file <path>]

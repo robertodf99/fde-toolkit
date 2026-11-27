@@ -176,6 +176,33 @@ check "doctor passes the app, LaunchAgent and hooks" \
   'grep -q "^PASS  App: " "$LOGS/doctor-2.txt" && grep -q "^PASS  LaunchAgent: " "$LOGS/doctor-2.txt" && grep -q "^PASS  Hooks: all five events" "$LOGS/doctor-2.txt"'
 check "doctor changes nothing" 'cmp -s "$WORKDIR/after-install.json" "$SETTINGS"'
 
+echo "--- setup's read-only change check uses exit codes, for both clients"
+for client in claude codex; do
+  probe="$WORKDIR/check-$client.json"
+  cp "$WORKDIR/original.json" "$probe"
+  probe_args=(--client "$client" --settings "$probe" --hook "$APP/Contents/MacOS/hook-me-up" --state "$WORKDIR/check-state.json")
+  if "$APP/Contents/MacOS/hook-me-up-setup" install "${probe_args[@]}" --check >"$LOGS/check-$client-new.txt" 2>&1; then status=0; else status=$?; fi
+  check "$client check reports pending installation without writing" \
+    '[ "$status" = 2 ] && cmp -s "$WORKDIR/original.json" "$probe" && [ ! -e "$WORKDIR/check-state.json" ]'
+  if "$APP/Contents/MacOS/hook-me-up-setup" uninstall "${probe_args[@]}" --check >"$LOGS/check-$client-empty.txt" 2>&1; then status=0; else status=$?; fi
+  check "$client check reports no removal needed" '[ "$status" = 0 ] && grep -q "No changes:" "$LOGS/check-$client-empty.txt"'
+  "$APP/Contents/MacOS/hook-me-up-setup" install "${probe_args[@]}" --yes >"$LOGS/check-$client-install.txt" 2>&1
+  cp "$probe" "$WORKDIR/check-installed.json"
+  cp "$WORKDIR/check-state.json" "$WORKDIR/check-state-before.json"
+  if "$APP/Contents/MacOS/hook-me-up-setup" install "${probe_args[@]}" --check >"$LOGS/check-$client-installed.txt" 2>&1; then status=0; else status=$?; fi
+  check "$client check reports installed without prompting or trust instructions" \
+    '[ "$status" = 0 ] && grep -q "No changes:" "$LOGS/check-$client-installed.txt" && ! grep -q -e "Write these changes" -e "/hooks in Codex" "$LOGS/check-$client-installed.txt"'
+  if "$APP/Contents/MacOS/hook-me-up-setup" uninstall "${probe_args[@]}" --check >"$LOGS/check-$client-remove.txt" 2>&1; then status=0; else status=$?; fi
+  check "$client check reports pending removal without writing hooks or state" \
+    '[ "$status" = 2 ] && cmp -s "$WORKDIR/check-installed.json" "$probe" && cmp -s "$WORKDIR/check-state-before.json" "$WORKDIR/check-state.json"'
+  "$APP/Contents/MacOS/hook-me-up-setup" install "${probe_args[@]}" --yes >"$LOGS/check-$client-unchanged.txt" 2>&1
+  check "$client unchanged setup install never asks for trust review" '! grep -q "/hooks in Codex" "$LOGS/check-$client-unchanged.txt"'
+  printf '{bad json' >"$probe"
+  if "$APP/Contents/MacOS/hook-me-up-setup" install "${probe_args[@]}" --check >"$LOGS/check-$client-invalid.txt" 2>&1; then status=0; else status=$?; fi
+  check "$client check distinguishes invalid input from pending changes" '[ "$status" = 1 ] && grep -q "refusing to touch" "$LOGS/check-$client-invalid.txt"'
+  rm "$WORKDIR/check-state.json"
+done
+
 echo "--- the installer's warning about the hooks of another installation (dry runs)"
 dry_install() { # settings file
   env HOME="$FAKE" "$APP/Contents/MacOS/hook-me-up-setup" install --settings "$1" \
@@ -210,6 +237,23 @@ run install.sh HOOK_ME_UP_YES=1 >"$LOGS/install-3.txt" 2>&1
 check "upgrade rewrites the LaunchAgent" '[ "$(associated)" = "$BUNDLE_ID" ] && plutil -lint -s "$PLIST"'
 check "second install leaves the settings as they were" 'cmp -s "$WORKDIR/after-install.json" "$SETTINGS"'
 check "second install reports no changes" 'grep -q "No changes" "$LOGS/install-3.txt"'
+check "Claude already installed with YES reports its existing state" \
+  'grep -q "Hooks in ~/.claude/settings.json: already set up" "$LOGS/install-3.txt"'
+run install.sh HOOK_ME_UP_YES=0 >"$LOGS/install-already-no-tty.txt" 2>&1
+check "Claude already installed without a terminal needs no consent instructions" \
+  'cmp -s "$WORKDIR/after-install.json" "$SETTINGS" && grep -q "Hooks in ~/.claude/settings.json: already set up" "$LOGS/install-already-no-tty.txt" && ! grep -q "No terminal to ask" "$LOGS/install-already-no-tty.txt"'
+# A real pseudo-terminal with no answer supplied: an unchanged setup must not prompt.
+run_tty() { # script, optional script arguments (stdin remains the curl pipe)
+  local script="$1"
+  shift
+  env HOME="$FAKE" CODEX_HOME="${CODEX:-$FAKE/.codex}" HOOK_ME_UP_ZIP="$ZIP" HOOK_ME_UP_DRY_LAUNCH=1 \
+    HOOK_ME_UP_NO_TTY=0 HOOK_ME_UP_YES=0 PATH="$SAFE_PATH" HOOK_ME_UP_TEST_APPLICATIONS="$WORKDIR/no-applications" \
+    /usr/bin/script -q /dev/null bash -c 'test -t 1 && test -t 2 && bash -s -- "$@" <"$0"' "$script" "$@" </dev/null
+}
+run_tty install.sh >"$LOGS/install-already-tty.txt" 2>&1
+check "Claude already installed in a terminal needs no prompt" \
+  'cmp -s "$WORKDIR/after-install.json" "$SETTINGS" && grep -q "Hooks in ~/.claude/settings.json: already set up" "$LOGS/install-already-tty.txt" && ! grep -q "Write these changes" "$LOGS/install-already-tty.txt"'
+
 check "app still installed" '[ -x "$APP/Contents/MacOS/HookMeUp" ]'
 check "no staging folders left" '! ls -a "$FAKE/Applications" | grep -q "^\.Hook Me Up"'
 run install.sh HOOK_ME_UP_YES=1 HOOK_ME_UP_NO_ONBOARDING=1 >"$LOGS/install-no-onboarding.txt" 2>&1
@@ -258,6 +302,64 @@ check "backups left in place" 'ls "$FAKE/.claude" | grep -q "^settings.json.bak-
 run uninstall.sh HOOK_ME_UP_YES=1 >"$LOGS/uninstall-3.txt" 2>&1
 check "uninstalling again is harmless" 'json_equal "$WORKDIR/original.json" "$SETTINGS"'
 
+echo "--- uninstall without a terminal when neither client has our hooks"
+mkdir -p "$FAKE/.codex"
+printf '{"custom":true}\n' >"$FAKE/.codex/hooks.json"
+run install.sh HOOK_ME_UP_YES=0 >"$LOGS/install-without-hooks.txt" 2>&1
+# Record any extension removal attempt; all other installed files must stay identical.
+CONSENT_EDITOR="$WORKDIR/consent-editor"
+mkdir -p "$CONSENT_EDITOR/bin"
+cat >"$CONSENT_EDITOR/bin/code" <<'STUB'
+#!/bin/bash
+printf '%s\n' "$*" >>"$CONSENT_EDITOR_LOG"
+STUB
+chmod +x "$CONSENT_EDITOR/bin/code"
+: >"$LOGS/consent-editor.txt"
+NO_HOOKS_STATE="$(tree_state)"
+run uninstall.sh HOOK_ME_UP_YES=0 PATH="$CONSENT_EDITOR/bin:$SAFE_PATH" CONSENT_EDITOR_LOG="$LOGS/consent-editor.txt" \
+  >"$LOGS/uninstall-without-hooks.txt" 2>&1
+check "no hooks to remove without consent preserves the app, agent, support and extension" \
+  'same_tree "$NO_HOOKS_STATE" && [ ! -s "$LOGS/consent-editor.txt" ]'
+check "no hooks preview retains the plugin result and asks for app removal consent" \
+  'grep -q "No changes: .*already free of Hook Me Up" "$LOGS/uninstall-without-hooks.txt" && grep -q "HOOK_ME_UP_YES=1.*remove the app" "$LOGS/uninstall-without-hooks.txt" && ! grep -q -e "keeps running" -e "hooks are still in" "$LOGS/uninstall-without-hooks.txt"'
+run uninstall.sh HOOK_ME_UP_YES=1 >"$LOGS/uninstall-without-hooks-yes.txt" 2>&1
+check "no hooks with YES removes the app after the plugin confirmation" \
+  '[ ! -e "$APP" ] && [ ! -e "$PLIST" ] && [ ! -e "$FAKE/Library/Application Support/hook-me-up" ] && json_equal "$WORKDIR/original.json" "$SETTINGS"'
+run install.sh HOOK_ME_UP_YES=0 >"$LOGS/install-missing-settings.txt" 2>&1
+rm "$SETTINGS"
+: >"$LOGS/consent-editor.txt"
+MISSING_SETTINGS_STATE="$(tree_state)"
+run uninstall.sh HOOK_ME_UP_YES=0 PATH="$CONSENT_EDITOR/bin:$SAFE_PATH" CONSENT_EDITOR_LOG="$LOGS/consent-editor.txt" \
+  >"$LOGS/uninstall-missing-settings.txt" 2>&1
+check "missing settings without consent preserves the app, agent, support and extension" \
+  'same_tree "$MISSING_SETTINGS_STATE" && [ ! -s "$LOGS/consent-editor.txt" ]'
+check "missing settings preview reports absence and asks for app removal consent" \
+  'grep -q "No settings file:" "$LOGS/uninstall-missing-settings.txt" && grep -q "HOOK_ME_UP_YES=1.*remove the app" "$LOGS/uninstall-missing-settings.txt" && ! grep -q -e "keeps running" -e "hooks are still in" "$LOGS/uninstall-missing-settings.txt"'
+run uninstall.sh HOOK_ME_UP_YES=1 >"$LOGS/uninstall-missing-settings-yes.txt" 2>&1
+check "missing settings with YES removes the app without creating settings" \
+  '[ ! -e "$APP" ] && [ ! -e "$PLIST" ] && [ ! -e "$SETTINGS" ] && [ ! -e "$FAKE/Library/Application Support/hook-me-up" ]'
+cp "$WORKDIR/original.json" "$SETTINGS"
+run install.sh HOOK_ME_UP_YES=0 >"$LOGS/install-without-hooks-tty.txt" 2>&1
+run_tty uninstall.sh >"$LOGS/uninstall-without-hooks-tty.txt" 2>&1
+check "no hooks in a terminal still permits app removal" '[ ! -e "$APP" ] && [ ! -e "$PLIST" ]'
+echo "--- uninstall preview when the app is partially deleted"
+run install.sh HOOK_ME_UP_YES=0 >"$LOGS/install-missing-setup.txt" 2>&1
+rm "$APP/Contents/MacOS/hook-me-up-setup"
+: >"$LOGS/consent-editor.txt"
+MISSING_SETUP_STATE="$(tree_state)"
+run uninstall.sh HOOK_ME_UP_YES=0 PATH="$CONSENT_EDITOR/bin:$SAFE_PATH" CONSENT_EDITOR_LOG="$LOGS/consent-editor.txt" \
+  >"$LOGS/uninstall-missing-setup.txt" 2>&1
+check "missing setup without consent preserves app remnants, agent, support and extension" \
+  'same_tree "$MISSING_SETUP_STATE" && [ ! -s "$LOGS/consent-editor.txt" ]'
+check "missing setup preview reports the missing tool and explains app removal consent" \
+  'grep -q "hook-me-up-setup is missing" "$LOGS/uninstall-missing-setup.txt" && grep -q "HOOK_ME_UP_YES=1.*remove" "$LOGS/uninstall-missing-setup.txt"'
+run uninstall.sh HOOK_ME_UP_YES=1 PATH="$CONSENT_EDITOR/bin:$SAFE_PATH" CONSENT_EDITOR_LOG="$LOGS/consent-editor.txt" \
+  >"$LOGS/uninstall-missing-setup-yes.txt" 2>&1
+check "missing setup with YES removes remnants, agent, support and extension" \
+  '[ ! -e "$APP" ] && [ ! -e "$PLIST" ] && [ ! -e "$FAKE/Library/Application Support/hook-me-up" ] && json_equal "$WORKDIR/original.json" "$SETTINGS" && grep -qx -- "--uninstall-extension hook-me-up.hook-me-up" "$LOGS/consent-editor.txt"'
+rm "$FAKE/.codex/hooks.json"
+rmdir "$FAKE/.codex"
+
 echo "--- a package whose hook-me-up-setup has no notifications command (0.1.x)"
 # The same package with hook-me-up-setup replaced by a stand-in for 0.1.x: install and
 # uninstall only (it hands them to the real one), anything else is a usage error.
@@ -269,7 +371,11 @@ mv "$OLD_MACOS/hook-me-up-setup" "$OLD_MACOS/hook-me-up-setup-current"
 cat >"$OLD_MACOS/hook-me-up-setup" <<'STUB'
 #!/bin/bash
 case "${1:-}" in
-  install | uninstall) exec "$(dirname "$0")/hook-me-up-setup-current" "$@" ;;
+  install | uninstall)
+    for argument in "$@"; do
+      case "$argument" in --check | --client) echo "unsupported flag: $argument" >&2; exit 1 ;; esac
+    done
+    exec "$(dirname "$0")/hook-me-up-setup-current" "$@" ;;
 esac
 echo "hook-me-up-setup: usage: hook-me-up-setup install|uninstall [--settings <path>] [--hook <path>] [--state <path>] [--timeout <seconds>] [--dry-run] [--yes]" >&2
 exit 1
@@ -549,15 +655,19 @@ cp "$CODEX/config.toml" "$WORKDIR/codex-config.toml"
 run install.sh HOOK_ME_UP_YES=1 >"$LOGS/no-codex-install.txt" 2>&1
 check "without --codex, Codex files stay byte identical and no Codex output" \
   'cmp -s "$CODEX/hooks.json" "$WORKDIR/codex-original.json" && cmp -s "$CODEX/config.toml" "$WORKDIR/codex-config.toml" && ! grep -q "Codex" "$LOGS/no-codex-install.txt"'
-run uninstall.sh HOOK_ME_UP_YES=1 >"$LOGS/no-codex-uninstall.txt" 2>&1
-check "without --codex, foreign Codex hooks do not prevent uninstall" \
-  '[ ! -e "$APP" ] && cmp -s "$CODEX/hooks.json" "$WORKDIR/codex-original.json" && ! grep -q "Codex" "$LOGS/no-codex-uninstall.txt"'
 run_codex() { # script, extra env...
   local script="$1"
   shift
   env HOME="$FAKE" CODEX_HOME="$CODEX" HOOK_ME_UP_ZIP="$ZIP" HOOK_ME_UP_DRY_LAUNCH=1 HOOK_ME_UP_NO_TTY=1 \
     PATH="$SAFE_PATH" HOOK_ME_UP_TEST_APPLICATIONS="$WORKDIR/no-applications" "$@" bash -s -- --codex <"$script"
 }
+CODEX_EMPTY_STATE="$(tree_state)"
+run_codex uninstall.sh HOOK_ME_UP_YES=0 >"$LOGS/codex-empty-preview.txt" 2>&1
+check "uninstall preview needs consent only for the client with hooks to remove" \
+  'same_tree "$CODEX_EMPTY_STATE" && grep -q "No terminal to ask, so ~/.claude/settings.json" "$LOGS/codex-empty-preview.txt" && grep -q "No changes: .*hooks.json" "$LOGS/codex-empty-preview.txt" && ! grep -q "No terminal to ask, so .*hooks.json" "$LOGS/codex-empty-preview.txt"'
+run uninstall.sh HOOK_ME_UP_YES=1 >"$LOGS/no-codex-uninstall.txt" 2>&1
+check "without --codex, foreign Codex hooks do not prevent uninstall" \
+  '[ ! -e "$APP" ] && cmp -s "$CODEX/hooks.json" "$WORKDIR/codex-original.json" && ! grep -q "Codex" "$LOGS/no-codex-uninstall.txt"'
 run_codex install.sh >"$LOGS/codex-decline.txt" 2>&1
 check "Codex install without consent shows diff and changes nothing" \
   'cmp -s "$CODEX/hooks.json" "$WORKDIR/codex-original.json" && grep -q "Exact text changes to .*hooks.json" "$LOGS/codex-decline.txt"'
@@ -589,6 +699,29 @@ cp "$CODEX/hooks.json" "$WORKDIR/codex-installed.json"
 run_codex install.sh HOOK_ME_UP_YES=1 >"$LOGS/codex-upgrade.txt" 2>&1
 check "Codex install is idempotent byte for byte" \
   'cmp -s "$CODEX/hooks.json" "$WORKDIR/codex-installed.json" && grep -q "No changes: .*hooks.json" "$LOGS/codex-upgrade.txt"'
+check "Codex already installed with YES reports existing state without trust instructions" \
+  'grep -q "Codex hooks: already set up" "$LOGS/codex-upgrade.txt" && ! grep -q "/hooks in Codex" "$LOGS/codex-upgrade.txt"'
+run_codex install.sh HOOK_ME_UP_YES=0 >"$LOGS/codex-already-no-tty.txt" 2>&1
+check "both clients already installed without a terminal need no consent instructions" \
+  'cmp -s "$CODEX/hooks.json" "$WORKDIR/codex-installed.json" && grep -q "Codex hooks: already set up" "$LOGS/codex-already-no-tty.txt" && grep -q "Hooks in ~/.claude/settings.json: already set up" "$LOGS/codex-already-no-tty.txt" && ! grep -q -e "No terminal to ask" -e "to add them" -e "/hooks in Codex" "$LOGS/codex-already-no-tty.txt"'
+run_tty install.sh --codex >"$LOGS/codex-already-tty.txt" 2>&1
+check "both clients already installed in a terminal need no prompt or trust instructions" \
+  'cmp -s "$CODEX/hooks.json" "$WORKDIR/codex-installed.json" && grep -q "Codex hooks: already set up" "$LOGS/codex-already-tty.txt" && grep -q "Hooks in ~/.claude/settings.json: already set up" "$LOGS/codex-already-tty.txt" && ! grep -q -e "Write these changes" -e "/hooks in Codex" "$LOGS/codex-already-tty.txt"'
+/usr/bin/python3 - "$SETTINGS" "$CODEX/hooks.json" <<'CHANGE'
+import json, sys
+for path in sys.argv[1:]:
+    value = json.load(open(path))
+    value['hooks']['PermissionRequest'][-1]['hooks'][0]['timeout'] = 601
+    with open(path, 'w') as output: json.dump(value, output)
+CHANGE
+cp "$SETTINGS" "$WORKDIR/claude-different.json"
+cp "$CODEX/hooks.json" "$WORKDIR/codex-different.json"
+run_codex install.sh HOOK_ME_UP_YES=0 >"$LOGS/different-no-tty.txt" 2>&1
+check "different hooks without a terminal still need consent and remain untouched" \
+  'cmp -s "$SETTINGS" "$WORKDIR/claude-different.json" && cmp -s "$CODEX/hooks.json" "$WORKDIR/codex-different.json" && grep -q "Hooks in ~/.claude/settings.json: not added (no terminal to ask)" "$LOGS/different-no-tty.txt" && grep -q "Codex hooks: not added (no terminal to ask)" "$LOGS/different-no-tty.txt"'
+run_codex install.sh HOOK_ME_UP_YES=1 >"$LOGS/different-yes.txt" 2>&1
+check "different hooks with YES are updated and require Codex trust review" \
+  'cmp -s "$CODEX/hooks.json" "$WORKDIR/codex-installed.json" && grep -q "Hooks in ~/.claude/settings.json: added" "$LOGS/different-yes.txt" && grep -q "Codex hooks: added" "$LOGS/different-yes.txt" && grep -q "/hooks in Codex" "$LOGS/different-yes.txt"'
 if doctor "$LOGS/doctor-codex.txt"; then status=0; else status=$?; fi
 check "doctor --home checks Codex hooks and trust without requiring Codex" \
   '[ "$status" = 0 ] && grep -q "^PASS  Codex hooks:" "$LOGS/doctor-codex.txt" && grep -q "^INFO  Codex trust:.* /hooks in Codex" "$LOGS/doctor-codex.txt"'
@@ -607,6 +740,8 @@ check "uninstall without --codex warns and keeps app and Codex hooks" \
 run_codex uninstall.sh >"$LOGS/codex-uninstall-decline.txt" 2>&1
 check "declined Codex removal keeps app and hooks" \
   '[ -d "$APP" ] && cmp -s "$CODEX/hooks.json" "$WORKDIR/codex-installed.json"'
+check "Codex-only preview preserves --codex in app removal instructions" \
+  'grep -q "No Claude Code hooks to remove; run again with --codex and HOOK_ME_UP_YES=1" "$LOGS/codex-uninstall-decline.txt"'
 run_codex uninstall.sh HOOK_ME_UP_YES=1 >"$LOGS/codex-uninstall.txt" 2>&1
 check "Codex uninstall removes only ours, keeps backups and trust, removes app" \
   '[ ! -e "$APP" ] && json_equal "$CODEX/hooks.json" "$WORKDIR/codex-original.json" && ls "$CODEX" | grep -q "^hooks.json.bak-" && cmp -s "$CODEX/config.toml" "$WORKDIR/codex-config.toml"'
@@ -624,6 +759,12 @@ run_codex install.sh HOOK_ME_UP_YES=1 >"$LOGS/codex-absent.txt" 2>&1
 check "missing Codex profile is skipped without creating it" \
   '[ ! -e "$CODEX" ] && grep -q "skipped (no Codex)" "$LOGS/codex-absent.txt"'
 run_codex uninstall.sh HOOK_ME_UP_YES=1 >"$LOGS/codex-absent-uninstall.txt" 2>&1
+
+mv "$FAKE/.claude" "$WORKDIR/claude-profile"
+run install.sh HOOK_ME_UP_YES=1 >"$LOGS/claude-absent.txt" 2>&1
+check "missing Claude profile is still skipped without creating it" \
+  '[ ! -e "$FAKE/.claude" ] && grep -q "skipped (no Claude Code)" "$LOGS/claude-absent.txt"'
+run uninstall.sh HOOK_ME_UP_YES=1 >"$LOGS/claude-absent-uninstall.txt" 2>&1
 
 check "the real HOME was not touched" '[ "$BEFORE" = "$(fingerprint)" ]'
 
