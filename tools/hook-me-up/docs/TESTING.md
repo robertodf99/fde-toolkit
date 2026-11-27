@@ -118,8 +118,9 @@ said otherwise, so that permission prompts actually appear.
    `HOOK_ME_UP_NO_ONBOARDING=1` → "Notification check skipped".
 5. System Settings → Notifications → Hook Me Up: Allow notifications on, **style set
    to Alerts** (they stay on screen until you answer), sounds on. The log says
-   `notifications: authorized, style alert`. Notifications show the app icon: a white
-   spark on a clay rounded square.
+   `notifications: authorized, style alert`. Notifications show the original app icon: a white
+   fishing hook and notification dot on a blue/teal rounded square. Session notifications
+   also show a small client symbol (Claude or Codex).
 6. The menu bar shows ✻ (with the number of waiting entries, ⏸ while paused).
 7. The first click on a notification with Terminal, iTerm2 or Ghostty asks once for
    Automation permission: allow it.
@@ -236,3 +237,42 @@ profile/account. Automated tests do not establish these UI and trust invariants.
     `[hooks]` table; trust is INFO and must be reviewed in `/hooks`.
 11. Uninstall without the flag: Codex hooks and the app remain with a warning. Repeat
     with `--codex`, accept removal: only our handlers and the app go; backups remain.
+
+
+## Brand graphics and client attachments
+
+`NotificationClientImageTests` covers absent/Claude/Codex client selection for every
+session-notification kind and timed-out state, and no image for the installer's test.
+`ClientNotificationAttachmentTests` creates real PNGs and UserNotifications attachments
+without posting: the correct resource for each client, a separate disposable copy,
+the original left untouched, and missing resources or a failing attachment constructor
+leaving title/body/sound intact without an image. Failed preparation removes its
+staging directory. Scheduling cleanup runs in the real notification callback.
+
+Generate the graphics with `make logo` and `CODESIGN_IDENTITY=- make app`. The latter
+must produce `Contents/Resources/AppIcon.icns`, `notification-claude.png` and
+`notification-codex.png`; `codesign --verify --strict --deep` checks the resulting app.
+Export the app icon separately for inspection:
+
+```sh
+swift scripts/make-icon.swift --png 1024 /tmp/hmu-icon-1024.png
+swift scripts/make-icon.swift --png 32 /tmp/hmu-icon-32.png
+```
+
+Use the Xcode toolchain as the Makefile does. Check 16/32 px legibility, PNG dimensions
+(logo 256 square, social preview 1280 × 640, thumbnail 960 square, attachments 128
+square), unchanged aspect ratios, blue/teal branding, and both client names on the
+social preview and thumbnail. Re-run generation and compare hashes for determinism.
+The Blossom SVG contains only the downloaded path data and original viewBox; no
+external references or executable elements. See THIRD_PARTY_NOTICES.md for sources.
+
+Manual notification QA remains necessary: verify both symbols on collapsed and
+expanded real macOS notifications, including light/dark appearance; the client symbol
+should stay secondary to Hook Me Up's identity. Test concurrent posts and repeated
+posts from both clients, confirm that bundle images remain intact, and temporarily
+remove an attachment PNG from a disposable test bundle to check posting without it.
+The installer test notification intentionally has no client symbol.
+
+Pending: `docs/images/demo.gif` has not been regenerated. It still contains recordings
+of the earlier icon and warm palette; refreshing it requires new screen recordings.
+Only the palette constants in `scripts/make-demo-cards.swift` have been updated here.

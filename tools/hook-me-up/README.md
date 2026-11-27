@@ -2,15 +2,19 @@
 
 <p align="center"><img src="docs/images/logo.png" width="128" alt="Hook Me Up logo"></p>
 
-Answer Claude Code from native macOS notifications. When Claude Code needs permission
-for a tool, asks you a question, wants a plan approved or finishes a turn, Hook Me Up
-shows a notification you can act on right there: approve or deny, pick an answer,
-approve the plan or ask for changes. Click the notification to jump to the session.
-It is built on Claude Code's hooks and fails open: if anything is off, Claude Code
-simply shows its usual terminal dialog. Codex CLI support is available with the
-opt-in `--codex` installer flag (see [Codex CLI](#codex-cli)).
+Answer Claude Code and Codex CLI from native macOS notifications. Approve or deny
+tool requests, see when a turn finishes, and click a notification to open its session.
+Claude Code also supports answering questions and reviewing plans. Hook Me Up is built
+on each CLI's hooks and fails open: if anything is off, the CLI shows its usual
+terminal dialog. Codex support is opt-in; see [Codex CLI](#codex-cli).
+
+Hook Me Up has its own blue/teal fishing-hook icon. Each session notification carries
+a small client symbol: Claude's official symbol for Claude Code, OpenAI's black
+Blossom for Codex. These identify the source; they are separate from our app icon.
 
 ![Claude Code asks for permission and you approve or deny it from a macOS notification, pick an answer to its question or open Reply… for every option plus a box for your own, then click a notification to jump to its session](docs/images/demo.gif)
+
+The GIF still shows the previous visual identity; refreshing it needs new screen recordings.
 
 ## Install
 
@@ -398,8 +402,12 @@ of `hook-me-up-setup doctor`.
 
 ## Credits
 
-The app icon is drawn from the Claude symbol on Wikimedia Commons (CC0 1.0); see
+The app icon and project images are original Hook Me Up drawings. Client symbols are
+used only in notifications; sources and licences are in
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+Claude is a trademark of Anthropic; Codex and OpenAI are trademarks of OpenAI.
+Hook Me Up is not affiliated with or endorsed by either company.
 
 ## License
 
