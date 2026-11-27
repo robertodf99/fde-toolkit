@@ -1,6 +1,6 @@
 ---
 name: doctor
-description: Check a Hook Me Up installation (the app, its LaunchAgent, the running agent, the hooks in ~/.claude/settings.json and the macOS notification settings) and explain how to fix what is off.
+description: Check a Hook Me Up installation (the app, its LaunchAgent, the running agent, Claude Code and Codex hooks and the macOS notification settings) and explain how to fix what is off.
 disable-model-invocation: true
 ---
 
@@ -10,10 +10,12 @@ disable-model-invocation: true
 check: `PASS`, `WARN`, `FAIL`, `SKIP` or `INFO`, with a `Fix:` under each problem. It
 changes nothing. It exits 1 when a check failed; warnings don't.
 
-If the user explicitly asks for Codex CLI support, use `bash -s -- --codex` in
-installer/uninstaller commands and apply the same diff and consent steps to both
-clients. Never edit `~/.codex` or `$CODEX_HOME` by hand; remind them to review `/hooks`
-in Codex after installing. Without that request, keep the commands below as they are.
+Codex CLI hooks are included by default when `$CODEX_HOME` (default `~/.codex`)
+exists. Apply the same diff and consent steps to both clients. If the user asks to
+exclude Codex, use `bash -s -- --no-codex` in both the preview and confirmed
+installer/uninstaller commands. Never edit either client's hook files or Codex's
+`config.toml` / trust state by hand. After installing Codex hooks, remind the user
+to review and approve `/hooks` in Codex.
 
 ## Steps
 
@@ -29,6 +31,9 @@ in Codex after installing. Without that request, keep the commands below as they
 3. Explain the result in plain words, problems first: each `FAIL`, then each `WARN`,
    with the fix it printed. Say briefly that everything else passed. Typical cases:
    - **Hooks** missing: `/hook-me-up:install` adds them after showing the changes.
+   - **Codex hooks** missing, duplicated or disabled: follow the printed fix;
+     installation includes Codex by default. Trust is an INFO reminder to review
+     `/hooks`, not a check of effective trust or policy.
    - **Notifications** off, or **Notification style** not Alerts: the user changes it
      in System Settings > Notifications > Hook Me Up (the fix line has a command
      that opens it).
@@ -38,9 +43,9 @@ in Codex after installing. Without that request, keep the commands below as they
 
 4. Offer to run a fix only when it is a command and it doesn't change the settings
    file or remove anything (for example `launchctl kickstart …` or opening System
-   Settings). For anything that edits `~/.claude/settings.json` or uninstalls, show
+   Settings). For anything that edits either client’s hook files or uninstalls, show
    the command and let the user decide; run it only after an explicit yes. After a
    fix, run the doctor again to confirm.
 
-5. If hooks were added or changed, remind the user to restart the Claude Code sessions
-   that are already running, this one included.
+5. If hooks were added or changed, remind the user to review `/hooks` in Codex and
+   restart CLI sessions already running, this one included.

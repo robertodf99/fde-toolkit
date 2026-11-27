@@ -11,8 +11,8 @@ Setting up with an agent? Point it to [INSTALL.md](INSTALL.md).
 
 ## Install Hook Me Up
 
-Requires macOS 14 or later and Claude Code or Codex CLI. Codex setup is opt-in
-with `--codex`; see the [Codex CLI instructions](tools/hook-me-up/README.md#codex-cli).
+Requires macOS 14 or later and Claude Code or Codex CLI. See the
+[Codex CLI instructions](tools/hook-me-up/docs/CODEX.md).
 The installer shows the settings diff
 and asks before adding hooks.
 

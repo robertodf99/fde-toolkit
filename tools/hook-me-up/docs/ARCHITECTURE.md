@@ -217,13 +217,14 @@ the hook exits around 590 s if nobody answers. Connection closure removes a pend
 notification; UserPromptSubmit, SessionEnd and Interrupt also clear the session.
 Stop posts a Finished gist (possibly empty); headless `codex exec` is not detected.
 
-`install.sh --codex` adds Codex user hooks in addition to the existing Claude setup.
+`install.sh` adds Codex user hooks by default when its profile exists, alongside Claude.
 `HookMeUpPaths.codexHooksURL` resolves `CODEX_HOME/hooks.json` or `~/.codex/hooks.json`.
 The same backup, diff, confirmation, changed-since-read check, atomic write and
 path-keyed setup state protect both clients. SessionEnd and Interrupt get 3 s, Stop
 and UserPromptSubmit 10 s, PermissionRequest 600 s. Reinstallation is idempotent.
-Without the flag the installer does nothing to Codex. Uninstall without the flag
-previews Codex removal read-only and retains the app if its handlers remain. Older
+With `--no-codex` the installer does nothing to Codex. Uninstall removes both clients
+by default; with `--no-codex` it previews Codex removal read-only and retains the app
+if its handlers remain. The legacy `--codex` flag is accepted as a no-op. Older
 setup packages without `--client` are detected from usage and skip Codex.
 
 Doctor reads the selected hooks file and its sibling `config.toml` through

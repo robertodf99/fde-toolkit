@@ -203,10 +203,11 @@ Setup tests check Codex event arguments, timeouts, statusMessage, idempotence,
 foreign hooks, removal and inspection. A literal golden captured before Codex setup
 support compares rendered Claude settings byte for byte. The existing SettingsFile
 suite also protects backups, atomic writes and rejection after concurrent changes.
-`test-install.sh` uses temporary HOME and CODEX_HOME: opt-in, consent, backups,
-no trust writes, both clients installed, old setup packages, missing profiles,
-uninstall with and without the flag, and idempotence. Doctor unit tests cover missing,
-foreign, invalid and unreadable Codex files, missing events, wrong arguments, another
+`test-install.sh` uses temporary HOME and CODEX_HOME: default inclusion, `--no-codex`
+exclusion, legacy flag compatibility, consent, backups, no trust writes, both clients
+installed, old setup packages, missing profiles, default uninstall and preservation
+with `--no-codex`, and idempotence. Doctor unit tests cover missing, foreign, invalid
+and unreadable Codex files, missing events, wrong arguments, another
 app path, duplicates, matchers, feature disabling, inline hooks and trust INFO.
 `doctor --home` in the script checks the installed app with both clients in that home.
 
@@ -215,7 +216,7 @@ app path, duplicates, matchers, feature disabling, inline hooks and trust INFO.
 These require Codex CLI 0.172 or later, real macOS notifications and an isolated test
 profile/account. Automated tests do not establish these UI and trust invariants.
 
-1. Install with `--codex`, inspect both diffs and trust the hooks in `/hooks`.
+1. Install with no flags, inspect both diffs and trust the hooks in `/hooks`.
 2. Request a Bash action needing permission: Approve executes it; Deny returns the
    notification's fixed message. No session-wide approval button is offered.
 3. While waiting, confirm the status message is shown and Codex has no approval dialog
@@ -236,8 +237,8 @@ profile/account. Automated tests do not establish these UI and trust invariants.
    questions, plan approval and terminal dialog timing remain as before.
 10. Run doctor with installed, absent, duplicated and disabled hooks, and an inline
     `[hooks]` table; trust is INFO and must be reviewed in `/hooks`.
-11. Uninstall without the flag: Codex hooks and the app remain with a warning. Repeat
-    with `--codex`, accept removal: only our handlers and the app go; backups remain.
+11. Uninstall with `--no-codex`: Codex hooks and the app remain with a warning. Repeat
+    without the flag, accept removal: only our handlers and the app go; backups remain.
 
 
 ## Brand graphics and client attachments

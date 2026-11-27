@@ -4,13 +4,14 @@
 #   curl -fsSL https://raw.githubusercontent.com/robertodf99/fde-toolkit/main/tools/hook-me-up/install.sh | bash
 #
 # Installs ~/Applications/Hook Me Up.app, adds the hooks to ~/.claude/settings.json
-# (after showing the diff and asking), adds the editor extension to VS Code, VS Code
-# Insiders, Cursor and Windsurf (those whose command-line tool it finds), and starts the
+# and $CODEX_HOME/hooks.json (default ~/.codex/hooks.json) when the profile exists,
+# unless --no-codex is given (after showing each diff and asking). Adds the editor
+# extension to VS Code, VS Code Insiders, Cursor and Windsurf (those whose command-line tool it finds), and starts the
 # menu-bar agent at login.
 #
 # Environment:
 #   HOOK_ME_UP_VERSION=X.Y.Z    install that version (also hook-me-up-vX.Y.Z)
-#   HOOK_ME_UP_YES=1            change ~/.claude/settings.json without asking
+#   HOOK_ME_UP_YES=1            accept both clients' hook diffs without asking
 #   HOOK_ME_UP_ZIP=<path>       install a local package (its .sha256 must sit next to it)
 #   HOOK_ME_UP_NO_ONBOARDING=1  skip the notification check after starting the agent
 #   HOOK_ME_UP_NO_EDITOR_EXTENSION=1  do not add the editor extension
@@ -121,11 +122,12 @@ on_exit() {
 }
 
 main() {
-  local codex=0 argument
+  local codex=1 argument
   for argument in "$@"; do
     case "$argument" in
-      --codex) codex=1 ;;
-      *) die "unknown argument $argument (expected --codex)." ;;
+      --no-codex) codex=0 ;;
+      --codex) ;; # Accepted for compatibility; Codex is included by default.
+      *) die "unknown argument $argument (expected --no-codex or legacy --codex)." ;;
     esac
   done
   # --- Checks -----------------------------------------------------------------------
@@ -244,7 +246,7 @@ main() {
     say "or run this installer again with HOOK_ME_UP_YES=1."
   fi
 
-  # --- Codex hooks (explicit opt-in, in addition to Claude Code) ---------------------
+  # --- Codex hooks (included unless --no-codex) ---------------------
   if [ "$codex" = 1 ]; then
     local codex_home="${CODEX_HOME:-$HOME/.codex}" codex_hooks="not added"
     if [ ! -d "$codex_home" ]; then
@@ -261,7 +263,7 @@ main() {
         "$setup" "${codex_args[@]}" --dry-run || true
         codex_hooks="not added (no terminal to ask)"
         say "No terminal to ask, so $codex_home/hooks.json was not changed."
-        say "Run this installer again with --codex and HOOK_ME_UP_YES=1 to add them."
+        say "Run this installer again with HOOK_ME_UP_YES=1 to add them."
       fi
     fi
     say "Codex hooks: $codex_hooks."

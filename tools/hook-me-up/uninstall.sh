@@ -3,14 +3,15 @@
 #
 #   curl -fsSL https://raw.githubusercontent.com/robertodf99/fde-toolkit/main/tools/hook-me-up/uninstall.sh | bash
 #
-# Removes Hook Me Up's hooks from ~/.claude/settings.json (after showing the diff and
-# asking). Only then does it stop the agent and remove the app, its LaunchAgent, its
+# Removes Hook Me Up's hooks from ~/.claude/settings.json and $CODEX_HOME/hooks.json
+# (default ~/.codex/hooks.json), unless --no-codex is given (after each diff and
+# confirmation). Only then does it stop the agent and remove the app, its LaunchAgent, its
 # support folder and the editor extension (from VS Code, VS Code Insiders, Cursor and
 # Windsurf, with each command-line tool found); if the hooks stay, everything else stays
 # too. Settings backups (settings.json.bak-*) and the log are left where they are.
 #
 # Environment:
-#   HOOK_ME_UP_YES=1         change ~/.claude/settings.json without asking
+#   HOOK_ME_UP_YES=1         accept both clients' hook diffs without asking
 #   HOOK_ME_UP_DRY_LAUNCH=1  do not use launchctl (tests)
 #   HOOK_ME_UP_NO_TTY=1      behave as if there were no terminal to ask (tests, and the
 #                            Claude Code plugin, which asks in the chat instead)
@@ -100,11 +101,12 @@ quit_running_app() {
 }
 
 main() {
-  local codex=0 argument
+  local codex=1 argument
   for argument in "$@"; do
     case "$argument" in
-      --codex) codex=1 ;;
-      *) die "unknown argument $argument (expected --codex)." ;;
+      --no-codex) codex=0 ;;
+      --codex) ;; # Accepted for compatibility; Codex is included by default.
+      *) die "unknown argument $argument (expected --no-codex or legacy --codex)." ;;
     esac
   done
   case "${HOME:-}" in
@@ -191,7 +193,7 @@ main() {
   fi
   if [ "$codex_remain" = 1 ]; then
     say "Codex hooks are still in $codex_settings, so Hook Me Up keeps running and stays installed."
-    say "Run this again with --codex in a terminal, or with HOOK_ME_UP_YES=1, to finish."
+    say "Run this again without --no-codex in a terminal, or with HOOK_ME_UP_YES=1, to finish."
     exit 0
   fi
 
