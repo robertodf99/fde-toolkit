@@ -91,13 +91,13 @@ same_tree() { # expected state: on a difference, show it
 run() { # script, extra env... (the script arrives on stdin, as with curl | bash)
   local script="$1"
   shift
-  env HOME="$FAKE" HOOK_ME_UP_ZIP="$ZIP" HOOK_ME_UP_DRY_LAUNCH=1 HOOK_ME_UP_NO_TTY=1 PATH="$SAFE_PATH" \
+  env HOME="$FAKE" CODEX_HOME="$FAKE/.codex" HOOK_ME_UP_ZIP="$ZIP" HOOK_ME_UP_DRY_LAUNCH=1 HOOK_ME_UP_NO_TTY=1 PATH="$SAFE_PATH" \
     HOOK_ME_UP_TEST_APPLICATIONS="$WORKDIR/no-applications" "$@" bash <"$script"
 }
 run_truncated() { # script, fraction of its lines to keep (e.g. 1/2)
   local lines
   lines="$(($(wc -l <"$1") * ${2%/*} / ${2#*/}))"
-  head -n "$lines" "$1" | env HOME="$FAKE" HOOK_ME_UP_ZIP="$ZIP" HOOK_ME_UP_DRY_LAUNCH=1 HOOK_ME_UP_NO_TTY=1 \
+  head -n "$lines" "$1" | env HOME="$FAKE" CODEX_HOME="$FAKE/.codex" HOOK_ME_UP_ZIP="$ZIP" HOOK_ME_UP_DRY_LAUNCH=1 HOOK_ME_UP_NO_TTY=1 \
     PATH="$SAFE_PATH" HOOK_ME_UP_TEST_APPLICATIONS="$WORKDIR/no-applications" HOOK_ME_UP_YES=1 bash
 }
 json_equal() { /usr/bin/python3 -c 'import json,sys; sys.exit(json.load(open(sys.argv[1])) != json.load(open(sys.argv[2])))' "$1" "$2"; }
@@ -537,6 +537,93 @@ check "a wrong checksum fails without installation changes" \
 run uninstall.sh HOOK_ME_UP_YES=1 >"$LOGS/uninstall-download.txt" 2>&1
 check "downloaded package uninstalls and restores the original settings" \
   'json_equal "$WORKDIR/original.json" "$SETTINGS" && [ ! -e "$APP" ]'
+
+
+echo "--- Codex is opt-in, including when its profile exists"
+CODEX="$FAKE/.codex"
+mkdir -p "$CODEX"
+printf '{"custom":true,"hooks":{"Stop":[{"hooks":[{"type":"command","command":"say codex"}]}]}}\n' >"$WORKDIR/codex-original.json"
+cp "$WORKDIR/codex-original.json" "$CODEX/hooks.json"
+printf '# trust is owned by Codex\n[hooks.state.example]\ntrusted_hash = "fixture"\n' >"$CODEX/config.toml"
+cp "$CODEX/config.toml" "$WORKDIR/codex-config.toml"
+run install.sh HOOK_ME_UP_YES=1 >"$LOGS/no-codex-install.txt" 2>&1
+check "without --codex, Codex files stay byte identical and no Codex output" \
+  'cmp -s "$CODEX/hooks.json" "$WORKDIR/codex-original.json" && cmp -s "$CODEX/config.toml" "$WORKDIR/codex-config.toml" && ! grep -q "Codex" "$LOGS/no-codex-install.txt"'
+run uninstall.sh HOOK_ME_UP_YES=1 >"$LOGS/no-codex-uninstall.txt" 2>&1
+check "without --codex, foreign Codex hooks do not prevent uninstall" \
+  '[ ! -e "$APP" ] && cmp -s "$CODEX/hooks.json" "$WORKDIR/codex-original.json" && ! grep -q "Codex" "$LOGS/no-codex-uninstall.txt"'
+run_codex() { # script, extra env...
+  local script="$1"
+  shift
+  env HOME="$FAKE" CODEX_HOME="$CODEX" HOOK_ME_UP_ZIP="$ZIP" HOOK_ME_UP_DRY_LAUNCH=1 HOOK_ME_UP_NO_TTY=1 \
+    PATH="$SAFE_PATH" HOOK_ME_UP_TEST_APPLICATIONS="$WORKDIR/no-applications" "$@" bash -s -- --codex <"$script"
+}
+run_codex install.sh >"$LOGS/codex-decline.txt" 2>&1
+check "Codex install without consent shows diff and changes nothing" \
+  'cmp -s "$CODEX/hooks.json" "$WORKDIR/codex-original.json" && grep -q "Exact text changes to .*hooks.json" "$LOGS/codex-decline.txt"'
+run_codex install.sh HOOK_ME_UP_YES=1 >"$LOGS/codex-install.txt" 2>&1
+codex_valid() {
+  /usr/bin/python3 - "$CODEX/hooks.json" "$HOOK_COMMAND" <<'CHECK'
+import json,sys
+value=json.load(open(sys.argv[1])); command=sys.argv[2]
+expected={'PermissionRequest':('permission --timeout 600',600),'Stop':('finished',10),'UserPromptSubmit':('clear',10),'SessionEnd':('clear',3),'Interrupt':('clear',3)}
+assert value['custom'] is True
+for event,(mode,timeout) in expected.items():
+    group=value['hooks'].get(event,[])[-1]
+    handler=group['hooks'][0]
+    assert handler['command']==command+' '+mode+' --client codex'
+    assert handler['timeout']==timeout
+    if event=='PermissionRequest':
+        assert group['matcher']==''
+        assert handler['statusMessage']=='Answer in the notification, or click it to answer here'
+    else: assert 'statusMessage' not in handler
+assert 'Notification' not in value['hooks']
+assert value['hooks']['Stop'][0]['hooks'][0]['command']=='say codex'
+CHECK
+}
+check "--codex adds exactly the five Codex handlers and also Claude" \
+  'codex_valid && grep -q "Hooks in ~/.claude/settings.json: added" "$LOGS/codex-install.txt"'
+check "Codex backup and trust instructions, no trust file writes" \
+  'ls "$CODEX" | grep -q "^hooks.json.bak-" && grep -q "/hooks in Codex" "$LOGS/codex-install.txt" && cmp -s "$CODEX/config.toml" "$WORKDIR/codex-config.toml"'
+cp "$CODEX/hooks.json" "$WORKDIR/codex-installed.json"
+run_codex install.sh HOOK_ME_UP_YES=1 >"$LOGS/codex-upgrade.txt" 2>&1
+check "Codex install is idempotent byte for byte" \
+  'cmp -s "$CODEX/hooks.json" "$WORKDIR/codex-installed.json" && grep -q "No changes: .*hooks.json" "$LOGS/codex-upgrade.txt"'
+if doctor "$LOGS/doctor-codex.txt"; then status=0; else status=$?; fi
+check "doctor --home checks Codex hooks and trust without requiring Codex" \
+  '[ "$status" = 0 ] && grep -q "^PASS  Codex hooks:" "$LOGS/doctor-codex.txt" && grep -q "^INFO  Codex trust:.* /hooks in Codex" "$LOGS/doctor-codex.txt"'
+# --home takes priority over a process-level profile override.
+env CODEX_HOME="$WORKDIR/no-codex" "$APP/Contents/MacOS/hook-me-up-setup" doctor --home "$FAKE" >"$LOGS/doctor-codex-isolated.txt" 2>&1
+check "doctor --home ignores ambient CODEX_HOME" 'grep -q "^PASS  Codex hooks:" "$LOGS/doctor-codex-isolated.txt"'
+# Both clients still have our hooks: a chat preview must show both removal diffs.
+CODEX_PREVIEW_STATE="$(tree_state)"
+run_codex uninstall.sh HOOK_ME_UP_YES=0 >"$LOGS/codex-uninstall-both-preview.txt" 2>&1
+check "uninstall --codex without consent previews both clients before exiting" \
+  'grep -q "Exact text changes to .*settings.json" "$LOGS/codex-uninstall-both-preview.txt" && grep -q "Exact text changes to .*hooks.json" "$LOGS/codex-uninstall-both-preview.txt"'
+check "previewing both uninstall diffs leaves hooks, app and backups unchanged" 'same_tree "$CODEX_PREVIEW_STATE"'
+run uninstall.sh HOOK_ME_UP_YES=1 >"$LOGS/codex-kept.txt" 2>&1
+check "uninstall without --codex warns and keeps app and Codex hooks" \
+  '[ -x "$APP/Contents/MacOS/hook-me-up-setup" ] && [ -f "$PLIST" ] && cmp -s "$CODEX/hooks.json" "$WORKDIR/codex-installed.json" && grep -q -- "--codex" "$LOGS/codex-kept.txt"'
+run_codex uninstall.sh >"$LOGS/codex-uninstall-decline.txt" 2>&1
+check "declined Codex removal keeps app and hooks" \
+  '[ -d "$APP" ] && cmp -s "$CODEX/hooks.json" "$WORKDIR/codex-installed.json"'
+run_codex uninstall.sh HOOK_ME_UP_YES=1 >"$LOGS/codex-uninstall.txt" 2>&1
+check "Codex uninstall removes only ours, keeps backups and trust, removes app" \
+  '[ ! -e "$APP" ] && json_equal "$CODEX/hooks.json" "$WORKDIR/codex-original.json" && ls "$CODEX" | grep -q "^hooks.json.bak-" && cmp -s "$CODEX/config.toml" "$WORKDIR/codex-config.toml"'
+run_codex uninstall.sh HOOK_ME_UP_YES=1 >"$LOGS/codex-uninstall-again.txt" 2>&1
+check "Codex uninstall twice is harmless" 'json_equal "$CODEX/hooks.json" "$WORKDIR/codex-original.json"'
+run_codex install.sh HOOK_ME_UP_YES=1 HOOK_ME_UP_ZIP="$OLD/hook-me-up-old-macos.zip" >"$LOGS/codex-old.txt" 2>&1
+check "old setup without --client skips Codex and continues Claude" \
+  'grep -q "does not support --client" "$LOGS/codex-old.txt" && json_equal "$CODEX/hooks.json" "$WORKDIR/codex-original.json" && grep -q "Hooks in ~/.claude/settings.json: added" "$LOGS/codex-old.txt"'
+run_codex uninstall.sh HOOK_ME_UP_YES=1 >"$LOGS/codex-uninstall-old.txt" 2>&1
+check "old uninstaller reports missing --client support" \
+  'grep -q "does not support --client" "$LOGS/codex-uninstall-old.txt" && [ ! -e "$APP" ]'
+# No Codex profile: no Codex CLI needed, and no profile is created.
+CODEX="$WORKDIR/no-codex"
+run_codex install.sh HOOK_ME_UP_YES=1 >"$LOGS/codex-absent.txt" 2>&1
+check "missing Codex profile is skipped without creating it" \
+  '[ ! -e "$CODEX" ] && grep -q "skipped (no Codex)" "$LOGS/codex-absent.txt"'
+run_codex uninstall.sh HOOK_ME_UP_YES=1 >"$LOGS/codex-absent-uninstall.txt" 2>&1
 
 check "the real HOME was not touched" '[ "$BEFORE" = "$(fingerprint)" ]'
 

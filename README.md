@@ -6,12 +6,14 @@ Setting up with an agent? Point it to [INSTALL.md](INSTALL.md).
 
 | Tool | What it does |
 |---|---|
-| [Hook Me Up](tools/hook-me-up/) | Answer Claude Code from native macOS notifications. |
+| [Hook Me Up](tools/hook-me-up/) | Answer Claude Code and Codex CLI from native macOS notifications. |
 | [agent-workflow](methodology/agent-workflow/) | Multiagent development methodology for Claude Code, Codex and Herdr Core. |
 
 ## Install Hook Me Up
 
-Requires macOS 14 or later and Claude Code. The installer shows the settings diff
+Requires macOS 14 or later and Claude Code or Codex CLI. Codex setup is opt-in
+with `--codex`; see the [Codex CLI instructions](tools/hook-me-up/README.md#codex-cli).
+The installer shows the settings diff
 and asks before adding hooks.
 
 ```sh

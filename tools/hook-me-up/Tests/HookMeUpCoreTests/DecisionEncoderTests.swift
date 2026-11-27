@@ -399,3 +399,33 @@ struct SplitMix64 {
         return z ^ (z >> 31)
     }
 }
+
+@Suite struct CodexDecisionTests {
+    @Test func codexHasOnlyTwoMinimalDecisions() throws {
+        let input = try bashInput()
+        for decision in allDecisions {
+            let data = DecisionEncoder.output(for: decision, input: input, client: .codex)
+            switch decision {
+            case .approve:
+                #expect(
+                    data.map { String(decoding: $0, as: UTF8.self) }
+                        == #"{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow"}}}"#
+                )
+            case .deny:
+                let value = try JSONDecoder().decode(JSONValue.self, from: #require(data))
+                #expect(Set(value.objectValue!.keys) == ["hookSpecificOutput"])
+                let output = value["hookSpecificOutput"]!
+                #expect(Set(output.objectValue!.keys) == ["hookEventName", "decision"])
+                #expect(output["hookEventName"] == "PermissionRequest")
+                #expect(Set(output["decision"]!.objectValue!.keys) == ["behavior", "message"])
+                #expect(output["decision"]?["behavior"] == "deny")
+            default: #expect(data == nil)
+            }
+        }
+        for json in [askUserQuestionInput, exitPlanModeInput] {
+            for decision in allDecisions {
+                #expect(DecisionEncoder.output(for: decision, input: try parse(json), client: .codex) == nil)
+            }
+        }
+    }
+}

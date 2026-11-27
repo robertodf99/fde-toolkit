@@ -104,10 +104,12 @@ private func run(_ probe: FakeProbe, _ options: Doctor.Options = realHome) -> Do
         let report = run(probe)
         #expect(
             report.checks.map(\.name) == [
-                "App", "LaunchAgent", "Agent process", "Agent", "Agent version", "Hooks", "Notifications",
+                "App", "LaunchAgent", "Agent process", "Agent", "Agent version", "Hooks", "Codex", "Notifications",
                 "Notification style", "Pause", "Editor extension",
             ])
-        #expect(report.checks.dropLast().allSatisfy { $0.result == .pass }, "\(report.rendered())")
+        #expect(
+            report.checks.dropLast().filter { $0.name != "Codex" }.allSatisfy { $0.result == .pass },
+            "\(report.rendered())")
         #expect(report.check("Editor extension")?.result == .info)
         #expect(report.exitCode == 0)
         #expect(probe.queried == [socketPath])
@@ -430,6 +432,7 @@ private func run(_ probe: FakeProbe, _ options: Doctor.Options = realHome) -> Do
         #expect(report.check("Pause")?.result == .info)
         #expect(report.exitCode == 0)
         #expect(report.rendered().contains("INFO  Pause: paused"))
+        #expect(report.check("Pause")?.fix == "To end it now, choose Resume in the Hook Me Up menu-bar item.")
         #expect(report.rendered().contains("      Note: To end it now"))
     }
 
@@ -597,5 +600,153 @@ private func run(_ probe: FakeProbe, _ options: Doctor.Options = realHome) -> Do
         #expect(Doctor.quoted("/a b/c") == "'/a b/c'")
         #expect(Doctor.quoted("/it's") == #"'/it'\''s'"#)
         #expect(Doctor.quoted("") == "''")
+    }
+}
+
+private let codexPath = home + "/.codex/hooks.json"
+private func codexHooks(at path: String = app + "/Contents/MacOS/hook-me-up") -> Data {
+    Data(
+        """
+        {"hooks": {
+          "PermissionRequest": [{"matcher":"","hooks":[{"type":"command","command":"'\(path)' permission --timeout 600 --client codex","timeout":600,"statusMessage":"Answer in the notification, or click it to answer here"}]}],
+          "Stop": [{"hooks":[{"type":"command","command":"'\(path)' finished --client codex","timeout":10}]}],
+          "UserPromptSubmit": [{"hooks":[{"type":"command","command":"'\(path)' clear --client codex","timeout":10}]}],
+          "SessionEnd": [{"hooks":[{"type":"command","command":"'\(path)' clear --client codex","timeout":3}]}],
+          "Interrupt": [{"hooks":[{"type":"command","command":"'\(path)' clear --client codex","timeout":3}]}]
+        }}
+        """.utf8)
+}
+
+@Suite struct CodexDoctorTests {
+    @Test func absentOrForeignCodexIsInfoWithoutCodexInstalled() {
+        let probe = healthy()
+        for data in [Data?.none, Data(#"{"hooks":{"Stop":[{"hooks":[{"command":"say done"}]}]}}"#.utf8)] {
+            probe.files[codexPath] = data
+            let report = run(probe)
+            #expect(report.check("Codex")?.result == .info)
+            #expect(report.check("Codex")?.detail == "not set up")
+            #expect(report.exitCode == 0)
+        }
+    }
+
+    @Test func codexValidHooksAndTrustAreSeparateChecks() {
+        let probe = healthy()
+        probe.files[codexPath] = codexHooks()
+        probe.files[home + "/.codex/config.toml"] = Data("[hooks.state.example]\ntrusted_hash = \"fixture\"\n".utf8)
+        let report = run(probe)
+        #expect(report.check("Codex hooks")?.result == .pass)
+        #expect(report.check("Codex trust")?.result == .info)
+        #expect(report.check("Codex trust")?.detail.contains("/hooks in Codex") == true)
+        #expect(report.exitCode == 0)
+        #expect(probe.queried == [socketPath])
+    }
+
+    @Test func malformedOrUnreadableHookFilesWarnWithoutRecommendingInstall() {
+        for data in ["not JSON", "[]", #"{"hooks":42}"#] {
+            let probe = healthy()
+            probe.files[codexPath] = Data(data.utf8)
+            let report = run(probe)
+            #expect(report.check("Codex hooks")?.result == .warn)
+            #expect(report.check("Codex hooks")?.fix == nil)
+            #expect(report.exitCode == 0)
+        }
+        let probe = healthy()
+        probe.folders.insert(codexPath)
+        let report = run(probe)
+        #expect(report.check("Codex hooks")?.result == .warn)
+        #expect(report.check("Codex hooks")?.fix == nil)
+        #expect(report.exitCode == 0)
+    }
+
+    @Test func corruptCodexJSONFailsOnlyWhenItNamesOurHook() {
+        for (hookPath, expected) in [
+            (app + "/Contents/MacOS/hook-me-up", DoctorCheck.Result.fail),
+            ("/old/Hook Me Up.app/Contents/MacOS/hook-me-up", .warn),
+        ] {
+            let probe = healthy()
+            // A truncated hook file is invalid JSON, but still contains its command path.
+            probe.files[codexPath] = Data(codexHooks(at: hookPath).dropLast())
+            let report = run(probe)
+            #expect(report.check("Codex hooks")?.result == expected)
+            #expect(report.exitCode == (expected == .fail ? 1 : 0))
+            if expected == .warn { #expect(report.check("Codex hooks")?.fix == nil) }
+        }
+    }
+
+    @Test func recognizableHooksWithAMalformedEventStillFail() throws {
+        let probe = healthy()
+        var value = try JSONDecoder().decode(JSONValue.self, from: codexHooks()).objectValue!
+        var hooks = value["hooks"]!.objectValue!
+        hooks["Stop"] = .number(42)
+        value["hooks"] = .object(hooks)
+        probe.files[codexPath] = try JSONEncoder().encode(JSONValue.object(value))
+        let report = run(probe)
+        #expect(report.check("Codex hooks")?.result == .fail)
+        #expect(report.check("Codex hooks")?.detail.contains("Stop") == true)
+        #expect(report.exitCode == 1)
+    }
+
+    @Test func missingOrWrongArgumentsFailInsteadOfReportingNotSetUp() {
+        let text = String(decoding: codexHooks(), as: UTF8.self)
+        for broken in [
+            text.replacingOccurrences(of: "--client codex", with: "--client claude"),
+            text.replacingOccurrences(of: "' finished --client codex", with: "' clear --client codex"),
+        ] {
+            let probe = healthy()
+            probe.files[codexPath] = Data(broken.utf8)
+            let report = run(probe)
+            #expect(report.check("Codex hooks")?.result == .fail)
+            #expect(report.check("Codex hooks")?.fix?.contains("--client codex") == true)
+        }
+    }
+
+    @Test func duplicatesOtherPathsAndChangedMatchersAreReported() throws {
+        let probe = healthy()
+        let other = codexHooks(at: "/old/Hook Me Up.app/Contents/MacOS/hook-me-up")
+        var value = try JSONDecoder().decode(JSONValue.self, from: codexHooks()).objectValue!
+        var hooks = value["hooks"]!.objectValue!
+        let old = try JSONDecoder().decode(JSONValue.self, from: other)
+        hooks["Stop"] = .array(hooks["Stop"]!.arrayValue! + old["hooks"]!["Stop"]!.arrayValue!)
+        value["hooks"] = .object(hooks)
+        probe.files[codexPath] = try JSONEncoder().encode(JSONValue.object(value))
+        let report = run(probe)
+        #expect(report.check("Codex duplicate hooks")?.result == .warn)
+        #expect(report.check("Codex other installation")?.result == .warn)
+        probe.files[codexPath] = Data(
+            String(decoding: codexHooks(), as: UTF8.self).replacingOccurrences(
+                of: "\"matcher\":\"\"", with: "\"matcher\":\"Bash\""
+            ).utf8)
+        #expect(run(probe).check("Codex hooks set up differently")?.result == .warn)
+    }
+
+    @Test func configDisablingHooksOrDefiningInlineHooksIsReported() {
+        for (config, disabled, inline) in [
+            ("[features]\nhooks = false # disabled\n", true, false),
+            ("[hooks]\nStop = []\n", false, true),
+            ("[hooks.PermissionRequest]\ncommand = \"test\"\n", false, true),
+            ("[[hooks.PermissionRequest]]\ncommand = \"test\"\n", false, true),
+            ("[hooks.state]\n", false, false),
+            ("[hooks.state.example]\ntrusted_hash = \"fixture\"\n", false, false),
+            ("[[hooks.state.example]]\ntrusted_hash = \"fixture\"\n", false, false),
+            ("features.hooks = false\n", true, false),
+            ("features . hooks = false # root key\n", true, false),
+            ("# features.hooks = false\n", false, false),
+            ("[other]\nfeatures.hooks = false\n", false, false),
+            ("# [hooks]\n[features]\n# hooks = false\nhooks = true\n", false, false),
+            ("[other]\nhooks = false\n[hooks.state.example]\ntrusted_hash = \"fixture\"\n", false, false),
+        ] {
+            let probe = healthy()
+            probe.files[codexPath] = codexHooks()
+            probe.files[home + "/.codex/config.toml"] = Data(config.utf8)
+            let report = run(probe)
+            #expect((report.check("Codex hooks disabled")?.result == .fail) == disabled)
+            if disabled {
+                #expect(
+                    report.check("Codex hooks disabled")?.detail == home
+                        + "/.codex/config.toml sets features.hooks = false")
+            }
+            #expect((report.check("Codex inline hooks")?.result == .warn) == inline)
+            #expect(report.exitCode == (disabled ? 1 : 0))
+        }
     }
 }

@@ -62,6 +62,20 @@ public enum Summarizer {
                 title: title, description: described.isEmpty ? oneLine(command, limit: descriptionLimit) : described,
                 tags: tags)
 
+        case "apply_patch":
+            let patch = string("patch") ?? toolInput.stringValue ?? ""
+            let prefixes = ["*** Add File: ", "*** Update File: ", "*** Delete File: ", "*** Move to: "]
+            let files = patch.components(separatedBy: .newlines).compactMap { line -> String? in
+                guard let prefix = prefixes.first(where: line.hasPrefix) else { return nil }
+                let file = String(line.dropFirst(prefix.count)).trimmingCharacters(in: .whitespaces)
+                return file.isEmpty ? nil : file
+            }
+            guard !files.isEmpty else { break }
+            return Part(
+                title: "Apply a patch",
+                description: oneLine(files.map { paths.display($0) }.joined(separator: ", "), limit: descriptionLimit),
+                tags: files.contains(where: { !paths.isInside($0) }) ? [.writesOutsideProject] : [])
+
         case "Edit", "MultiEdit":
             guard let file = string("file_path") else { break }
             let changed: Int

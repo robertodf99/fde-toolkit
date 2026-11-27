@@ -14,11 +14,13 @@ public struct NotifyEnvelope: Codable, Equatable, Sendable {
     public var terminal: TerminalHint
     /// The folder Claude Code was started in; optional on the wire, for older hooks.
     public var sessionFolder: String?
+    /// Optional source label; absent for Claude and older hooks.
+    public var client: HookClient?
 
     /// Creates a heads-up.
     public init(
         sessionID: String, project: ProjectInfo, kind: EntryKind, message: String, terminal: TerminalHint,
-        sessionFolder: String? = nil
+        sessionFolder: String? = nil, client: HookClient? = nil
     ) {
         self.sessionID = sessionID
         self.project = project
@@ -26,5 +28,6 @@ public struct NotifyEnvelope: Codable, Equatable, Sendable {
         self.message = message
         self.terminal = terminal
         self.sessionFolder = sessionFolder
+        self.client = client
     }
 }

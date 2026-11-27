@@ -160,9 +160,11 @@ old to answer.
   `.sha256`.
 - A `hook-me-up-v*` tag runs the root `.github/workflows/release.yml`: tests, a universal ad-hoc-signed
   package, checks, a build provenance attestation for the zip (`gh attestation verify`),
-  and a GitHub release with the zip and checksum. The app icon is drawn
-  at build time by `scripts/make-icon.swift` from the committed symbol path
-  (`Resources/icon/claude-symbol.svg`). The project logo, GitHub's social preview and
+  and a GitHub release with the zip and checksum. The original blue/teal fishing-hook app icon is drawn
+  at build time by `scripts/make-icon.swift` from constants, with no third-party symbol.
+  `scripts/make-client-symbols.swift` separately renders the committed Claude and OpenAI
+  paths as `notification-claude.png` and `notification-codex.png` in Contents/Resources
+  before signing. The project logo, GitHub's social preview and
   the Product Hunt thumbnail in `docs/images/` are drawn by `scripts/make-logo.swift`
   (`make logo`); the demo video (`.build/demo/hook-me-up-demo.mp4`) and the README's
   GIF by `scripts/make-demo.sh`, from screen recordings that are never committed (the
@@ -187,3 +189,70 @@ old to answer.
   and keeps the settings backups.
   `scripts/test-install.sh` runs both against a throwaway HOME, with system folders only
   on `PATH` and stand-ins for the editors' tools.
+
+
+## Codex CLI protocol
+
+`HookClient` selects the protocol in `HookInvocation`, `runHook`, `DecisionEncoder`
+and `SettingsMerger`; omitted `--client` means `claude`. Claude's handler commands,
+settings bytes and notification titles retain their existing format. Codex handlers
+use `--client codex`. `RequestEnvelope` and `NotifyEnvelope` carry an optional
+`client` label, omitted for Claude and understood when absent from older messages;
+`AgentCore` keeps it in the entry and `NativeNotification` adds `· Codex` to its title.
+The socket transport, UID checks, per-request decisions and terminal activation are
+shared unchanged.
+
+Codex uses `cwd` as the session folder and doesn't inherit `CLAUDE_PROJECT_DIR` or
+`CLAUDE_CODE_ENTRYPOINT`. It sends no session permission suggestions. Questions and
+plans are released before contacting the agent. At the output boundary its encoder
+accepts only Approve / Deny and emits only `hookSpecificOutput.hookEventName` and
+`decision.behavior`, plus `decision.message` on denial. All other outcomes return
+nothing, with process exit 0. No `updatedInput`, `updatedPermissions` or `interrupt`
+can cross that boundary.
+
+Codex waits for PermissionRequest hooks before presenting its own dialog. A click
+returns `openInTerminal` on the existing socket flow, which emits nothing and lets
+Codex present the dialog. The 600 s handler has a status message explaining this;
+the hook exits around 590 s if nobody answers. Connection closure removes a pending
+notification; UserPromptSubmit, SessionEnd and Interrupt also clear the session.
+Stop posts a Finished gist (possibly empty); headless `codex exec` is not detected.
+
+`install.sh --codex` adds Codex user hooks in addition to the existing Claude setup.
+`HookMeUpPaths.codexHooksURL` resolves `CODEX_HOME/hooks.json` or `~/.codex/hooks.json`.
+The same backup, diff, confirmation, changed-since-read check, atomic write and
+path-keyed setup state protect both clients. SessionEnd and Interrupt get 3 s, Stop
+and UserPromptSubmit 10 s, PermissionRequest 600 s. Reinstallation is idempotent.
+Without the flag the installer does nothing to Codex. Uninstall without the flag
+previews Codex removal read-only and retains the app if its handlers remain. Older
+setup packages without `--client` are detected from usage and skip Codex.
+
+Doctor reads the selected hooks file and its sibling `config.toml` through
+`DoctorProbe`. It checks event arguments, path, duplicates and shapes; standard TOML
+table text checks report disabled features and competing inline hooks. Trust remains
+an INFO reminder to review `/hooks`; no app-server call or Codex installation is
+required. Neither setup nor doctor writes trust state, config.toml or project hooks.
+
+
+## Client symbols in notifications
+
+`NotificationSpec.clientImage` is a pure selection of the source client's symbol.
+`NativeNotification` maps every session entry's optional client to Claude when absent,
+or Codex when explicit, including heads-ups and timed-out entries. The installer's
+generic test notification has no client image. No hook decision, socket message,
+category, action or title is changed by this image selection.
+
+`ClientNotificationAttachment` reads the selected PNG from the app bundle and copies
+it into a unique private temporary directory for each post. The bundle original is
+never passed to UserNotifications. `UserNotificationPresenter.content(for:attachment:)`
+adds the prepared attachment to the existing title, body, category and sound; a
+missing image, failed copy or attachment error leaves the notification without an
+image and it is still submitted. Temporary files stay alive until the scheduling
+callback, then their directory is removed on success or failure:
+[Apple documents that scheduling moves the attachment file](https://developer.apple.com/documentation/usernotifications/unnotificationattachment/init%28identifier%3Aurl%3Aoptions%3A%29-83grx).
+
+Client PNGs are 128 px with a 64 px symbol and clear white margins, using uniform
+scaling and the original viewBox. Claude uses the source's official colour; the
+Blossom stays black. They identify notification origin only and do not appear in
+Hook Me Up's own app icon, logo or promotional PNGs. The app icon keeps the macOS
+824/1024 tile, 22.5% corners and shadow, with wider strokes at 16/32 px. Its blue/teal
+palette is shared by the project logo, social preview, thumbnail and demo-card source.

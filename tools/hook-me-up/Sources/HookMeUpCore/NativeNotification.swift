@@ -26,7 +26,7 @@ public enum NativeNotification {
     public static func spec(for entry: PendingStore.Entry, request: RequestEnvelope?, progress: QuestionProgress?)
         -> NotificationSpec
     {
-        let project = entry.project.name
+        let project = entry.project.name + (entry.client == .codex ? " · Codex" : "")
         let origin: String
         switch entry.summary.origin {
         case .subagent?: origin = " · subagent"
@@ -40,7 +40,8 @@ public enum NativeNotification {
             NotificationSpec(
                 identifier: entry.id.uuidString, threadIdentifier: threadIdentifier(for: entry.project),
                 categoryIdentifier: category,
-                title: "\(project) · \(kind)\(origin)", body: body, actions: actions, playsSound: sound)
+                title: "\(project) · \(kind)\(origin)", body: body, actions: actions, playsSound: sound,
+                clientImage: entry.client ?? .claude)
         }
 
         if entry.state == .timedOut {
@@ -54,7 +55,7 @@ public enum NativeNotification {
             var body = lines(entry.summary.title, entry.summary.description)
             let warnings = entry.summary.tags.map { "⚠︎ \($0.label)" }
             if !warnings.isEmpty { body += "\n" + warnings.joined(separator: "  ") }
-            let rules = sessionRules(request?.sessionPermissions ?? [])
+            let rules = entry.client == .codex ? [] : sessionRules(request?.sessionPermissions ?? [])
             // Most likely first: macOS shows the first action as a button, the rest under
             // "Options". Clicking the body opens the session.
             var actions = [

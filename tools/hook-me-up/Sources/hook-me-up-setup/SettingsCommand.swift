@@ -10,6 +10,8 @@ import SetupKit
 func runSettingsCommand(_ command: String, _ arguments: [String]) -> Never {
     var arguments = arguments
     var settingsURL = HookMeUpPaths.claudeSettingsURL
+    var explicitSettings = false
+    var client = HookClient.claude
     // Without --hook: the hook next to this program, else where the installer puts it.
     var hookPath = AppLocation.defaultHookPath(
         setupExecutable: Bundle.main.executablePath, canonicalPath: AppLocation.resolvingSymlinks,
@@ -24,11 +26,16 @@ func runSettingsCommand(_ command: String, _ arguments: [String]) -> Never {
         switch argument {
         case "--dry-run": dryRun = true
         case "--yes": assumeYes = true
-        case "--settings", "--hook", "--timeout", "--state":
+        case "--settings", "--hook", "--timeout", "--state", "--client":
             guard let value = arguments.first, !value.isEmpty else { fail("\(argument) needs a value\n\(usage)") }
             arguments.removeFirst()
             switch argument {
-            case "--settings": settingsURL = URL(fileURLWithPath: (value as NSString).expandingTildeInPath)
+            case "--client":
+                guard let parsed = HookClient(rawValue: value) else { fail("--client must be claude or codex") }
+                client = parsed
+            case "--settings":
+                settingsURL = URL(fileURLWithPath: (value as NSString).expandingTildeInPath)
+                explicitSettings = true
             case "--hook": hookPath = (value as NSString).expandingTildeInPath
             case "--state": statePath = (value as NSString).expandingTildeInPath
             default:
@@ -41,8 +48,14 @@ func runSettingsCommand(_ command: String, _ arguments: [String]) -> Never {
             fail("unknown argument \(argument)\n\(usage)")
         }
     }
+    if client == .codex, !explicitSettings { settingsURL = HookMeUpPaths.codexHooksURL() }
     guard hookPath.hasPrefix("/") else { fail("--hook must be an absolute path") }
 
+    func codexNextStep() {
+        if client == .codex, command == "install" {
+            print("Codex: review and approve the hooks with /hooks in Codex before they can run.")
+        }
+    }
     let document: SettingsDocument
     do {
         document = try SettingsFile.read(settingsURL)
@@ -50,7 +63,9 @@ func runSettingsCommand(_ command: String, _ arguments: [String]) -> Never {
         fail("refusing to touch \(settingsURL.path): \(error)")
     }
     let old = document.value
-    if command == "install" { warnAboutOtherInstallations(in: old, settingsURL: settingsURL, hookPath: hookPath) }
+    if command == "install" {
+        warnAboutOtherInstallations(in: old, settingsURL: settingsURL, hookPath: hookPath, client: client)
+    }
 
     // Whether the settings had a `hooks` object before our install: recorded
     // at install, used at uninstall to restore an originally empty `"hooks": {}` exactly.
@@ -70,7 +85,7 @@ func runSettingsCommand(_ command: String, _ arguments: [String]) -> Never {
     }
     let canonical = AppLocation.resolvingSymlinks
     let hadHooksObject = SettingsMerger.hasHooksObject(
-        SettingsMerger.uninstall(from: old, hookPath: hookPath, canonicalPath: canonical))
+        SettingsMerger.uninstall(from: old, hookPath: hookPath, client: client, canonicalPath: canonical))
     let keepEmptyHooks = loadState(statePath)[stateKey]?["hadHooksObject"]?.boolValue ?? false
 
     let new: JSONValue
@@ -78,9 +93,9 @@ func runSettingsCommand(_ command: String, _ arguments: [String]) -> Never {
         new =
             command == "install"
             ? try SettingsMerger.install(
-                into: old, hookPath: hookPath, permissionTimeout: timeout, canonicalPath: canonical)
+                into: old, hookPath: hookPath, permissionTimeout: timeout, client: client, canonicalPath: canonical)
             : SettingsMerger.uninstall(
-                from: old, hookPath: hookPath, keepEmptyHooks: keepEmptyHooks, canonicalPath: canonical)
+                from: old, hookPath: hookPath, keepEmptyHooks: keepEmptyHooks, client: client, canonicalPath: canonical)
     } catch {
         fail("refusing to touch \(settingsURL.path): unexpected settings shape (\(error))")
     }
@@ -89,6 +104,7 @@ func runSettingsCommand(_ command: String, _ arguments: [String]) -> Never {
         print(
             "No changes: \(settingsURL.path) is already \(command == "install" ? "set up" : "free of Hook Me Up's hooks")."
         )
+        codexNextStep()
         exit(0)
     }
     // The text diff is against the file exactly as it is on disk.
@@ -140,14 +156,16 @@ func runSettingsCommand(_ command: String, _ arguments: [String]) -> Never {
     } catch {
         fail("could not write \(settingsURL.path): \(error); the original is unchanged")
     }
+    codexNextStep()
     exit(0)
 }
 
 /// Hooks that run hook-me-up from another place (another copy of the app) stay, but
 /// each request would then be notified twice: say so, and how to remove them.
-private func warnAboutOtherInstallations(in settings: JSONValue, settingsURL: URL, hookPath: String) {
+private func warnAboutOtherInstallations(in settings: JSONValue, settingsURL: URL, hookPath: String, client: HookClient)
+{
     let found = SettingsMerger.inspect(
-        settings: settings, hookPath: hookPath, canonicalPath: AppLocation.resolvingSymlinks)
+        settings: settings, hookPath: hookPath, client: client, canonicalPath: AppLocation.resolvingSymlinks)
     guard !found.otherPaths.isEmpty else { return }
     let removals = Doctor.otherHookRemovals(
         found.otherPaths, setup: Bundle.main.executablePath ?? "hook-me-up-setup", settings: settingsURL.path)

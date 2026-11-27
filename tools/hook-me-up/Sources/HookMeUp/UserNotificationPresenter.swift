@@ -74,8 +74,14 @@ final class UserNotificationPresenter: NSObject, NotificationPresenting {
 
     private func add(_ spec: NotificationSpec) {
         guard current[spec.identifier] == spec else { return }  // replaced or removed meanwhile
-        let request = UNNotificationRequest(identifier: spec.identifier, content: Self.content(for: spec), trigger: nil)
+        let image = spec.clientImage.flatMap { ClientNotificationAttachment.prepare(for: $0) }
+        let directory = image?.directory
+        let request = UNNotificationRequest(
+            identifier: spec.identifier, content: Self.content(for: spec, attachment: image?.attachment), trigger: nil)
         center.add(request) { [weak self] error in
+            // Scheduling moves the file out of our staging directory. Keep it alive
+            // until this callback, then clean up on success or failure.
+            if let directory { try? FileManager.default.removeItem(at: directory) }
             if let error {
                 AgentLog.info("notification \(spec.identifier.prefix(8)) not posted: \(error)")
                 return
@@ -100,13 +106,16 @@ final class UserNotificationPresenter: NSObject, NotificationPresenting {
 
     // MARK: Mapping (pure, tested)
 
-    nonisolated static func content(for spec: NotificationSpec) -> UNMutableNotificationContent {
+    nonisolated static func content(for spec: NotificationSpec, attachment: UNNotificationAttachment? = nil)
+        -> UNMutableNotificationContent
+    {
         let content = UNMutableNotificationContent()
         content.title = spec.title
         content.body = spec.body
         content.threadIdentifier = spec.threadIdentifier
         content.categoryIdentifier = spec.categoryIdentifier
         content.sound = spec.playsSound ? .default : nil
+        if spec.clientImage != nil, let attachment { content.attachments = [attachment] }
         return content
     }
 

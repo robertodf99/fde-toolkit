@@ -16,10 +16,13 @@ public struct NotificationSpec: Equatable, Sendable {
     /// Whether to play the default sound.
     public var playsSound: Bool
 
+    /// Client symbol to attach; nil for generic notifications.
+    public var clientImage: HookClient?
+
     /// Creates a notification.
     public init(
         identifier: String, threadIdentifier: String, categoryIdentifier: String, title: String, body: String,
-        actions: [NotificationActionSpec], playsSound: Bool = true
+        actions: [NotificationActionSpec], playsSound: Bool = true, clientImage: HookClient? = nil
     ) {
         self.identifier = identifier
         self.threadIdentifier = threadIdentifier
@@ -28,5 +31,6 @@ public struct NotificationSpec: Equatable, Sendable {
         self.body = body
         self.actions = actions
         self.playsSound = playsSound
+        self.clientImage = clientImage
     }
 }

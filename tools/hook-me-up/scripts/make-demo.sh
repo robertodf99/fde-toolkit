@@ -50,7 +50,7 @@ SHOTS=(
   "13.00.08|95.6|98.9|0.75|1800:670:0:570|no|Every answer goes straight back to Claude Code|"
   "13.00.08|119.0|121.45|1|1152:720:1860:0|gif|Click a notification to jump to its session|"
   "13.00.08|122.0|125.0|1|2280:1600:20:290|gif|Click a notification to jump to its session|130:770:840:68"
-  "13.00.08|147.6|151.5|1|1152:720:1860:0|no|Pause notifications from the ✻ menu, and resume them|"
+  "13.00.08|147.6|151.5|1|1152:720:1860:0|no|Pause notifications from the Hook Me Up menu, and resume them|"
 )
 # A shot's recording is the RECORDINGS entry whose name contains its first field.
 

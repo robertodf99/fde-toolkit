@@ -75,7 +75,7 @@ public struct AgentCore: Sendable {
             summary.kind = kind
             let entry = PendingStore.Entry(
                 id: envelope.id, sessionID: envelope.sessionID, kind: kind, summary: summary, project: envelope.project,
-                terminal: envelope.terminal, sessionFolder: envelope.sessionFolder)
+                terminal: envelope.terminal, sessionFolder: envelope.sessionFolder, client: envelope.client)
             store.add(entry)
             requests[envelope.id] = (connection, envelope)
             requestOnConnection[connection] = envelope.id
@@ -94,7 +94,7 @@ public struct AgentCore: Sendable {
                 summary: RequestSummary(
                     kind: note.kind, title: title, description: note.message, tags: [],
                     origin: nil),
-                project: note.project, terminal: note.terminal, sessionFolder: note.sessionFolder)
+                project: note.project, terminal: note.terminal, sessionFolder: note.sessionFolder, client: note.client)
             store.add(entry)
             return released
 

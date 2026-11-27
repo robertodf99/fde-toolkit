@@ -542,3 +542,18 @@ private let likes = question("Which do you like?", ["Blue", "Orange", "Green", "
         #expect(UUID(uuidString: alert.identifier) == nil)  // can never be an entry's id
     }
 }
+
+@Suite struct NotificationClientImageTests {
+    @Test func everySessionNotificationUsesItsClientSymbol() {
+        for (client, expected) in [(HookClient?.none, HookClient.claude), (.claude, .claude), (.codex, .codex)] {
+            for kind in [EntryKind.permission, .question, .plan, .finished, .waiting] {
+                var value = entry(kind, title: "Test", description: "Body")
+                value.client = client
+                #expect(NativeNotification.spec(for: value, request: nil, progress: nil).clientImage == expected)
+                value.state = .timedOut
+                #expect(NativeNotification.spec(for: value, request: nil, progress: nil).clientImage == expected)
+            }
+        }
+        #expect(NativeNotification.testSpec(alertStyle: .alert).clientImage == nil)
+    }
+}

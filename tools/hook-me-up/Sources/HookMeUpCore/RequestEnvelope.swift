@@ -22,11 +22,14 @@ public struct RequestEnvelope: Codable, Equatable, Sendable {
     /// The folder Claude Code was started in (`CLAUDE_PROJECT_DIR`, else the hook's cwd):
     /// what a click opens in an editor. Optional on the wire, for older hooks.
     public var sessionFolder: String?
+    /// Optional source label; absent for Claude and older hooks.
+    public var client: HookClient?
 
     /// Creates a request.
     public init(
         id: UUID, sessionID: String, project: ProjectInfo, summary: RequestSummary, input: JSONValue,
-        terminal: TerminalHint, sessionPermissions: [PermissionUpdate] = [], sessionFolder: String? = nil
+        terminal: TerminalHint, sessionPermissions: [PermissionUpdate] = [], sessionFolder: String? = nil,
+        client: HookClient? = nil
     ) {
         self.id = id
         self.sessionID = sessionID
@@ -36,5 +39,6 @@ public struct RequestEnvelope: Codable, Equatable, Sendable {
         self.terminal = terminal
         self.sessionPermissions = sessionPermissions
         self.sessionFolder = sessionFolder
+        self.client = client
     }
 }

@@ -16,6 +16,11 @@ Never add the hooks without an explicit yes from the user in this conversation, 
 never edit `~/.claude/settings.json` yourself: the installer's own command does it,
 with a backup.
 
+If the user explicitly asks for Codex CLI support, use `bash -s -- --codex` in
+installer/uninstaller commands and apply the same diff and consent steps to both
+clients. Never edit `~/.codex` or `$CODEX_HOME` by hand; remind them to review `/hooks`
+in Codex after installing. Without that request, keep the commands below as they are.
+
 ## Steps
 
 1. Check this is macOS 14 or later: `uname -s` must print `Darwin` and

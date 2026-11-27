@@ -29,16 +29,16 @@ func srgb(_ red: CGFloat, _ green: CGFloat, _ blue: CGFloat, _ alpha: CGFloat = 
 }
 
 // The logo's gradient (scripts/make-logo.swift) behind the shots; the social preview's
-// warm near-black behind the cards.
-let brandLight = srgb(0.98, 0.55, 0.33)
-let brandDark = srgb(0.85, 0.30, 0.27)
-let darkTop = srgb(0.17, 0.12, 0.10)
-let darkBottom = srgb(0.09, 0.06, 0.06)
-let glow = srgb(0.98, 0.55, 0.33, 0.28)
-let accent = srgb(0.93, 0.42, 0.30)
+// deep blue behind the cards.
+let brandLight = srgb(0.12, 0.65, 0.67)
+let brandDark = srgb(0.08, 0.29, 0.56)
+let darkTop = srgb(0.035, 0.10, 0.17)
+let darkBottom = srgb(0.015, 0.045, 0.08)
+let glow = srgb(0.12, 0.65, 0.67, 0.28)
+let accent = srgb(0.10, 0.48, 0.62)
 let white = srgb(1, 1, 1)
-let tagline = srgb(0.97, 0.78, 0.68)
-let captionBar = srgb(0.10, 0.07, 0.06, 0.82)
+let tagline = srgb(0.67, 0.90, 0.94)
+let captionBar = srgb(0.02, 0.07, 0.12, 0.82)
 let commandBox = srgb(1, 1, 1, 0.08)
 
 // MARK: Drawing helpers (y down, like the spec; the context itself is y up)
@@ -71,7 +71,7 @@ func fillGradient(_ context: CGContext, from start: CGColor, to end: CGColor) {
 func fillGlow(_ context: CGContext, at center: CGPoint, radius: CGFloat) {
     guard let space = CGColorSpace(name: CGColorSpace.sRGB),
         let gradient = CGGradient(
-            colorsSpace: space, colors: [glow, srgb(0.98, 0.55, 0.33, 0)] as CFArray, locations: [0, 1])
+            colorsSpace: space, colors: [glow, srgb(0.12, 0.65, 0.67, 0)] as CFArray, locations: [0, 1])
     else { return }
     context.drawRadialGradient(
         gradient, startCenter: center, startRadius: 0, endCenter: center, endRadius: radius, options: [])
@@ -176,7 +176,7 @@ func shot(step: Int, steps: Int, window: CGRect, caption: String) -> CGImage? {
     let hole = roundedRect(window, windowRadius)
     context.saveGState()
     // Negative is down, as in drawLogo.
-    context.setShadow(offset: CGSize(width: 0, height: -18), blur: 60, color: srgb(0.25, 0.06, 0.02, 0.55))
+    context.setShadow(offset: CGSize(width: 0, height: -18), blur: 60, color: srgb(0.02, 0.06, 0.10, 0.55))
     context.addPath(hole)
     context.setFillColor(srgb(0, 0, 0))
     context.fillPath()

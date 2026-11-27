@@ -78,6 +78,17 @@ run_limited() {
   wait "$pid"
 }
 
+setup_has() {
+  local usage
+  usage="$("$1" --help 2>&1 </dev/null)" || true
+  if [ "$2" = "--client" ]; then
+    case "$usage" in *"--client"*) return 0 ;; esac
+  else
+    case "$usage" in *"hook-me-up-setup $2"*) return 0 ;; esac
+  fi
+  return 1
+}
+
 # Quits a Hook Me Up started outside launchd: only processes whose executable is exactly
 # this installed app's.
 quit_running_app() {
@@ -89,6 +100,13 @@ quit_running_app() {
 }
 
 main() {
+  local codex=0 argument
+  for argument in "$@"; do
+    case "$argument" in
+      --codex) codex=1 ;;
+      *) die "unknown argument $argument (expected --codex)." ;;
+    esac
+  done
   case "${HOME:-}" in
     "" | "/") die "HOME is not set." ;;
   esac
@@ -97,6 +115,7 @@ main() {
   local app="$HOME/Applications/Hook Me Up.app"
   local support="$HOME/Library/Application Support/hook-me-up"
   local settings="$HOME/.claude/settings.json"
+  local codex_settings="${CODEX_HOME:-$HOME/.codex}/hooks.json"
   local setup="$app/Contents/MacOS/hook-me-up-setup"
 
   # The hooks go first: while they remain, the agent and the app stay, so the hooks
@@ -121,8 +140,58 @@ main() {
   fi
 
   if [ "$removed" != "1" ]; then
+    # A chat-driven preview must show both clients before asking for consent, even
+    # while Claude's hooks keep us from reaching the Codex removal below.
+    if [ "$codex" = 1 ] && ! has_tty && [ -x "$setup" ] && [ -f "$codex_settings" ]; then
+      if setup_has "$setup" --client; then
+        "$setup" uninstall --client codex --settings "$codex_settings" --hook "$app/Contents/MacOS/hook-me-up" --state "$support/setup-state.json" --dry-run || true
+        say "No terminal to ask, so $codex_settings was not changed."
+      else
+        warn "this package does not support --client; upgrade Hook Me Up before removing its Codex hooks."
+      fi
+    fi
     say "The hooks are still in $settings, so Hook Me Up keeps running and stays installed."
     say "Run this again in a terminal, or with HOOK_ME_UP_YES=1, to finish."
+    exit 0
+  fi
+
+  # Codex hooks must not be left pointing at an app we remove. Inspection is a
+  # read-only uninstall preview, understood even by setup versions before --client.
+  local codex_remain=0 codex_supported=1 preview
+  if [ "$codex" = 1 ] && [ -x "$setup" ] && ! setup_has "$setup" --client; then
+    codex_supported=0
+    warn "this package does not support --client; upgrade Hook Me Up before removing its Codex hooks."
+  fi
+  if [ -f "$codex_settings" ]; then
+    if [ -x "$setup" ]; then
+      if preview="$("$setup" uninstall --settings "$codex_settings" --hook "$app/Contents/MacOS/hook-me-up" --state "$support/setup-state.json" --dry-run </dev/null 2>&1)"; then
+        case "$preview" in "No changes:"*) ;; *) codex_remain=1 ;; esac
+      else
+        codex_remain=1
+        warn "could not inspect $codex_settings; keeping the app until its hooks can be checked."
+      fi
+    elif grep -q 'hook-me-up' "$codex_settings"; then
+      codex_remain=1
+    fi
+  fi
+  if [ "$codex_remain" = 1 ] && [ "$codex" = 1 ]; then
+    if [ ! -x "$setup" ]; then
+      warn "$setup is missing; keeping the app while its Codex hooks remain."
+    elif [ "$codex_supported" = 1 ]; then
+      local codex_args=(uninstall --client codex --settings "$codex_settings" --hook "$app/Contents/MacOS/hook-me-up" --state "$support/setup-state.json")
+      if [ "${HOOK_ME_UP_YES:-0}" = 1 ]; then
+        if "$setup" "${codex_args[@]}" --yes; then codex_remain=0; fi
+      elif has_tty; then
+        if "$setup" "${codex_args[@]}" </dev/tty; then codex_remain=0; fi
+      else
+        "$setup" "${codex_args[@]}" --dry-run || true
+        say "No terminal to ask, so $codex_settings was not changed."
+      fi
+    fi
+  fi
+  if [ "$codex_remain" = 1 ]; then
+    say "Codex hooks are still in $codex_settings, so Hook Me Up keeps running and stays installed."
+    say "Run this again with --codex in a terminal, or with HOOK_ME_UP_YES=1, to finish."
     exit 0
   fi
 
@@ -142,6 +211,7 @@ main() {
     fi
   done < <(editor_clis)
   say "Settings backups (settings.json.bak-*) were left in ~/.claude."
+  if [ "$codex" = 1 ]; then say "Codex backups (hooks.json.bak-*) were left beside $codex_settings."; fi
 }
 
 main "$@"

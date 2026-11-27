@@ -25,7 +25,7 @@ while let chunk = try? FileHandle.standardInput.read(upToCount: 64 * 1024), !chu
 
 if let output = runHook(
     mode: invocation.mode, stdin: stdinData,
-    socketPath: invocation.socketPath ?? HookMeUpPaths.defaultSocketURL)
+    socketPath: invocation.socketPath ?? HookMeUpPaths.defaultSocketURL, client: invocation.client)
 {
     try? FileHandle.standardOutput.write(contentsOf: output + Data("\n".utf8))
 }

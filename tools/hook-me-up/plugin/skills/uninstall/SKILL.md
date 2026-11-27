@@ -15,6 +15,11 @@ chat.
 Never remove anything without an explicit yes from the user in this conversation, and
 never edit `~/.claude/settings.json` yourself.
 
+If the user explicitly asks for Codex CLI support, use `bash -s -- --codex` in
+installer/uninstaller commands and apply the same diff and consent steps to both
+clients. Never edit `~/.codex` or `$CODEX_HOME` by hand; remind them to review `/hooks`
+in Codex after installing. Without that request, keep the commands below as they are.
+
 ## Steps
 
 1. Run the uninstaller without a terminal, so it changes nothing and prints what it
@@ -34,9 +39,13 @@ never edit `~/.claude/settings.json` yourself.
      remove from the settings by hand (those whose command runs
      `…/Hook Me Up.app/Contents/MacOS/hook-me-up`) and stop.
 
-3. Show the user the diff exactly as printed, in a code block: only Hook Me Up's
-   hook entries are removed, every other key and hook stays, and a backup is written
-   first. Say that the app, its LaunchAgent, `~/Library/Application Support/hook-me-up`
+3. Show the user the diff exactly as printed, in a code block. With `--codex`, show
+   both clients' previews (`~/.claude/settings.json` and `$CODEX_HOME/hooks.json`,
+   default `~/.codex/hooks.json`) before asking for consent: each diff or its
+   "No changes" result, noting when a file is absent. Do not run step 4 until the user
+   has seen both results. Only Hook Me Up's hook entries are removed, every other key
+   and hook stays, and a backup is written first. Say that the app, its LaunchAgent,
+   `~/Library/Application Support/hook-me-up`
    and the editor extension are removed too. Ask whether to go ahead, and wait for the
    answer.
 

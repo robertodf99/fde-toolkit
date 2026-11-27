@@ -225,3 +225,32 @@ func parse(_ json: String) throws -> HookInput {
         #expect(JSONValue.object(["a": .null])["missing"] == nil)
     }
 }
+
+@Suite struct CodexWireTests {
+    @Test func optionalClientLabelsFinishedWithoutChangingClaude() throws {
+        for (extra, title) in [("", "proj · Finished"), (",\"client\":\"codex\"", "proj · Codex · Finished")] {
+            let json =
+                #"{"sessionID":"s","project":{"name":"proj"},"kind":"finished","message":"Done","terminal":{"ancestorPIDs":[]}\#(extra)}"#
+            let note = try JSONDecoder().decode(NotifyEnvelope.self, from: Data(json.utf8))
+            var core = AgentCore()
+            _ = core.receive(.notify(note), from: 1, now: Date())
+            let entry = try #require(core.store.entries.first)
+            #expect(NativeNotification.spec(for: entry, request: nil, progress: nil).title == title)
+        }
+    }
+}
+
+extension CodexWireTests {
+    @Test func codexPermissionSchemaAllowsNullTranscript() throws {
+        let input = try HookInput.parse(
+            Data(
+                #"{"session_id":"codex-session","turn_id":"turn-1","cwd":"/tmp/test-project","hook_event_name":"PermissionRequest","model":"test-model","permission_mode":"default","tool_name":"Bash","tool_input":{"command":"touch test.txt","description":"Create test file"},"transcript_path":null}"#
+                    .utf8))
+        #expect(input.sessionID == "codex-session")
+        #expect(input.cwd == "/tmp/test-project")
+        #expect(input.transcriptPath == nil)
+        #expect(input.toolInput?["command"] == "touch test.txt")
+        #expect(input.permissionSuggestions.isEmpty)
+        #expect(input.raw["turn_id"] == "turn-1")
+    }
+}

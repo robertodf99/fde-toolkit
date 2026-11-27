@@ -308,3 +308,20 @@ private func dropping(_ event: String, from settings: JSONValue) -> JSONValue {
         #expect(SettingsMerger.inspect(settings: try installed(at: odd), hookPath: odd).missing.isEmpty)
     }
 }
+
+@Suite struct CodexInspectionTests {
+    @Test func requiresCodexArgumentsAndReportsDuplicateOrOtherPaths() throws {
+        let claude = try installed()
+        #expect(SettingsMerger.inspect(settings: claude, hookPath: hook, client: .codex).installed.isEmpty)
+        let other = "/old/Hook Me Up.app/Contents/MacOS/hook-me-up"
+        let first = try SettingsMerger.install(
+            into: .object([:]), hookPath: hook, permissionTimeout: 600, client: .codex)
+        let found = SettingsMerger.inspect(settings: first, hookPath: hook, client: .codex)
+        #expect(found.installed == ["PermissionRequest", "Stop", "UserPromptSubmit", "SessionEnd", "Interrupt"])
+        #expect(found.missing.isEmpty && found.differences.isEmpty)
+        let both = try SettingsMerger.install(into: first, hookPath: other, permissionTimeout: 600, client: .codex)
+        let duplicate = SettingsMerger.inspect(settings: both, hookPath: hook, client: .codex)
+        #expect(duplicate.otherPaths == [other])
+        #expect(duplicate.duplicated == ["Interrupt", "PermissionRequest", "SessionEnd", "Stop", "UserPromptSubmit"])
+    }
+}

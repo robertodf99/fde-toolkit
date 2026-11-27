@@ -1,3 +1,5 @@
+import AppKit
+import Foundation
 import HookMeUpCore
 import Testing
 import UserNotifications
@@ -54,5 +56,72 @@ import UserNotifications
         #expect(!P.authorization(status: .denied, alertStyle: .none).allowsNotifications)
         #expect(!P.authorization(status: .notDetermined, alertStyle: .none).allowsNotifications)
         #expect(P.authorization(status: .authorized, alertStyle: .banner).description == "authorized, style banner")
+    }
+}
+
+@Suite struct ClientNotificationAttachmentTests {
+    private func image(in folder: URL, name: String) throws -> URL {
+        let bitmap = NSBitmapImageRep(
+            bitmapDataPlanes: nil, pixelsWide: 16, pixelsHigh: 16,
+            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+            colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+        let url = folder.appendingPathComponent(name + ".png")
+        try #require(bitmap.representation(using: .png, properties: [:])).write(to: url)
+        return url
+    }
+
+    private func spec(_ client: HookClient?) -> NotificationSpec {
+        NotificationSpec(
+            identifier: "test", threadIdentifier: "test", categoryIdentifier: "permission",
+            title: "Test", body: "Keep this body", actions: [], clientImage: client)
+    }
+
+    @Test func eachClientUsesADisposableCopyAndKeepsTheBundleImage() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "hmu-attachment-test-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: false)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        for (client, name) in [(HookClient.claude, "notification-claude"), (.codex, "notification-codex")] {
+            let source = try image(in: folder, name: name)
+            let before = try Data(contentsOf: source)
+            let prepared = try #require(
+                ClientNotificationAttachment.prepare(for: client, resourceFolder: folder, temporaryFolder: folder))
+            let content = UserNotificationPresenter.content(for: spec(client), attachment: prepared.attachment)
+            #expect(content.attachments.count == 1)
+            #expect(content.attachments.first?.identifier == client.rawValue)
+            #expect(prepared.attachment.url != source)
+            #expect(prepared.attachment.url.lastPathComponent == name + ".png")
+            #expect(try Data(contentsOf: prepared.attachment.url) == before)
+            #expect(try Data(contentsOf: source) == before)
+            try FileManager.default.removeItem(at: prepared.directory)
+            #expect(FileManager.default.fileExists(atPath: source.path))
+        }
+    }
+
+    @Test func missingImageOrAttachmentFailureKeepsTheNotificationWithoutAnImage() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "hmu-attachment-test-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: false)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let missing = ClientNotificationAttachment.prepare(for: .codex, resourceFolder: folder, temporaryFolder: folder)
+        #expect(missing == nil)
+        let source = try image(in: folder, name: "notification-codex")
+        var attempted = false
+        let failed = ClientNotificationAttachment.prepare(for: .codex, resourceFolder: folder, temporaryFolder: folder)
+        { _, _ in
+            attempted = true
+            throw CocoaError(.fileReadCorruptFile)
+        }
+        #expect(attempted)
+        #expect(failed == nil)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path) == [source.lastPathComponent])
+        for prepared in [missing, failed] {
+            let content = UserNotificationPresenter.content(for: spec(.codex), attachment: prepared?.attachment)
+            #expect(content.attachments.isEmpty)
+            #expect(content.title == "Test")
+            #expect(content.body == "Keep this body")
+            #expect(content.sound != nil)
+        }
+        #expect(UserNotificationPresenter.content(for: spec(nil)).attachments.isEmpty)
     }
 }

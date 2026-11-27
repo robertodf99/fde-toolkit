@@ -118,9 +118,11 @@ said otherwise, so that permission prompts actually appear.
    `HOOK_ME_UP_NO_ONBOARDING=1` → "Notification check skipped".
 5. System Settings → Notifications → Hook Me Up: Allow notifications on, **style set
    to Alerts** (they stay on screen until you answer), sounds on. The log says
-   `notifications: authorized, style alert`. Notifications show the app icon: a white
-   spark on a clay rounded square.
-6. The menu bar shows ✻ (with the number of waiting entries, ⏸ while paused).
+   `notifications: authorized, style alert`. Notifications show the original app icon: a white
+   fishing hook and notification dot on a blue/teal rounded square. Session notifications
+   also show a small client symbol (Claude or Codex).
+6. The menu bar shows a monochrome hook (with the number of waiting entries, ⏸ while
+   paused). Check that macOS adapts the template image in light/dark mode and when highlighted.
 7. The first click on a notification with Terminal, iTerm2 or Ghostty asks once for
    Automation permission: allow it.
 8. `~/Applications/"Hook Me Up.app"/Contents/MacOS/hook-me-up-setup doctor`: every line
@@ -183,4 +185,95 @@ said otherwise, so that permission prompts actually appear.
 | # | Check | Expected |
 |---|---|---|
 | 21 | The uninstall one-liner (or `make uninstall`) | Shows the diff (only our five hook entries removed), asks, backs up, writes; LaunchAgent removed, the app and `~/Library/Application Support/hook-me-up` removed, backups kept; "Removed the Hook Me Up extension from VS Code." (and each other editor that had it), and `code --list-extensions` no longer lists it. Other hooks and keys untouched. |
-| 22 | Reinstall, reboot | The agent starts at login (✻ in the menu bar); notifications work without opening anything. |
+| 22 | Reinstall, reboot | The agent starts at login (the hook icon in the menu bar); notifications work without opening anything. |
+
+
+## Codex CLI automated coverage
+
+The hook tests exercise `--client codex` in all modes and both protocols' error paths
+(no agent, stale connection, invalid input/frame, wrong response/id, pause and timeout).
+They check the exact minimal allow envelope, the denial field set, rejection of every
+other decision and of AskUserQuestion / ExitPlanMode, ignored Claude environment and
+session suggestions, optional wire labels, Stop with text or null, and patch path
+summaries with outside-project warnings. The self-test runs the built CLI against a
+private missing/stale socket and asserts no stdout, exit 0 and under one second,
+including unknown arguments and client names.
+
+Setup tests check Codex event arguments, timeouts, statusMessage, idempotence,
+foreign hooks, removal and inspection. A literal golden captured before Codex setup
+support compares rendered Claude settings byte for byte. The existing SettingsFile
+suite also protects backups, atomic writes and rejection after concurrent changes.
+`test-install.sh` uses temporary HOME and CODEX_HOME: opt-in, consent, backups,
+no trust writes, both clients installed, old setup packages, missing profiles,
+uninstall with and without the flag, and idempotence. Doctor unit tests cover missing,
+foreign, invalid and unreadable Codex files, missing events, wrong arguments, another
+app path, duplicates, matchers, feature disabling, inline hooks and trust INFO.
+`doctor --home` in the script checks the installed app with both clients in that home.
+
+## Codex CLI manual checks (user-run)
+
+These require Codex CLI 0.172 or later, real macOS notifications and an isolated test
+profile/account. Automated tests do not establish these UI and trust invariants.
+
+1. Install with `--codex`, inspect both diffs and trust the hooks in `/hooks`.
+2. Request a Bash action needing permission: Approve executes it; Deny returns the
+   notification's fixed message. No session-wide approval button is offered.
+3. While waiting, confirm the status message is shown and Codex has no approval dialog
+   yet. Click the notification: the right session gains focus and its dialog appears.
+   Check Terminal, iTerm2, Ghostty and VS Code (with the editor extension).
+4. Stop or pause the agent, then request permission: the dialog appears immediately.
+   Turn notifications off and verify the same behavior.
+5. Press Esc / Ctrl-C while waiting, and close the Codex session: verify the pending
+   notification disappears when Codex terminates the hook/connection. Wait through one
+   timeout too: no decision and the terminal dialog becomes available.
+6. Capture test-only `tool_input` for apply_patch, network approval and an MCP tool;
+   confirm useful summaries and outside-project warnings. Their exact live input shapes
+   have not been established by the synthetic fixtures.
+7. End a turn: `· Codex · Finished`, with a gist or no body when null. A new prompt,
+   Interrupt and SessionEnd clear it. `codex exec` may also show Finished in v1.
+8. Upgrade the app and verify trust is retained (or Codex requests review again).
+9. Run Claude Code alongside Codex and confirm its titles, session suggestions,
+   questions, plan approval and terminal dialog timing remain as before.
+10. Run doctor with installed, absent, duplicated and disabled hooks, and an inline
+    `[hooks]` table; trust is INFO and must be reviewed in `/hooks`.
+11. Uninstall without the flag: Codex hooks and the app remain with a warning. Repeat
+    with `--codex`, accept removal: only our handlers and the app go; backups remain.
+
+
+## Brand graphics and client attachments
+
+`NotificationClientImageTests` covers absent/Claude/Codex client selection for every
+session-notification kind and timed-out state, and no image for the installer's test.
+`ClientNotificationAttachmentTests` creates real PNGs and UserNotifications attachments
+without posting: the correct resource for each client, a separate disposable copy,
+the original left untouched, and missing resources or a failing attachment constructor
+leaving title/body/sound intact without an image. Failed preparation removes its
+staging directory. Scheduling cleanup runs in the real notification callback.
+
+Generate the graphics with `make logo` and `CODESIGN_IDENTITY=- make app`. The latter
+must produce `Contents/Resources/AppIcon.icns`, `notification-claude.png` and
+`notification-codex.png`; `codesign --verify --strict --deep` checks the resulting app.
+Export the app icon separately for inspection:
+
+```sh
+swift scripts/make-icon.swift --png 1024 /tmp/hmu-icon-1024.png
+swift scripts/make-icon.swift --png 32 /tmp/hmu-icon-32.png
+```
+
+Use the Xcode toolchain as the Makefile does. Check 16/32 px legibility, PNG dimensions
+(logo 256 square, social preview 1280 × 640, thumbnail 960 square, attachments 128
+square), unchanged aspect ratios, blue/teal branding, and both client names on the
+social preview and thumbnail. Re-run generation and compare hashes for determinism.
+The Blossom SVG contains only the downloaded path data and original viewBox; no
+external references or executable elements. See THIRD_PARTY_NOTICES.md for sources.
+
+Manual notification QA remains necessary: verify both symbols on collapsed and
+expanded real macOS notifications, including light/dark appearance; the client symbol
+should stay secondary to Hook Me Up's identity. Test concurrent posts and repeated
+posts from both clients, confirm that bundle images remain intact, and temporarily
+remove an attachment PNG from a disposable test bundle to check posting without it.
+The installer test notification intentionally has no client symbol.
+
+Pending: `docs/images/demo.gif` has not been regenerated. It still contains recordings
+of the earlier icon and warm palette; refreshing it requires new screen recordings.
+Only the palette constants in `scripts/make-demo-cards.swift` have been updated here.

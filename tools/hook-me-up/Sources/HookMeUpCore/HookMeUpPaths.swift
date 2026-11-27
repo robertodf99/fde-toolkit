@@ -29,6 +29,17 @@ public enum HookMeUpPaths {
         homeDirectory.appendingPathComponent(".claude/settings.json")
     }
 
+    /// Codex user hooks. CODEX_HOME may select an isolated Codex profile.
+    public static func codexHooksURL(
+        home: URL = homeDirectory, environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> URL {
+        let folder =
+            environment["CODEX_HOME"].flatMap { $0.isEmpty ? nil : $0 }
+            .map { URL(fileURLWithPath: $0, isDirectory: true) }
+            ?? home.appendingPathComponent(".codex", isDirectory: true)
+        return folder.appendingPathComponent("hooks.json")
+    }
+
     /// Where `make install` puts the hook (inside the installed app).
     public static var installedHookPath: String {
         homeDirectory.appendingPathComponent("Applications/Hook Me Up.app/Contents/MacOS/hook-me-up").path
