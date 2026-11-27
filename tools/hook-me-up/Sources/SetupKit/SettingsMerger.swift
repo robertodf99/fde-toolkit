@@ -12,12 +12,25 @@ public enum SettingsMerger {
         let matcher: String?
         let arguments: String
         let timeout: Int
+        var statusMessage: String? = nil
     }
 
     /// PermissionRequest (all tools), Notification elicitation_dialog (no idle_prompt,
     /// no permission_prompt), Stop -> finished, UserPromptSubmit / SessionEnd -> clear.
-    private static func specs(permissionTimeout: Int) -> [Spec] {
-        [
+    private static func specs(permissionTimeout: Int, client: HookClient) -> [Spec] {
+        if client == .codex {
+            return [
+                Spec(
+                    event: "PermissionRequest", matcher: "",
+                    arguments: "permission --timeout \(permissionTimeout) --client codex", timeout: permissionTimeout,
+                    statusMessage: "Answer in the notification, or click it to answer here"),
+                Spec(event: "Stop", matcher: nil, arguments: "finished --client codex", timeout: 10),
+                Spec(event: "UserPromptSubmit", matcher: nil, arguments: "clear --client codex", timeout: 10),
+                Spec(event: "SessionEnd", matcher: nil, arguments: "clear --client codex", timeout: 3),
+                Spec(event: "Interrupt", matcher: nil, arguments: "clear --client codex", timeout: 3),
+            ]
+        }
+        return [
             Spec(
                 event: "PermissionRequest", matcher: "", arguments: "permission --timeout \(permissionTimeout)",
                 timeout: permissionTimeout),
@@ -40,10 +53,12 @@ public enum SettingsMerger {
     /// through `canonicalPath` (e.g. resolving symlinks, so a link to the app and the app
     /// itself are the same hook).
     public static func install(
-        into settings: JSONValue, hookPath: String, permissionTimeout: Int,
+        into settings: JSONValue, hookPath: String, permissionTimeout: Int, client: HookClient = .claude,
         canonicalPath: (String) -> String = { $0 }
     ) throws -> JSONValue {
-        guard var root = uninstall(from: settings, hookPath: hookPath, canonicalPath: canonicalPath).objectValue
+        guard
+            var root = uninstall(from: settings, hookPath: hookPath, client: client, canonicalPath: canonicalPath)
+                .objectValue
         else {
             throw SettingsMergerError.notAnObject
         }
@@ -52,7 +67,7 @@ public enum SettingsMerger {
             guard let object = existing.objectValue else { throw SettingsMergerError.unexpectedShape("hooks") }
             hooks = object
         }
-        for spec in specs(permissionTimeout: permissionTimeout) {
+        for spec in specs(permissionTimeout: permissionTimeout, client: client) {
             var groups: [JSONValue] = []
             if let existing = hooks[spec.event] {
                 guard let array = existing.arrayValue else {
@@ -60,15 +75,13 @@ public enum SettingsMerger {
                 }
                 groups = array
             }
-            var group: [String: JSONValue] = [
-                "hooks": .array([
-                    .object([
-                        "type": "command",
-                        "command": .string(shellQuote(hookPath) + " " + spec.arguments),
-                        "timeout": .number(Double(spec.timeout)),
-                    ])
-                ])
+            var handler: [String: JSONValue] = [
+                "type": "command",
+                "command": .string(shellQuote(hookPath) + " " + spec.arguments),
+                "timeout": .number(Double(spec.timeout)),
             ]
+            if let message = spec.statusMessage { handler["statusMessage"] = .string(message) }
+            var group: [String: JSONValue] = ["hooks": .array([.object(handler)])]
             if let matcher = spec.matcher { group["matcher"] = .string(matcher) }
             groups.append(.object(group))
             hooks[spec.event] = .array(groups)
@@ -89,7 +102,7 @@ public enum SettingsMerger {
     /// it is. An emptied `hooks` object is kept when `keepEmptyHooks` (it existed before
     /// install).
     public static func uninstall(
-        from settings: JSONValue, hookPath: String, keepEmptyHooks: Bool = false,
+        from settings: JSONValue, hookPath: String, keepEmptyHooks: Bool = false, client: HookClient = .claude,
         canonicalPath: (String) -> String = { $0 }
     ) -> JSONValue {
         guard var root = settings.objectValue, let hooks = root["hooks"]?.objectValue else { return settings }
@@ -144,10 +157,10 @@ public enum SettingsMerger {
     /// `hookPath`'s, and an event counts as installed only with the arguments `install`
     /// writes (any permission timeout). Reads nothing but `settings`.
     public static func inspect(
-        settings: JSONValue, hookPath: String, canonicalPath: (String) -> String = { $0 }
+        settings: JSONValue, hookPath: String, client: HookClient = .claude, canonicalPath: (String) -> String = { $0 }
     ) -> HookInspection {
         let ours = canonicalPath(hookPath)
-        let expected = specs(permissionTimeout: 0)
+        let expected = specs(permissionTimeout: 0, client: client)
         var installed = Set<String>()
         var exact = Set<String>()
         var differences: [String: HookInspection.Difference] = [:]
@@ -211,7 +224,9 @@ public enum SettingsMerger {
     private static func matches(_ arguments: String, _ expected: String) -> Bool {
         let words = arguments.split(separator: " ")
         if expected.hasPrefix("permission --timeout ") {
-            return words.count == 3 && words[0] == "permission" && words[1] == "--timeout" && Int(words[2]) != nil
+            let codex = expected.hasSuffix(" --client codex")
+            return words.count == (codex ? 5 : 3) && words[0] == "permission" && words[1] == "--timeout"
+                && Int(words[2]) != nil && (!codex || (words[3] == "--client" && words[4] == "codex"))
         }
         return words.joined(separator: " ") == expected
     }

@@ -168,3 +168,116 @@ private let foreign = #"""
         #expect(back.split(separator: "\n").contains { $0.hasPrefix("- ") && $0.contains("permission --timeout 600") })
     }
 }
+
+@Suite struct ClaudeSettingsCompatibilityTests {
+    @Test func renderedBytesMatchBeforeCodexSupport() throws {
+        let original = try json(
+            #"{"custom":true,"hooks":{"Stop":[{"hooks":[{"type":"command","command":"say done"}]}]}}"#)
+        let installed = try SettingsMerger.install(
+            into: original, hookPath: "/example/Hook Me Up.app/Contents/MacOS/hook-me-up", permissionTimeout: 600)
+        let before = #"""
+            {
+              "custom" : true,
+              "hooks" : {
+                "Notification" : [
+                  {
+                    "hooks" : [
+                      {
+                        "command" : "'/example/Hook Me Up.app/Contents/MacOS/hook-me-up' notify",
+                        "timeout" : 10,
+                        "type" : "command"
+                      }
+                    ],
+                    "matcher" : "elicitation_dialog"
+                  }
+                ],
+                "PermissionRequest" : [
+                  {
+                    "hooks" : [
+                      {
+                        "command" : "'/example/Hook Me Up.app/Contents/MacOS/hook-me-up' permission --timeout 600",
+                        "timeout" : 600,
+                        "type" : "command"
+                      }
+                    ],
+                    "matcher" : ""
+                  }
+                ],
+                "SessionEnd" : [
+                  {
+                    "hooks" : [
+                      {
+                        "command" : "'/example/Hook Me Up.app/Contents/MacOS/hook-me-up' clear",
+                        "timeout" : 10,
+                        "type" : "command"
+                      }
+                    ]
+                  }
+                ],
+                "Stop" : [
+                  {
+                    "hooks" : [
+                      {
+                        "command" : "say done",
+                        "type" : "command"
+                      }
+                    ]
+                  },
+                  {
+                    "hooks" : [
+                      {
+                        "command" : "'/example/Hook Me Up.app/Contents/MacOS/hook-me-up' finished",
+                        "timeout" : 10,
+                        "type" : "command"
+                      }
+                    ]
+                  }
+                ],
+                "UserPromptSubmit" : [
+                  {
+                    "hooks" : [
+                      {
+                        "command" : "'/example/Hook Me Up.app/Contents/MacOS/hook-me-up' clear",
+                        "timeout" : 10,
+                        "type" : "command"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+            """# + "\n"
+        #expect(SettingsFile.render(installed) == Data(before.utf8))
+    }
+}
+
+@Suite struct CodexSettingsTests {
+    @Test func installsCodexHandlersAndPreservesForeignSettings() throws {
+        let original = try json(foreign)
+        let installed = try SettingsMerger.install(
+            into: original, hookPath: hook, permissionTimeout: 600, client: .codex)
+        let events = ["PermissionRequest", "Stop", "UserPromptSubmit", "SessionEnd", "Interrupt"]
+        for (event, mode, timeout) in [
+            ("PermissionRequest", "permission --timeout 600", 600), ("Stop", "finished", 10),
+            ("UserPromptSubmit", "clear", 10), ("SessionEnd", "clear", 3), ("Interrupt", "clear", 3),
+        ] {
+            let group = try #require(installed["hooks"]?[event]?.arrayValue?.last)
+            let handler = try #require(group["hooks"]?.arrayValue?.first)
+            #expect(handler["command"] == .string("'\(hook)' \(mode) --client codex"))
+            #expect(handler["timeout"] == .number(Double(timeout)))
+            if event == "PermissionRequest" {
+                #expect(group["matcher"] == "")
+                #expect(handler["statusMessage"] == "Answer in the notification, or click it to answer here")
+            } else {
+                #expect(handler["statusMessage"] == nil)
+            }
+        }
+        #expect(installed["hooks"]?["Notification"] == nil)
+        #expect(Set(installed["hooks"]!.objectValue!.keys) == Set(events + ["PreToolUse"]))
+        #expect(
+            SettingsFile.render(
+                try SettingsMerger.install(into: installed, hookPath: hook, permissionTimeout: 600, client: .codex))
+                == SettingsFile.render(installed))
+        #expect(SettingsMerger.uninstall(from: installed, hookPath: hook, client: .codex) == original)
+    }
+}
