@@ -47,16 +47,16 @@ AGENTS.md / Makefile              Contributor instructions / task shortcuts
       module name to avoid collisions with Hook Me Up's generic targets.
 - [ ] Add an [INSTALL.md](INSTALL.md) step if users must install anything.
 
-Tools: use `<tool>-vX.Y.Z` tags when publishing packages; see
-[Hook Me Up's release workflow](.github/workflows/release.yml).
+Tools: if they publish packages, add their own release workflow triggered by
+`<tool>-vX.Y.Z` tags; see [Hook Me Up's release workflow](.github/workflows/release.yml).
 Methodologies: preview installation and restore originals on removal; keep private
 profiles, overrides and run state outside the repository.
 
 ## Working as an FDE
 
 - **Consent first.** Before installing software or changing user configuration,
-  show the proposed diff or dry-run and ask for approval. Use `--yes` (or
-  `HOOK_ME_UP_YES=1`) only after an explicit yes. Follow [INSTALL.md](INSTALL.md).
+  show the proposed diff or dry-run and ask for approval. Use `--yes` only after
+  an explicit yes. Follow [INSTALL.md](INSTALL.md).
 - **Preserve user files.** Back up originals, write configuration atomically,
   and reject a write if the file changed since it was read. See Hook Me Up's
   [security model](tools/hook-me-up/README.md#security-model).
@@ -77,8 +77,8 @@ profiles, overrides and run state outside the repository.
 
 ## Useful tools
 
-These are already used or referenced by the toolkit; setup is in [INSTALL.md](INSTALL.md).
-Use them plus the toolkit's own modules, listed in the [README](README.md).
+Tools the toolkit already uses (setup in [INSTALL.md](INSTALL.md)), alongside its own
+modules listed in the [README](README.md).
 
 | Tool | Use |
 |---|---|
