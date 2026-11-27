@@ -378,9 +378,15 @@ public enum Doctor {
                     .trimmingCharacters(in: .whitespaces)
                 if line.hasPrefix("[") {
                     section = line.replacingOccurrences(of: " ", with: "").replacingOccurrences(of: "\t", with: "")
-                    if section == "[hooks]" { inline = true }
-                } else if section == "[features]",
-                    line.range(of: #"^hooks\s*=\s*false\s*$"#, options: .regularExpression) != nil
+                    let table = section.trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
+                    if table == "hooks" || table.hasPrefix("hooks."), !table.hasPrefix("hooks.state") {
+                        inline = true
+                    }
+                } else if (section == "[features]"
+                    && line.range(of: #"^hooks\s*=\s*false\s*$"#, options: .regularExpression) != nil)
+                    || (section.isEmpty
+                        && line.range(of: #"^features\s*\.\s*hooks\s*=\s*false\s*$"#, options: .regularExpression)
+                            != nil)
                 {
                     disabled = true
                 }
@@ -395,7 +401,7 @@ public enum Doctor {
                 checks.append(
                     DoctorCheck(
                         "Codex inline hooks", .warn,
-                        "\(config) also defines [hooks]; Codex warns when the same layer uses both formats",
+                        "\(config) also defines hooks in TOML; Codex warns when the same layer uses both formats",
                         fix:
                             "Keep hook definitions in one format; review config.toml and hooks.json yourself. Do not remove [hooks.state.*]."
                     ))

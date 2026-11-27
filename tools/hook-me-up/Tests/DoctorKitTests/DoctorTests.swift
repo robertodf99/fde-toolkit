@@ -707,6 +707,15 @@ private func codexHooks(at path: String = app + "/Contents/MacOS/hook-me-up") ->
         for (config, disabled, inline) in [
             ("[features]\nhooks = false # disabled\n", true, false),
             ("[hooks]\nStop = []\n", false, true),
+            ("[hooks.PermissionRequest]\ncommand = \"test\"\n", false, true),
+            ("[[hooks.PermissionRequest]]\ncommand = \"test\"\n", false, true),
+            ("[hooks.state]\n", false, false),
+            ("[hooks.state.example]\ntrusted_hash = \"fixture\"\n", false, false),
+            ("[[hooks.state.example]]\ntrusted_hash = \"fixture\"\n", false, false),
+            ("features.hooks = false\n", true, false),
+            ("features . hooks = false # root key\n", true, false),
+            ("# features.hooks = false\n", false, false),
+            ("[other]\nfeatures.hooks = false\n", false, false),
             ("# [hooks]\n[features]\n# hooks = false\nhooks = true\n", false, false),
             ("[other]\nhooks = false\n[hooks.state.example]\ntrusted_hash = \"fixture\"\n", false, false),
         ] {
