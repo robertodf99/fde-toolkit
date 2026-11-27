@@ -8,10 +8,13 @@ public struct TerminalHint: Codable, Equatable, Sendable {
     public var ancestorPIDs: [Int32]
     /// The controlling terminal, e.g. "ttys003", when an ancestor has one.
     public var tty: String?
+    /// Herdr Core's terminal identifier, when the session inherited a valid one.
+    public var herdrTerminal: String?
 
     /// Creates a hint.
-    public init(ancestorPIDs: [Int32], tty: String?) {
+    public init(ancestorPIDs: [Int32], tty: String?, herdrTerminal: String? = nil) {
         self.ancestorPIDs = ancestorPIDs
         self.tty = tty
+        self.herdrTerminal = herdrTerminal
     }
 }

@@ -153,6 +153,26 @@ private func run(
 // MARK: Tests
 
 @Suite(.serialized) struct RunHookTests {
+    @Test(arguments: [nil, "test-pane_1", "", "bad id", "pane\n", String(repeating: "x", count: 65)])
+    func requestsAndNotesCarryOnlyAValidHerdrTerminal(_ id: String?) throws {
+        let temp = try ShortTempDir()
+        let agent = try FakeAgent(path: temp.socket, reply: respond(.paused))
+        let environment = id.map { ["HC_TERMINAL_ID": $0] } ?? [:]
+        _ = run(.permission(timeout: 600), docsPermissionRequest, socket: temp.socket, environment: environment)
+        _ = run(.notify, notification, socket: temp.socket, environment: environment)
+        _ = run(.finished, stop, socket: temp.socket, environment: environment)
+        #expect(waitUntil { agent.received.value.count == 3 })
+        let hints = agent.received.value.compactMap { message -> TerminalHint? in
+            switch message {
+            case .request(let request): request.terminal
+            case .notify(let note): note.terminal
+            default: nil
+            }
+        }
+        #expect(hints.count == 3)
+        #expect(hints.allSatisfy { $0.herdrTerminal == (id == "test-pane_1" ? id : nil) })
+    }
+
     @Test(arguments: [HookClient.claude, .codex]) func agentDownPrintsNothing(client: HookClient) throws {
         let temp = try ShortTempDir()
         let start = Date()

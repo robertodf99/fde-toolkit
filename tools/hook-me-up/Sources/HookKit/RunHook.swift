@@ -14,19 +14,24 @@ public func runHook(
     guard let input = try? HookInput.parse(stdin) else { return nil }
     let headless = client == .claude && isHeadless(environment)
     let folder = client == .codex ? input.cwd : sessionFolder(input, environment: environment)
+    let herdrTerminal = HerdrTerminal.validID(environment["HC_TERMINAL_ID"])
     switch mode {
     case .permission(let timeout):
         return requestDecision(
             input, client: client, handlerTimeout: timeout, socketPath: socketPath, headless: headless,
-            sessionFolder: folder,
+            sessionFolder: folder, herdrTerminal: herdrTerminal,
             watchProcess: watchProcess, clock: clock)
     case .notify:
         // Headless (`claude -p`, SDK) sessions have nobody to come back to.
         guard client == .claude, input.hookEventName == "Notification", !headless else { return nil }
-        notify(input, kind: .waiting, sessionFolder: folder, socketPath: socketPath, client: client)
+        notify(
+            input, kind: .waiting, sessionFolder: folder, herdrTerminal: herdrTerminal, socketPath: socketPath,
+            client: client)
     case .finished:
         guard input.hookEventName == "Stop", !headless else { return nil }
-        notify(input, kind: .finished, sessionFolder: folder, socketPath: socketPath, client: client)
+        notify(
+            input, kind: .finished, sessionFolder: folder, herdrTerminal: herdrTerminal, socketPath: socketPath,
+            client: client)
     case .clear:
         fireAndForget(.clear(sessionID: input.sessionID), socketPath: socketPath)
     }
@@ -35,7 +40,7 @@ public func runHook(
 
 private func requestDecision(
     _ input: HookInput, client: HookClient, handlerTimeout requestedTimeout: TimeInterval, socketPath: URL,
-    headless: Bool, sessionFolder: String, watchProcess: pid_t?, clock: () -> Date
+    headless: Bool, sessionFolder: String, herdrTerminal: String?, watchProcess: pid_t?, clock: () -> Date
 ) -> Data? {
     guard input.hookEventName == "PermissionRequest", let toolName = input.toolName else { return nil }
     if client == .codex, ["AskUserQuestion", "ExitPlanMode"].contains(toolName) { return nil }
@@ -48,7 +53,7 @@ private func requestDecision(
     let id = UUID()
     var envelope = RequestEnvelope(
         id: id, sessionID: input.sessionID, project: project, summary: summary,
-        input: input.toolInput ?? .null, terminal: terminalHint(),
+        input: input.toolInput ?? .null, terminal: terminalHint(herdrTerminal: herdrTerminal),
         sessionPermissions: client == .codex ? [] : SessionPermissionFilter.sessionOnly(input.permissionSuggestions),
         sessionFolder: sessionFolder, client: client == .codex ? .codex : nil)
 
@@ -89,14 +94,18 @@ private func requestDecision(
     return DecisionEncoder.output(for: decision, input: input, client: client)
 }
 
-private func notify(_ input: HookInput, kind: EntryKind, sessionFolder: String, socketPath: URL, client: HookClient) {
+private func notify(
+    _ input: HookInput, kind: EntryKind, sessionFolder: String, herdrTerminal: String?, socketPath: URL,
+    client: HookClient
+) {
     let project = ProjectInfo.resolve(cwd: URL(fileURLWithPath: input.cwd), fileSystem: LocalFileSystem())
     let summary = Summarizer.summarize(input, project: project, home: HookMeUpPaths.homeDirectory.path)
     fireAndForget(
         .notify(
             NotifyEnvelope(
                 sessionID: input.sessionID, project: project, kind: kind,
-                message: summary.description, terminal: terminalHint(), sessionFolder: sessionFolder,
+                message: summary.description, terminal: terminalHint(herdrTerminal: herdrTerminal),
+                sessionFolder: sessionFolder,
                 client: client == .codex ? .codex : nil)),
         socketPath: socketPath)
 }
@@ -108,10 +117,10 @@ private func fireAndForget(_ message: WireMessage, socketPath: URL) {
     connection.close()
 }
 
-private func terminalHint() -> TerminalHint {
+private func terminalHint(herdrTerminal: String?) -> TerminalHint {
     let ancestors = ProcessTree.sessionAncestors(of: getpid())
     let tty = ancestors.lazy.compactMap { ProcessTree.controllingTTY(of: $0.pid) }.first
-    return TerminalHint(ancestorPIDs: ancestors.map(\.pid), tty: tty)
+    return TerminalHint(ancestorPIDs: ancestors.map(\.pid), tty: tty, herdrTerminal: herdrTerminal)
 }
 
 /// The folder Claude Code was started in: `CLAUDE_PROJECT_DIR`, which stays put when

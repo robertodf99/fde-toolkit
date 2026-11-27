@@ -67,7 +67,8 @@ struct TerminalActivator: TerminalActivating {
         }
         let plan = SessionActivation.plan(
             ownerBundleID: owner.bundleID, tty: place.terminal.tty, folder: place.folder, home: home,
-            fileSystem: LocalFileSystem(), resolve: LocalFileSystem.resolvingSymlinks, sessionAlive: alive,
+            fileSystem: LocalFileSystem(), resolve: LocalFileSystem.resolvingSymlinks,
+            herdrTerminal: place.terminal.herdrTerminal, sessionAlive: alive,
             openWindowCount: openWindowCount)
         var request: Data?
         if EditorExtension.shouldAsk(
@@ -103,10 +104,77 @@ struct TerminalActivator: TerminalActivating {
             focusGhosttyTerminal(folder: folder, tty: tty, sessionPID: decision.sessionPID, owner: owner)
         case .focusWindow(let target):
             focusWindow(target, owner: owner)
+        case .focusHerdrTerminal(let id):
+            showHerdrTerminal(id)
+        case .activateApp where TerminalApp(bundleID: owner.bundleID) == .herdr:
+            showHerdrTerminal(nil)
         case .activateApp where EditorWindows.tracksWindows(bundleID: owner.bundleID):
             bringForward(owner, strategy: "no matching window or no window state; brought the editor forward")
         case .activateApp, .none:
             bringForward(owner)
+        }
+    }
+
+    /// A short result for logs: never includes the terminal id, executable path or output.
+    enum HerdrResult: String {
+        case focused = "terminal focused"
+        case noTerminal = "no terminal id"
+        case unavailable = "executable unavailable"
+        case commandFailed = "focus command failed or timed out"
+    }
+
+    /// Runs only a valid terminal id, as a separate argument to Desktop's own executable.
+    /// Blocks: the caller must run this off the main thread.
+    nonisolated static func herdrFocus(
+        id: String?, executable: URL?,
+        run: (URL, [String]) -> String? = { runProcessOutput(executable: $0, arguments: $1) }
+    ) -> HerdrResult {
+        guard let id = HerdrTerminal.validID(id) else { return .noTerminal }
+        guard let executable else { return .unavailable }
+        return run(executable, ["do", "agent.focus", "--terminal", id]) == nil ? .commandFailed : .focused
+    }
+
+    /// Herdr Core owns the session's process, but Desktop owns the visible terminal.
+    private static func showHerdrTerminal(_ id: String?) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "dev.herdr.app")
+            let executable = appURL.flatMap { Bundle(url: $0)?.executableURL }
+            let result = herdrFocus(id: id, executable: executable)
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    AgentLog.info("open session: herdr: \(result.rawValue)")
+                    bringHerdrForward(appURL: appURL)
+                }
+            }
+        }
+    }
+
+    /// Always targets Desktop, including when the focus command failed or no id was sent.
+    private static func bringHerdrForward(appURL: URL?) {
+        let bundleID = "dev.herdr.app"
+        if let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first {
+            NSApp.yieldActivation(to: app)
+            var accepted = app.activate(from: NSRunningApplication.current, options: [])
+            if !accepted { accepted = app.activate() }
+            AgentLog.info("open session: activating \(bundleID) \(accepted ? "accepted" : "refused")")
+            reportFrontmost(expected: bundleID)
+            return
+        }
+        guard let appURL else {
+            AgentLog.info("open session: Herdr Desktop not found")
+            return
+        }
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+        configuration.addsToRecentItems = false
+        NSWorkspace.shared.openApplication(at: appURL, configuration: configuration) { _, error in
+            let failed = error != nil
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    AgentLog.info("open session: \(failed ? "could not open" : "opened") Herdr Desktop")
+                    if !failed { reportFrontmost(expected: bundleID) }
+                }
+            }
         }
     }
 
@@ -367,9 +435,19 @@ struct TerminalActivator: TerminalActivating {
     nonisolated static func runAppleScriptOutput(
         _ source: String, arguments: [String] = [], timeout: TimeInterval = 10
     ) -> String? {
+        runProcessOutput(
+            executable: URL(fileURLWithPath: "/usr/bin/osascript"), arguments: ["-e", source, "--"] + arguments,
+            timeout: timeout)
+    }
+
+    /// Runs a bounded child process directly, without a shell. Output is drained while it
+    /// runs and returned only on success; stderr and launch errors are never logged.
+    nonisolated static func runProcessOutput(
+        executable: URL, arguments: [String], timeout: TimeInterval = 10
+    ) -> String? {
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-        process.arguments = ["-e", source, "--"] + arguments
+        process.executableURL = executable
+        process.arguments = arguments
         let output = Pipe()
         process.standardOutput = output
         process.standardError = FileHandle.nullDevice
@@ -387,7 +465,7 @@ struct TerminalActivator: TerminalActivating {
             _ = reading.wait(timeout: .now() + 1)
             return nil
         }
-        // osascript has exited, so its end of the pipe is closed: the read ends.
+        // The child has exited, so its end of the pipe is closed: the read ends.
         guard reading.wait(timeout: .now() + 1) == .success, process.terminationStatus == 0 else { return nil }
         return String(decoding: collected.data, as: UTF8.self)
     }

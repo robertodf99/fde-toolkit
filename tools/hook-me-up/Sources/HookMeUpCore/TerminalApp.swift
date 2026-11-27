@@ -8,6 +8,8 @@ public enum TerminalApp: Equatable, Sendable {
     case iTerm2
     /// Ghostty.
     case ghostty
+    /// Herdr Desktop (sessions run under Herdr Core).
+    case herdr
     /// Warp.
     case warp
     /// Visual Studio Code (integrated terminal).
@@ -27,6 +29,7 @@ public enum TerminalApp: Equatable, Sendable {
         case "com.apple.Terminal": self = .appleTerminal
         case "com.googlecode.iterm2": self = .iTerm2
         case "com.mitchellh.ghostty": self = .ghostty
+        case "dev.herdr.core", "dev.herdr.app": self = .herdr
         case "dev.warp.Warp-Stable", "dev.warp.Warp", "dev.warp.Warp-Preview": self = .warp
         case "com.microsoft.VSCode", "com.microsoft.VSCodeInsiders": self = .vsCode
         case "com.todesktop.230313mzl4w4u92": self = .cursor
@@ -37,7 +40,6 @@ public enum TerminalApp: Equatable, Sendable {
         }
     }
 
-    /// Terminal and iTerm2 can select the exact tab by tty via AppleScript; the others
-    /// get app-level activation only.
+    /// Terminal and iTerm2 can select the exact tab by tty via AppleScript.
     public var selectsTabByTTY: Bool { self == .appleTerminal || self == .iTerm2 }
 }

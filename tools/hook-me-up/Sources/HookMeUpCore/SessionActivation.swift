@@ -15,6 +15,8 @@ public enum SessionActivation: Equatable, Sendable {
     /// session's folder: open exactly that window's folder (or `.code-workspace` file) with
     /// the editor, which focuses that window.
     case focusWindow(String)
+    /// Herdr: ask Desktop to focus this terminal, then bring Desktop forward.
+    case focusHerdrTerminal(id: String)
     /// Any other app: bring it forward.
     case activateApp
     /// No app was found in the session's process tree.
@@ -30,11 +32,17 @@ public enum SessionActivation: Equatable, Sendable {
     /// window may have closed since the state was saved) or the editor has no window open
     /// (`openWindowCount`, asked only for these editors; VS Code keeps recording the last
     /// window after it closes).
+    /// Herdr uses only a valid `herdrTerminal`; without one Desktop is brought forward.
     public static func plan(
         ownerBundleID: String?, tty: String?, folder: String?, home: String, fileSystem: some FileSystem,
-        resolve: (String) -> String = { $0 }, sessionAlive: Bool, openWindowCount: () -> Int
+        resolve: (String) -> String = { $0 }, herdrTerminal: String? = nil,
+        sessionAlive: Bool, openWindowCount: () -> Int
     ) -> SessionActivation {
         guard let ownerBundleID else { return .none }
+        if TerminalApp(bundleID: ownerBundleID) == .herdr {
+            guard let id = HerdrTerminal.validID(herdrTerminal) else { return .activateApp }
+            return .focusHerdrTerminal(id: id)
+        }
         if let app = TerminalApp(bundleID: ownerBundleID), app.selectsTabByTTY, let tty,
             TerminalScripts.selectTab(app, tty: tty) != nil
         {

@@ -226,6 +226,7 @@ private let clickTime = Date(timeIntervalSince1970: 1_731_672_000.123_9)
         #expect(!ask(.activateApp, bundleID: "com.mitchellh.ghostty"))
         #expect(!ask(.selectTab(.appleTerminal, tty: "ttys003")))
         #expect(!ask(.focusTerminalByFolder(.ghostty, folder: "/Users/dev", tty: "/dev/ttys003")))
+        #expect(!ask(.focusHerdrTerminal(id: "test-pane_1")))
         #expect(!ask(.none))
         var looked = false
         let asked = EditorExtension.shouldAsk(
