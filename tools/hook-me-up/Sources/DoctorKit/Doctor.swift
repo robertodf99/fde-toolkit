@@ -315,7 +315,9 @@ public enum Doctor {
         guard let data = probe.contents(of: path) else {
             return [
                 probe.exists(path)
-                    ? DoctorCheck("Codex hooks", .fail, "\(path) can't be read", fix: fix)
+                    ? DoctorCheck(
+                        "Codex hooks", .warn,
+                        "\(path) can't be read; unable to tell whether Hook Me Up is set up")
                     : DoctorCheck("Codex", .info, "not set up")
             ]
         }
@@ -324,8 +326,8 @@ public enum Doctor {
         else {
             return [
                 DoctorCheck(
-                    "Codex hooks", .fail, "\(path) is not a valid hooks JSON object",
-                    fix: "Correct the JSON by hand, then run:\n" + command)
+                    "Codex hooks", .warn,
+                    "\(path) is not a valid hooks JSON object; unable to tell whether Hook Me Up is set up")
             ]
         }
         let found = SettingsMerger.inspect(

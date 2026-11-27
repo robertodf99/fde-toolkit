@@ -640,16 +640,34 @@ private func codexHooks(at path: String = app + "/Contents/MacOS/hook-me-up") ->
         #expect(probe.queried == [socketPath])
     }
 
-    @Test func malformedOrUnreadableHookFilesFail() {
+    @Test func malformedOrUnreadableHookFilesWarnWithoutRecommendingInstall() {
         for data in ["not JSON", "[]", #"{"hooks":42}"#] {
             let probe = healthy()
             probe.files[codexPath] = Data(data.utf8)
-            #expect(run(probe).check("Codex hooks")?.result == .fail)
-            #expect(run(probe).exitCode == 1)
+            let report = run(probe)
+            #expect(report.check("Codex hooks")?.result == .warn)
+            #expect(report.check("Codex hooks")?.fix == nil)
+            #expect(report.exitCode == 0)
         }
         let probe = healthy()
         probe.folders.insert(codexPath)
-        #expect(run(probe).check("Codex hooks")?.result == .fail)
+        let report = run(probe)
+        #expect(report.check("Codex hooks")?.result == .warn)
+        #expect(report.check("Codex hooks")?.fix == nil)
+        #expect(report.exitCode == 0)
+    }
+
+    @Test func recognizableHooksWithAMalformedEventStillFail() throws {
+        let probe = healthy()
+        var value = try JSONDecoder().decode(JSONValue.self, from: codexHooks()).objectValue!
+        var hooks = value["hooks"]!.objectValue!
+        hooks["Stop"] = .number(42)
+        value["hooks"] = .object(hooks)
+        probe.files[codexPath] = try JSONEncoder().encode(JSONValue.object(value))
+        let report = run(probe)
+        #expect(report.check("Codex hooks")?.result == .fail)
+        #expect(report.check("Codex hooks")?.detail.contains("Stop") == true)
+        #expect(report.exitCode == 1)
     }
 
     @Test func missingOrWrongArgumentsFailInsteadOfReportingNotSetUp() {
