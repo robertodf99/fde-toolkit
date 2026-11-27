@@ -399,7 +399,7 @@ public enum Doctor {
             if disabled {
                 checks.append(
                     DoctorCheck(
-                        "Codex hooks disabled", .fail, "\(config) sets [features] hooks = false",
+                        "Codex hooks disabled", .fail, "\(config) sets features.hooks = false",
                         fix: "Enable hooks in Codex's config.toml."))
             }
             if inline {

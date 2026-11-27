@@ -739,6 +739,11 @@ private func codexHooks(at path: String = app + "/Contents/MacOS/hook-me-up") ->
             probe.files[home + "/.codex/config.toml"] = Data(config.utf8)
             let report = run(probe)
             #expect((report.check("Codex hooks disabled")?.result == .fail) == disabled)
+            if disabled {
+                #expect(
+                    report.check("Codex hooks disabled")?.detail == home
+                        + "/.codex/config.toml sets features.hooks = false")
+            }
             #expect((report.check("Codex inline hooks")?.result == .warn) == inline)
             #expect(report.exitCode == (disabled ? 1 : 0))
         }
