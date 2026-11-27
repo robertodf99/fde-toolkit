@@ -23,6 +23,7 @@ enum MenuBarIcon {
             return true
         }
         image.isTemplate = true
+        image.accessibilityDescription = "Hook Me Up"
         return image
     }
 }
