@@ -67,6 +67,7 @@ public enum SettingsMerger {
             guard let object = existing.objectValue else { throw SettingsMergerError.unexpectedShape("hooks") }
             hooks = object
         }
+        let canonicalHookPath = canonicalPath(hookPath)
         for spec in specs(permissionTimeout: permissionTimeout, client: client) {
             var groups: [JSONValue] = []
             if let existing = hooks[spec.event] {
@@ -83,7 +84,21 @@ public enum SettingsMerger {
             if let message = spec.statusMessage { handler["statusMessage"] = .string(message) }
             var group: [String: JSONValue] = ["hooks": .array([.object(handler)])]
             if let matcher = spec.matcher { group["matcher"] = .string(matcher) }
-            groups.append(.object(group))
+            let originalGroups = settings["hooks"]?[spec.event]?.arrayValue ?? []
+            let previousIndex = originalGroups.firstIndex { original in
+                guard let handlers = original["hooks"]?.arrayValue, !handlers.isEmpty else { return false }
+                return handlers.allSatisfy {
+                    isOurHandler(
+                        $0, hookPath: hookPath, canonicalHookPath: canonicalHookPath, canonicalPath: canonicalPath)
+                }
+            }
+            if let previousIndex {
+                // uninstall keeps every group before the first group containing only
+                // our handlers. Replacing it here preserves other groups' trust indices.
+                groups.insert(.object(group), at: previousIndex)
+            } else {
+                groups.append(.object(group))
+            }
             hooks[spec.event] = .array(groups)
         }
         root["hooks"] = .object(hooks)
@@ -108,13 +123,7 @@ public enum SettingsMerger {
         guard var root = settings.objectValue, let hooks = root["hooks"]?.objectValue else { return settings }
         let ours = canonicalPath(hookPath)
         func isOurs(_ handler: JSONValue) -> Bool {
-            guard let command = handler["command"]?.stringValue, let parsed = splitCommand(command) else {
-                return false
-            }
-            // A program that isn't an absolute path depends on the folder Claude Code runs
-            // in: never ours.
-            guard parsed.program.hasPrefix("/") else { return false }
-            return parsed.program == hookPath || canonicalPath(parsed.program) == ours
+            isOurHandler(handler, hookPath: hookPath, canonicalHookPath: ours, canonicalPath: canonicalPath)
         }
 
         var newHooks = hooks
@@ -146,6 +155,15 @@ public enum SettingsMerger {
         guard changedAny else { return settings }
         root["hooks"] = newHooks.isEmpty && !keepEmptyHooks ? nil : .object(newHooks)
         return .object(root)
+    }
+
+    private static func isOurHandler(
+        _ handler: JSONValue, hookPath: String, canonicalHookPath: String, canonicalPath: (String) -> String
+    ) -> Bool {
+        guard let command = handler["command"]?.stringValue, let parsed = splitCommand(command) else { return false }
+        // Relative programs depend on the CLI's working folder and are never ours.
+        guard parsed.program.hasPrefix("/") else { return false }
+        return parsed.program == hookPath || canonicalPath(parsed.program) == canonicalHookPath
     }
 
     /// The suffix of every copy of the hook executable, wherever the app is.

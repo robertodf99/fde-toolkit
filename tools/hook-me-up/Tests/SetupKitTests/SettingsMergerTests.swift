@@ -281,3 +281,53 @@ private let foreign = #"""
         #expect(SettingsMerger.uninstall(from: installed, hookPath: hook, client: .codex) == original)
     }
 }
+
+@Suite struct HookGroupPositionTests {
+    @Test(arguments: [HookClient.claude, .codex])
+    func reinstallWithForeignGroupsAfterOursPreservesBytes(client: HookClient) throws {
+        var root = try SettingsMerger.install(
+            into: .object([:]), hookPath: hook, permissionTimeout: 600, client: client
+        ).objectValue!
+        var hooks = root["hooks"]!.objectValue!
+        let foreignGroup: JSONValue = .object([
+            "hooks": .array([.object(["type": "command", "command": "say foreign", "timeout": .number(7)])])
+        ])
+        for event in hooks.keys {
+            hooks[event] = .array(hooks[event]!.arrayValue! + [foreignGroup])
+        }
+        root["hooks"] = .object(hooks)
+        let original = JSONValue.object(root)
+        let reinstalled = try SettingsMerger.install(
+            into: original, hookPath: hook, permissionTimeout: 600, client: client)
+        #expect(SettingsFile.render(reinstalled) == SettingsFile.render(original))
+        #expect(SettingsMerger.diff(old: original, new: reinstalled).isEmpty)
+        #expect(reinstalled["hooks"]?["Stop"]?.arrayValue?[1] == foreignGroup)
+    }
+
+    @Test(arguments: [HookClient.claude, .codex])
+    func updatingOurGroupKeepsItsPositionBetweenForeignGroups(client: HookClient) throws {
+        var root = try SettingsMerger.install(
+            into: .object([:]), hookPath: hook, permissionTimeout: 120, client: client
+        ).objectValue!
+        var hooks = root["hooks"]!.objectValue!
+        let before: JSONValue = .object(["hooks": .array([.object(["type": "command", "command": "say before"])])])
+        let after: JSONValue = .object(["hooks": .array([.object(["type": "command", "command": "say after"])])])
+        hooks["PermissionRequest"] = .array([before, hooks["PermissionRequest"]!.arrayValue![0], after])
+        root["hooks"] = .object(hooks)
+        let updated = try SettingsMerger.install(
+            into: .object(root), hookPath: hook, permissionTimeout: 600, client: client)
+        let groups = try #require(updated["hooks"]?["PermissionRequest"]?.arrayValue)
+        #expect(groups.count == 3)
+        #expect(groups[0] == before)
+        #expect(groups[2] == after)
+        let handler = groups[1]["hooks"]?.arrayValue?.first
+        let suffix = client == .codex ? " --client codex" : ""
+        #expect(handler?["command"] == .string("'\(hook)' permission --timeout 600" + suffix))
+        #expect(handler?["timeout"] == .number(600))
+        #expect(
+            SettingsFile.render(
+                try SettingsMerger.install(
+                    into: updated, hookPath: hook, permissionTimeout: 600, client: client))
+                == SettingsFile.render(updated))
+    }
+}
