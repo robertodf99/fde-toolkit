@@ -1,6 +1,7 @@
 # FDE Toolkit
 
 Repositorio de herramientas y metodología de desarrollo reutilizables.
+Para añadir o cambiar módulos, lee [PLAYBOOK.md](PLAYBOOK.md).
 
 Si el encargo es instalar o configurar las herramientas, sigue [INSTALL.md](INSTALL.md).
 

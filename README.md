@@ -3,6 +3,7 @@
 Tools for my daily work as a Forward Deployed Engineer.
 
 Setting up with an agent? Point it to [INSTALL.md](INSTALL.md).
+Adding or changing modules? See [PLAYBOOK.md](PLAYBOOK.md).
 
 | Tool | What it does |
 |---|---|
