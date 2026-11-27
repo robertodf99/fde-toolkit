@@ -342,6 +342,21 @@ cp "$WORKDIR/original.json" "$SETTINGS"
 run install.sh HOOK_ME_UP_YES=0 >"$LOGS/install-without-hooks-tty.txt" 2>&1
 run_tty uninstall.sh >"$LOGS/uninstall-without-hooks-tty.txt" 2>&1
 check "no hooks in a terminal still permits app removal" '[ ! -e "$APP" ] && [ ! -e "$PLIST" ]'
+echo "--- uninstall preview when the app is partially deleted"
+run install.sh HOOK_ME_UP_YES=0 >"$LOGS/install-missing-setup.txt" 2>&1
+rm "$APP/Contents/MacOS/hook-me-up-setup"
+: >"$LOGS/consent-editor.txt"
+MISSING_SETUP_STATE="$(tree_state)"
+run uninstall.sh HOOK_ME_UP_YES=0 PATH="$CONSENT_EDITOR/bin:$SAFE_PATH" CONSENT_EDITOR_LOG="$LOGS/consent-editor.txt" \
+  >"$LOGS/uninstall-missing-setup.txt" 2>&1
+check "missing setup without consent preserves app remnants, agent, support and extension" \
+  'same_tree "$MISSING_SETUP_STATE" && [ ! -s "$LOGS/consent-editor.txt" ]'
+check "missing setup preview reports the missing tool and explains app removal consent" \
+  'grep -q "hook-me-up-setup is missing" "$LOGS/uninstall-missing-setup.txt" && grep -q "HOOK_ME_UP_YES=1.*remove" "$LOGS/uninstall-missing-setup.txt"'
+run uninstall.sh HOOK_ME_UP_YES=1 PATH="$CONSENT_EDITOR/bin:$SAFE_PATH" CONSENT_EDITOR_LOG="$LOGS/consent-editor.txt" \
+  >"$LOGS/uninstall-missing-setup-yes.txt" 2>&1
+check "missing setup with YES removes remnants, agent, support and extension" \
+  '[ ! -e "$APP" ] && [ ! -e "$PLIST" ] && [ ! -e "$FAKE/Library/Application Support/hook-me-up" ] && json_equal "$WORKDIR/original.json" "$SETTINGS" && grep -qx -- "--uninstall-extension hook-me-up.hook-me-up" "$LOGS/consent-editor.txt"'
 rm "$FAKE/.codex/hooks.json"
 rmdir "$FAKE/.codex"
 
@@ -725,6 +740,8 @@ check "uninstall without --codex warns and keeps app and Codex hooks" \
 run_codex uninstall.sh >"$LOGS/codex-uninstall-decline.txt" 2>&1
 check "declined Codex removal keeps app and hooks" \
   '[ -d "$APP" ] && cmp -s "$CODEX/hooks.json" "$WORKDIR/codex-installed.json"'
+check "Codex-only preview preserves --codex in app removal instructions" \
+  'grep -q "No Claude Code hooks to remove; run again with --codex and HOOK_ME_UP_YES=1" "$LOGS/codex-uninstall-decline.txt"'
 run_codex uninstall.sh HOOK_ME_UP_YES=1 >"$LOGS/codex-uninstall.txt" 2>&1
 check "Codex uninstall removes only ours, keeps backups and trust, removes app" \
   '[ ! -e "$APP" ] && json_equal "$CODEX/hooks.json" "$WORKDIR/codex-original.json" && ls "$CODEX" | grep -q "^hooks.json.bak-" && cmp -s "$CODEX/config.toml" "$WORKDIR/codex-config.toml"'

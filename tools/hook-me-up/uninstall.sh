@@ -130,6 +130,8 @@ main() {
   local settings="$HOME/.claude/settings.json"
   local codex_settings="${CODEX_HOME:-$HOME/.codex}/hooks.json"
   local setup="$app/Contents/MacOS/hook-me-up-setup"
+  local removal_options="HOOK_ME_UP_YES=1"
+  if [ "$codex" = 1 ]; then removal_options="--codex and $removal_options"; fi
 
   # The hooks go first: while they remain, the agent and the app stay, so the hooks
   # never point at nothing.
@@ -139,7 +141,12 @@ main() {
     no_hooks=1
   elif [ ! -x "$setup" ]; then
     warn "$setup is missing: remove the hook-me-up entries from $settings by hand."
-    removed=1
+    if [ "${HOOK_ME_UP_YES:-0}" = 1 ] || has_tty; then
+      removed=1
+    else
+      say "Run this again with $removal_options (or in a terminal) to remove the remaining installation."
+      exit 0
+    fi
   else
     local args=(uninstall --settings "$settings" --hook "$app/Contents/MacOS/hook-me-up" --state "$support/setup-state.json")
     if setup_unchanged "$setup" "${args[@]}"; then
@@ -176,7 +183,7 @@ main() {
       fi
     fi
     if [ "$no_hooks" = 1 ]; then
-      say "No Claude Code hooks to remove; run again with HOOK_ME_UP_YES=1 (or in a terminal) to remove the app."
+      say "No Claude Code hooks to remove; run again with $removal_options (or in a terminal) to remove the app."
     else
       say "The hooks are still in $settings, so Hook Me Up keeps running and stays installed."
       say "Run this again in a terminal, or with HOOK_ME_UP_YES=1, to finish."
