@@ -16,10 +16,18 @@ public enum DecisionEncoder {
 
     /// The hook's stdout for `decision`, built only from the hook's own `input`; nil to
     /// print nothing.
-    public static func output(for decision: UserDecision, input: HookInput) -> Data? {
+    public static func output(for decision: UserDecision, input: HookInput, client: HookClient = .claude) -> Data? {
         guard input.hookEventName == "PermissionRequest", let toolName = input.toolName else { return nil }
         // These two tools need updatedInput to work; a plain allow is never sent for them.
         let needsUpdatedInput = toolName == askUserQuestion || toolName == exitPlanMode
+        if client == .codex {
+            guard !needsUpdatedInput else { return nil }
+            switch decision {
+            case .approve: return try? Decision(behavior: "allow").outputJSON()
+            case .deny: return try? Decision(behavior: "deny", message: denyMessage).outputJSON()
+            default: return nil
+            }
+        }
 
         let decisionBody: Decision
         switch decision {

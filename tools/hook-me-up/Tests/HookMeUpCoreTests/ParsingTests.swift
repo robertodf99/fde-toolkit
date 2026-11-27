@@ -225,3 +225,17 @@ func parse(_ json: String) throws -> HookInput {
         #expect(JSONValue.object(["a": .null])["missing"] == nil)
     }
 }
+
+@Suite struct CodexWireTests {
+    @Test func optionalClientLabelsFinishedWithoutChangingClaude() throws {
+        for (extra, title) in [("", "proj · Finished"), (",\"client\":\"codex\"", "proj · Codex · Finished")] {
+            let json =
+                #"{"sessionID":"s","project":{"name":"proj"},"kind":"finished","message":"Done","terminal":{"ancestorPIDs":[]}\#(extra)}"#
+            let note = try JSONDecoder().decode(NotifyEnvelope.self, from: Data(json.utf8))
+            var core = AgentCore()
+            _ = core.receive(.notify(note), from: 1, now: Date())
+            let entry = try #require(core.store.entries.first)
+            #expect(NativeNotification.spec(for: entry, request: nil, progress: nil).title == title)
+        }
+    }
+}

@@ -7,25 +7,26 @@ import HookMeUpIPC
 /// nothing (Claude Code then shows its own terminal dialog). Every failure, mismatch,
 /// timeout or pause returns nil: this never turns an error into a deny.
 public func runHook(
-    mode: HookMode, stdin: Data, socketPath: URL, clock: @escaping () -> Date = Date.init,
+    mode: HookMode, stdin: Data, socketPath: URL, client: HookClient = .claude, clock: @escaping () -> Date = Date.init,
     environment: [String: String] = ProcessInfo.processInfo.environment,
     watchProcess: pid_t? = ProcessTree.sessionProcess(of: getpid())
 ) -> Data? {
     guard let input = try? HookInput.parse(stdin) else { return nil }
-    let headless = isHeadless(environment)
-    let folder = sessionFolder(input, environment: environment)
+    let headless = client == .claude && isHeadless(environment)
+    let folder = client == .codex ? input.cwd : sessionFolder(input, environment: environment)
     switch mode {
     case .permission(let timeout):
         return requestDecision(
-            input, handlerTimeout: timeout, socketPath: socketPath, headless: headless, sessionFolder: folder,
+            input, client: client, handlerTimeout: timeout, socketPath: socketPath, headless: headless,
+            sessionFolder: folder,
             watchProcess: watchProcess, clock: clock)
     case .notify:
         // Headless (`claude -p`, SDK) sessions have nobody to come back to.
-        guard input.hookEventName == "Notification", !headless else { return nil }
-        notify(input, kind: .waiting, sessionFolder: folder, socketPath: socketPath)
+        guard client == .claude, input.hookEventName == "Notification", !headless else { return nil }
+        notify(input, kind: .waiting, sessionFolder: folder, socketPath: socketPath, client: client)
     case .finished:
         guard input.hookEventName == "Stop", !headless else { return nil }
-        notify(input, kind: .finished, sessionFolder: folder, socketPath: socketPath)
+        notify(input, kind: .finished, sessionFolder: folder, socketPath: socketPath, client: client)
     case .clear:
         fireAndForget(.clear(sessionID: input.sessionID), socketPath: socketPath)
     }
@@ -33,10 +34,11 @@ public func runHook(
 }
 
 private func requestDecision(
-    _ input: HookInput, handlerTimeout requestedTimeout: TimeInterval, socketPath: URL,
+    _ input: HookInput, client: HookClient, handlerTimeout requestedTimeout: TimeInterval, socketPath: URL,
     headless: Bool, sessionFolder: String, watchProcess: pid_t?, clock: () -> Date
 ) -> Data? {
     guard input.hookEventName == "PermissionRequest", input.toolName != nil else { return nil }
+    if client == .codex, ["AskUserQuestion", "ExitPlanMode"].contains(input.toolName!) { return nil }
     let handlerTimeout = min(max(requestedTimeout, 1), HookTiming.defaultHandlerTimeout)
     let start = clock()
     let project = ProjectInfo.resolve(cwd: URL(fileURLWithPath: input.cwd), fileSystem: LocalFileSystem())
@@ -47,8 +49,8 @@ private func requestDecision(
     var envelope = RequestEnvelope(
         id: id, sessionID: input.sessionID, project: project, summary: summary,
         input: input.toolInput ?? .null, terminal: terminalHint(),
-        sessionPermissions: SessionPermissionFilter.sessionOnly(input.permissionSuggestions),
-        sessionFolder: sessionFolder)
+        sessionPermissions: client == .codex ? [] : SessionPermissionFilter.sessionOnly(input.permissionSuggestions),
+        sessionFolder: sessionFolder, client: client == .codex ? .codex : nil)
 
     guard let connection = try? SocketClient.connect(path: socketPath, timeout: HookTiming.permissionConnectTimeout)
     else { return nil }
@@ -84,17 +86,18 @@ private func requestDecision(
     guard case .response(let response)? = reply, response.id == id,
         case .decided(let decision) = response.outcome
     else { return nil }
-    return DecisionEncoder.output(for: decision, input: input)
+    return DecisionEncoder.output(for: decision, input: input, client: client)
 }
 
-private func notify(_ input: HookInput, kind: EntryKind, sessionFolder: String, socketPath: URL) {
+private func notify(_ input: HookInput, kind: EntryKind, sessionFolder: String, socketPath: URL, client: HookClient) {
     let project = ProjectInfo.resolve(cwd: URL(fileURLWithPath: input.cwd), fileSystem: LocalFileSystem())
     let summary = Summarizer.summarize(input, project: project, home: HookMeUpPaths.homeDirectory.path)
     fireAndForget(
         .notify(
             NotifyEnvelope(
                 sessionID: input.sessionID, project: project, kind: kind,
-                message: summary.description, terminal: terminalHint(), sessionFolder: sessionFolder)),
+                message: summary.description, terminal: terminalHint(), sessionFolder: sessionFolder,
+                client: client == .codex ? .codex : nil)),
         socketPath: socketPath)
 }
 

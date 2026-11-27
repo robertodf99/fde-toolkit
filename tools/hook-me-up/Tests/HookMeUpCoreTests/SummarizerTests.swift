@@ -274,3 +274,20 @@ private func bash(_ command: String, description: String? = nil) throws -> Reque
         #expect(try finished("").description == "")
     }
 }
+
+@Suite struct CodexPatchTests {
+    @Test func patchPathsAndOutsideProject() throws {
+        let patch =
+            "*** Begin Patch\n*** Add File: added.txt\n+hello\n*** Update File: ../../outside.txt\n@@\n-x\n+y\n*** Delete File: old.txt\n*** End Patch"
+        let json = JSONValue.object(["patch": .string(patch)])
+        let encoded = String(decoding: try JSONEncoder().encode(json), as: UTF8.self)
+        let summary = summarize(try request("apply_patch", encoded))
+        #expect(summary.title == "Apply a patch")
+        #expect(summary.description.contains("added.txt"))
+        #expect(summary.description.contains("outside.txt"))
+        #expect(summary.description.contains("old.txt"))
+        #expect(summary.tags.contains(.writesOutsideProject))
+        let inside = summarize(try request("apply_patch", #"{"patch":"*** Add File: inside.txt"}"#))
+        #expect(!inside.tags.contains(.writesOutsideProject))
+    }
+}

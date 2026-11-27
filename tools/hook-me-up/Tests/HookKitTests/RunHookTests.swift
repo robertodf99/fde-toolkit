@@ -141,9 +141,11 @@ func serveRawOnce(_ path: String, bytes: Data) {
 /// Runs the hook with a fixed environment (by default none), never this process's own.
 private func run(
     _ mode: HookMode, _ json: String, socket: URL, clock: @escaping () -> Date = Date.init,
-    environment: [String: String] = [:]
+    environment: [String: String] = [:], client: HookClient = .claude
 ) -> String? {
-    runHook(mode: mode, stdin: Data(json.utf8), socketPath: socket, clock: clock, environment: environment).map {
+    runHook(
+        mode: mode, stdin: Data(json.utf8), socketPath: socket, client: client, clock: clock, environment: environment
+    ).map {
         String(decoding: $0, as: UTF8.self)
     }
 }
@@ -151,65 +153,67 @@ private func run(
 // MARK: Tests
 
 @Suite(.serialized) struct RunHookTests {
-    @Test func agentDownPrintsNothing() throws {
+    @Test(arguments: [HookClient.claude, .codex]) func agentDownPrintsNothing(client: HookClient) throws {
         let temp = try ShortTempDir()
         let start = Date()
         for mode in [HookMode.permission(timeout: 600), .notify, .finished, .clear] {
-            #expect(run(mode, docsPermissionRequest, socket: temp.socket) == nil)
+            #expect(run(mode, docsPermissionRequest, socket: temp.socket, client: client) == nil)
         }
         #expect(Date().timeIntervalSince(start) < 1)
     }
 
-    @Test func agentKilledMidRequestPrintsNothing() throws {
+    @Test(arguments: [HookClient.claude, .codex]) func agentKilledMidRequestPrintsNothing(client: HookClient) throws {
         // The agent reads the request, then goes away without answering.
         let temp = try ShortTempDir()
         let agent = try FakeAgent(path: temp.socket) { _, connection in connection.close() }
         let start = Date()
-        #expect(run(.permission(timeout: 600), docsPermissionRequest, socket: temp.socket) == nil)
+        #expect(run(.permission(timeout: 600), docsPermissionRequest, socket: temp.socket, client: client) == nil)
         #expect(Date().timeIntervalSince(start) < 2)
         #expect(agent.requests.count == 1)
     }
 
-    @Test func garbageStdinPrintsNothing() throws {
+    @Test(arguments: [HookClient.claude, .codex]) func garbageStdinPrintsNothing(client: HookClient) throws {
         let temp = try ShortTempDir()
         let agent = try FakeAgent(path: temp.socket, reply: respond(.decided(.approve)))
         for garbage in ["", "not json", "{}", "[1,2]", #"{"session_id":"s","cwd":"/p"}"#] {
-            #expect(run(.permission(timeout: 600), garbage, socket: temp.socket) == nil)
+            #expect(run(.permission(timeout: 600), garbage, socket: temp.socket, client: client) == nil)
         }
         usleep(100_000)
         #expect(agent.received.value.isEmpty)  // nothing was even asked
     }
 
-    @Test func otherEventInPermissionModePrintsNothing() throws {
+    @Test(arguments: [HookClient.claude, .codex]) func otherEventInPermissionModePrintsNothing(client: HookClient)
+        throws
+    {
         let temp = try ShortTempDir()
         let agent = try FakeAgent(path: temp.socket, reply: respond(.decided(.approve)))
-        #expect(run(.permission(timeout: 600), notification, socket: temp.socket) == nil)
-        #expect(run(.permission(timeout: 600), stop, socket: temp.socket) == nil)
+        #expect(run(.permission(timeout: 600), notification, socket: temp.socket, client: client) == nil)
+        #expect(run(.permission(timeout: 600), stop, socket: temp.socket, client: client) == nil)
         usleep(100_000)
         #expect(agent.received.value.isEmpty)
     }
 
-    @Test func garbageResponsePrintsNothing() throws {
+    @Test(arguments: [HookClient.claude, .codex]) func garbageResponsePrintsNothing(client: HookClient) throws {
         let temp = try ShortTempDir()
         serveRawOnce(temp.socket.path, bytes: Data([0, 0, 0, 5]) + Data("hello".utf8))
-        #expect(run(.permission(timeout: 600), docsPermissionRequest, socket: temp.socket) == nil)
+        #expect(run(.permission(timeout: 600), docsPermissionRequest, socket: temp.socket, client: client) == nil)
     }
 
-    @Test func mismatchedIDPrintsNothing() throws {
+    @Test(arguments: [HookClient.claude, .codex]) func mismatchedIDPrintsNothing(client: HookClient) throws {
         let temp = try ShortTempDir()
         let agent = try FakeAgent(path: temp.socket) { _, connection in
             try? connection.send(.response(ResponseEnvelope(id: UUID(), outcome: .decided(.approve))))
         }
-        #expect(run(.permission(timeout: 600), docsPermissionRequest, socket: temp.socket) == nil)
+        #expect(run(.permission(timeout: 600), docsPermissionRequest, socket: temp.socket, client: client) == nil)
         #expect(agent.requests.count == 1)  // the agent was really asked (and kept alive)
     }
 
-    @Test func nonResponseMessagePrintsNothing() throws {
+    @Test(arguments: [HookClient.claude, .codex]) func nonResponseMessagePrintsNothing(client: HookClient) throws {
         let temp = try ShortTempDir()
         let agent = try FakeAgent(path: temp.socket) { request, connection in
             try? connection.send(.timedOut(id: request.id))
         }
-        #expect(run(.permission(timeout: 600), docsPermissionRequest, socket: temp.socket) == nil)
+        #expect(run(.permission(timeout: 600), docsPermissionRequest, socket: temp.socket, client: client) == nil)
         #expect(agent.requests.count == 1)
     }
 
@@ -291,21 +295,23 @@ private func run(
         agent.server.stop()
     }
 
-    @Test func pausedPrintsNothing() throws {
+    @Test(arguments: [HookClient.claude, .codex]) func pausedPrintsNothing(client: HookClient) throws {
         let temp = try ShortTempDir()
         let agent = try FakeAgent(path: temp.socket, reply: respond(.paused))
         let start = Date()
-        #expect(run(.permission(timeout: 600), docsPermissionRequest, socket: temp.socket) == nil)
+        #expect(run(.permission(timeout: 600), docsPermissionRequest, socket: temp.socket, client: client) == nil)
         #expect(Date().timeIntervalSince(start) < 1)
         #expect(agent.requests.count == 1)
     }
 
-    @Test func selfTimeoutSendsTimedOutAndPrintsNothing() throws {
+    @Test(arguments: [HookClient.claude, .codex]) func selfTimeoutSendsTimedOutAndPrintsNothing(client: HookClient)
+        throws
+    {
         let temp = try ShortTempDir()
         let agent = try FakeAgent(path: temp.socket)  // never answers
         let start = Date()
         // Handler timeout 12 s -> the hook gives up 10 s earlier, after 2 s.
-        #expect(run(.permission(timeout: 12), docsPermissionRequest, socket: temp.socket) == nil)
+        #expect(run(.permission(timeout: 12), docsPermissionRequest, socket: temp.socket, client: client) == nil)
         let elapsed = Date().timeIntervalSince(start)
         #expect(elapsed >= 1.9 && elapsed < 3.5)
         #expect(waitUntil { agent.received.value.count == 2 })
@@ -537,5 +543,78 @@ private func run(
         #expect(
             HookMeUpPaths.socketURL(home: URL(fileURLWithPath: "/home/me")).path
                 == "/home/me/Library/Application Support/hook-me-up/agent.sock")
+    }
+}
+
+@Suite(.serialized) struct CodexHookTests {
+    @Test func parsesClientInEveryMode() {
+        for mode in ["permission", "notify", "finished", "clear"] {
+            #expect(HookInvocation.parse([mode, "--client", "codex"]) != nil)
+            #expect(HookInvocation.parse([mode, "--client", "claude"]) != nil)
+            #expect(HookInvocation.parse([mode, "--client", "other"]) == nil)
+        }
+    }
+}
+
+extension CodexHookTests {
+    @Test func codexDoesNotSendSessionRulesOrUseClaudeEnvironment() throws {
+        let temp = try ShortTempDir()
+        let agent = try FakeAgent(path: temp.socket, reply: respond(.decided(.approve)))
+        let output = runHook(
+            mode: .permission(timeout: 600), stdin: Data(docsPermissionRequest.utf8), socketPath: temp.socket,
+            client: .codex, environment: ["CLAUDE_PROJECT_DIR": "/wrong", "CLAUDE_CODE_ENTRYPOINT": "sdk-test"],
+            watchProcess: nil)
+        #expect(output.map { String(decoding: $0, as: UTF8.self) } == allowJSON)
+        let request = try #require(agent.requests.first)
+        #expect(request.sessionPermissions.isEmpty)
+        #expect(request.sessionFolder == "/home/...")
+        #expect(request.summary.origin == nil)
+        var core = AgentCore()
+        _ = core.receive(.request(request), from: 1, now: Date())
+        let entry = try #require(core.store.entries.first)
+        let spec = NativeNotification.spec(for: entry, request: request, progress: nil)
+        #expect(spec.title.contains(" · Codex · Needs permission"))
+        #expect(spec.actions.map(\.identifier) == ["approve", "deny"])
+    }
+
+    @Test func codexFailuresAndClicksPrintNothing() throws {
+        for outcome in [ResponseOutcome.paused, .decided(.openInTerminal), .decided(.approveForSession)] {
+            let temp = try ShortTempDir()
+            let agent = try FakeAgent(path: temp.socket, reply: respond(outcome))
+            #expect(
+                runHook(
+                    mode: .permission(timeout: 600), stdin: Data(docsPermissionRequest.utf8), socketPath: temp.socket,
+                    client: .codex, watchProcess: nil) == nil)
+            #expect(agent.requests.count == 1)
+        }
+        let temp = try ShortTempDir()
+        let agent = try FakeAgent(path: temp.socket) { _, connection in
+            try? connection.send(.response(ResponseEnvelope(id: UUID(), outcome: .decided(.approve))))
+        }
+        #expect(
+            runHook(
+                mode: .permission(timeout: 600), stdin: Data(docsPermissionRequest.utf8), socketPath: temp.socket,
+                client: .codex, watchProcess: nil) == nil)
+        #expect(agent.requests.count == 1)
+    }
+
+    @Test func codexStopNotifiesDespiteClaudeHeadlessEnvironment() throws {
+        for message in ["null", "\"All tests pass. Details follow.\""] {
+            let temp = try ShortTempDir()
+            let agent = try FakeAgent(path: temp.socket)
+            let json =
+                #"{"session_id":"codex-s","turn_id":"turn","cwd":"/tmp","hook_event_name":"Stop","transcript_path":null,"last_assistant_message":\#(message)}"#
+            #expect(
+                runHook(
+                    mode: .finished, stdin: Data(json.utf8), socketPath: temp.socket, client: .codex,
+                    environment: ["CLAUDE_CODE_ENTRYPOINT": "sdk-test"], watchProcess: nil) == nil)
+            #expect(waitUntil { !agent.received.value.isEmpty })
+            guard case .notify(let note)? = agent.received.value.first else {
+                Issue.record("No finished notification")
+                continue
+            }
+            #expect(note.kind == .finished)
+            #expect(note.message == (message == "null" ? "" : "All tests pass."))
+        }
     }
 }
