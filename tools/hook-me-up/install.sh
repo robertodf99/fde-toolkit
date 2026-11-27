@@ -86,7 +86,11 @@ run_limited() {
 setup_has() {
   local usage
   usage="$("$1" --help 2>&1 </dev/null)" || true
-  case "$usage" in *"hook-me-up-setup $2"*) return 0 ;; esac
+  if [ "$2" = "--client" ]; then
+    case "$usage" in *"--client"*) return 0 ;; esac
+  else
+    case "$usage" in *"hook-me-up-setup $2"*) return 0 ;; esac
+  fi
   return 1
 }
 
@@ -117,6 +121,13 @@ on_exit() {
 }
 
 main() {
+  local codex=0 argument
+  for argument in "$@"; do
+    case "$argument" in
+      --codex) codex=1 ;;
+      *) die "unknown argument $argument (expected --codex)." ;;
+    esac
+  done
   # --- Checks -----------------------------------------------------------------------
   [ "$(uname -s)" = "Darwin" ] || die "Hook Me Up runs on macOS only."
   local macos
@@ -231,6 +242,32 @@ main() {
     say "No terminal to ask, so ~/.claude/settings.json was not changed. To add the hooks, run:"
     say "  \"$setup\" install --settings \"$settings\" --hook \"$APP/Contents/MacOS/hook-me-up\" --state \"$support/setup-state.json\""
     say "or run this installer again with HOOK_ME_UP_YES=1."
+  fi
+
+  # --- Codex hooks (explicit opt-in, in addition to Claude Code) ---------------------
+  if [ "$codex" = 1 ]; then
+    local codex_home="${CODEX_HOME:-$HOME/.codex}" codex_hooks="not added"
+    if [ ! -d "$codex_home" ]; then
+      codex_hooks="skipped (no Codex)"
+    elif ! setup_has "$setup" --client; then
+      codex_hooks="skipped (this package does not support --client; upgrade Hook Me Up)"
+    else
+      local codex_args=(install --client codex --settings "$codex_home/hooks.json" --hook "$APP/Contents/MacOS/hook-me-up" --state "$support/setup-state.json")
+      if [ "${HOOK_ME_UP_YES:-0}" = 1 ]; then
+        if "$setup" "${codex_args[@]}" --yes; then codex_hooks="added"; fi
+      elif has_tty; then
+        if "$setup" "${codex_args[@]}" </dev/tty; then codex_hooks="added"; fi
+      else
+        "$setup" "${codex_args[@]}" --dry-run || true
+        codex_hooks="not added (no terminal to ask)"
+        say "No terminal to ask, so $codex_home/hooks.json was not changed."
+        say "Run this installer again with --codex and HOOK_ME_UP_YES=1 to add them."
+      fi
+    fi
+    say "Codex hooks: $codex_hooks."
+    if [ "$codex_hooks" = added ]; then
+      say "Review and approve the hooks with /hooks in Codex before they can run."
+    fi
   fi
 
   # --- Editor extension -------------------------------------------------------------

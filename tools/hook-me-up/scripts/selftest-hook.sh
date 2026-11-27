@@ -76,6 +76,14 @@ check "unknown mode"                           "$DOCS"         approve --socket 
 check "bad timeout"                            "$DOCS"         permission --timeout abc --socket "$NONE"
 check "no arguments"                           "$DOCS"
 
+for mode in permission finished clear notify; do
+  check "Codex $mode, no agent" "$DOCS" "$mode" --client codex --socket "$NONE"
+done
+check "Codex permission, stale socket" "$DOCS" permission --client codex --socket "$STALE"
+check "Codex garbage stdin" "not json" permission --client codex --socket "$NONE"
+check "Codex unknown argument" "$DOCS" permission --client codex --unknown value --socket "$NONE"
+check "unknown client" "$DOCS" permission --client future --socket "$NONE"
+
 if [ "$failures" -eq 0 ]; then
   echo "selftest: all checks passed"
 else
