@@ -10,9 +10,9 @@ and read [AGENTS.md](AGENTS.md) before making changes.
 ```text
 tools/<tool>/                     Tool source, docs, tests and packaging
 methodology/<name>/               Methodology, skills, roles and tests
-scripts/                         Small checks shared by the toolkit
+scripts/                          Small checks shared by the toolkit
 .claude-plugin/marketplace.json   Optional Claude Code plugin catalogue
-.github/workflows/               Module CI and release workflows
+.github/workflows/                Module CI and release workflows
 README.md / INSTALL.md            Discovery / user setup
 AGENTS.md / Makefile              Contributor instructions / task shortcuts
 ```
@@ -28,47 +28,29 @@ AGENTS.md / Makefile              Contributor instructions / task shortcuts
 - The root [Makefile](Makefile) delegates tool tasks and exposes shared checks.
   Build details stay in the module's own build files.
 
-A self-contained module has a README covering purpose, requirements, usage and
-validation; its own tests; and an installer/uninstaller if installation is needed.
-An optional plugin lives with the module and has its own manifest and checks.
-Link to deeper docs only when they are useful; avoid adding empty scaffolding.
+## Add a module
 
-Give each module its own CI workflow with path filters for that module and the
-shared files it depends on. See [tool CI](.github/workflows/ci.yml) and
-[methodology CI](.github/workflows/methodology.yml).
-For packaged tool releases, use `<tool>-vX.Y.Z` tags to keep versions independent;
-[Hook Me Up's release workflow](.github/workflows/release.yml) handles
-`hook-me-up-v*`. Add release automation only when a module needs it.
-
-## Add a tool
-
-- [ ] Create `tools/<tool>/` with its source and only the supporting files needed.
-- [ ] Write its README: purpose, requirements, use, checks and removal if installed.
-- [ ] Add tests and document how to run them from the module directory.
+- [ ] Create `tools/<tool>/` or `methodology/<name>/` with only the files it needs.
+- [ ] Write its README: purpose, requirements, usage, checks and removal if installed.
+      Link to deeper docs rather than duplicating them or adding empty scaffolding.
+- [ ] Add its own tests and document how to run them; test installers in a fake HOME.
 - [ ] Add an installer/uninstaller if needed, following the consent rules below.
 - [ ] Add a row to the root [README table](README.md).
-- [ ] If exposing a Claude Code plugin, add its manifest and a local source entry
-      to [marketplace.json](.claude-plugin/marketplace.json); validate it with
-      [check-marketplace.sh](scripts/check-marketplace.sh).
-- [ ] Add module CI with path filters; use tool-prefixed tags if releasing packages.
-- [ ] Add a root [Makefile](Makefile) target if a shortcut is useful.
-- [ ] Add a step to [INSTALL.md](INSTALL.md) if users must install anything.
+- [ ] For an optional Claude Code plugin, put its manifest at
+      `<source>/.claude-plugin/plugin.json` and add a local source entry to
+      [marketplace.json](.claude-plugin/marketplace.json); validate it with
+      [check-marketplace.sh](scripts/check-marketplace.sh) and module plugin checks.
+- [ ] Add its own CI workflow with path filters for the module and shared dependencies.
+      See [Hook Me Up CI](.github/workflows/ci.yml) and
+      [methodology CI](.github/workflows/methodology.yml).
+- [ ] Add a root [Makefile](Makefile) shortcut if useful; prefix new targets with the
+      module name to avoid collisions with Hook Me Up's generic targets.
+- [ ] Add an [INSTALL.md](INSTALL.md) step if users must install anything.
 
-## Add a methodology
-
-- [ ] Create `methodology/<name>/` with the practices and runtime files it needs.
-- [ ] Write its README: purpose, usage, supported runtimes and validation.
-- [ ] Add checks for its contracts and adapters; test any installer in a fake HOME.
-- [ ] If installation is needed, provide a preview and a way to restore originals.
-- [ ] Add a row to the root [README table](README.md).
-- [ ] If it is also a Claude Code plugin, add its manifest and local marketplace
-      entry; run [check-marketplace.sh](scripts/check-marketplace.sh).
-- [ ] Add its own CI with path filters, including relevant shared files.
-- [ ] Add a root [Makefile](Makefile) target if useful, and an [INSTALL.md](INSTALL.md)
-      step if users need to install it.
-
-Use [agent-workflow](methodology/agent-workflow/README.md) as a working example,
-keeping personal profiles, overrides and run state outside the public module.
+Tools: use `<tool>-vX.Y.Z` tags when publishing packages; see
+[Hook Me Up's release workflow](.github/workflows/release.yml).
+Methodologies: preview installation and restore originals on removal; keep private
+profiles, overrides and run state outside the repository.
 
 ## Working as an FDE
 
@@ -88,15 +70,15 @@ keeping personal profiles, overrides and run state outside the public module.
 - **Isolate each change.** Use a worktree per change, one writer and the independent
   review required by [agent-workflow](methodology/agent-workflow/skills/agent-workflow/SKILL.md).
   Follow its triage and role contracts instead of duplicating them here.
+  Make small, focused commits and submit changes through PRs.
 - **Verify before claiming success.** Reproduce bugs before fixing them, run real
   behavior checks, and report omitted checks. Types or a build alone do not prove
   behavior; see the methodology's [verification practices](methodology/agent-workflow/skills/agent-workflow/references/superpowers.md).
-- **Keep delivery reviewable.** Make small, focused commits and submit changes
-  through PRs. Follow the methodology's delivery rules for approvals and evidence.
 
 ## Useful tools
 
 These are already used or referenced by the toolkit; setup is in [INSTALL.md](INSTALL.md).
+Use them plus the toolkit's own modules, listed in the [README](README.md).
 
 | Tool | Use |
 |---|---|
@@ -106,11 +88,8 @@ These are already used or referenced by the toolkit; setup is in [INSTALL.md](IN
 | [Superpowers](https://github.com/obra/superpowers#installation) | Supply the development practices selected by agent-workflow triage. |
 | [jq](https://jqlang.org/download/) | Inspect JSON output, including Herdr space discovery. |
 | [gh](https://cli.github.com/) | Work with GitHub PRs and releases, and verify release attestations. |
-| [Hook Me Up](tools/hook-me-up/README.md) | Answer Claude Code and Codex CLI from native macOS notifications. |
-| [agent-workflow](methodology/agent-workflow/README.md) | Coordinate scoped implementation, independent review and evidence. |
 
 ## Before handing off
 
-Run the changed module's documented checks, then `scripts/check-marketplace.sh`
-and `git diff --check` from the root. Check relative links when editing docs.
-Report actual results and omissions using the methodology's delivery contract.
+Run the changed module's documented checks and `scripts/check-marketplace.sh`
+from the root; report results and omissions.
