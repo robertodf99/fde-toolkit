@@ -118,8 +118,9 @@ said otherwise, so that permission prompts actually appear.
    `HOOK_ME_UP_NO_ONBOARDING=1` → "Notification check skipped".
 5. System Settings → Notifications → Hook Me Up: Allow notifications on, **style set
    to Alerts** (they stay on screen until you answer), sounds on. The log says
-   `notifications: authorized, style alert`. Notifications show the original app icon: a white
-   fishing hook and notification dot on a blue/teal rounded square. Session notifications
+   `notifications: authorized, style alert`. Notifications show the app's blue/teal logo:
+   a white notification card with two text bars and a fishing hook hanging below it, inside
+   a rounded square. Session notifications
    also show a small client symbol (Claude or Codex).
 6. The menu bar shows a monochrome hook (with the number of waiting entries, ⏸ while
    paused). Check that macOS adapts the template image in light/dark mode and when highlighted.
@@ -260,7 +261,8 @@ swift scripts/make-icon.swift --png 1024 /tmp/hmu-icon-1024.png
 swift scripts/make-icon.swift --png 32 /tmp/hmu-icon-32.png
 ```
 
-Use the Xcode toolchain as the Makefile does. Check 16/32 px legibility, PNG dimensions
+Use the Xcode toolchain as the Makefile does. Check that the app icon matches the project
+logo at every size, including legibility of its card and hook at 16/32 px, and PNG dimensions
 (logo 256 square, social preview 1280 × 640, thumbnail 960 square, attachments 128
 square), unchanged aspect ratios, blue/teal branding, and both client names on the
 social preview and thumbnail. Re-run generation and compare hashes for determinism.

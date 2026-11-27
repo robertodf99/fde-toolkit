@@ -160,8 +160,8 @@ old to answer.
   `.sha256`.
 - A `hook-me-up-v*` tag runs the root `.github/workflows/release.yml`: tests, a universal ad-hoc-signed
   package, checks, a build provenance attestation for the zip (`gh attestation verify`),
-  and a GitHub release with the zip and checksum. The original blue/teal fishing-hook app icon is drawn
-  at build time by `scripts/make-icon.swift` from constants, with no third-party symbol.
+  and a GitHub release with the zip and checksum. The blue/teal notification-card logo is
+  drawn at build time by `scripts/make-icon.swift` in the macOS app-icon tile, with no third-party symbol.
   `scripts/make-client-symbols.swift` separately renders the committed Claude and OpenAI
   paths as `notification-claude.png` and `notification-codex.png` in Contents/Resources
   before signing. The project logo, GitHub's social preview and
@@ -254,5 +254,5 @@ Client PNGs are 128 px with a 64 px symbol and clear white margins, using unifor
 scaling and the original viewBox. Claude uses the source's official colour; the
 Blossom stays black. They identify notification origin only and do not appear in
 Hook Me Up's own app icon, logo or promotional PNGs. The app icon keeps the macOS
-824/1024 tile, 22.5% corners and shadow, with wider strokes at 16/32 px. Its blue/teal
-palette is shared by the project logo, social preview, thumbnail and demo-card source.
+824/1024 tile, 22.5% corners and shadow. Its blue/teal palette is shared by the project
+logo, social preview, thumbnail and demo-card source.

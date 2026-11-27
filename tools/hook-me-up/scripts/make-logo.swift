@@ -1,7 +1,7 @@
 // Draws the project logo (a notification card on a blue/teal gradient, with a fishing hook
 // hanging from it) and the images made from it: the README logo, GitHub's social
-// preview and a square Product Hunt thumbnail. The app icon is a different picture,
-// drawn by scripts/make-icon.swift. Only the constants below go into the images, so
+// preview and a square Product Hunt thumbnail. scripts/make-icon.swift draws the same
+// logo inside the macOS app-icon tile. Only the constants below go into the images, so
 // every run draws the same files.
 //
 // Usage: make logo   (redraws docs/images; picks the toolchain as the Makefile does)

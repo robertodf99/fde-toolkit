@@ -8,7 +8,8 @@ Claude Code also supports answering questions and reviewing plans. Hook Me Up is
 on each CLI's hooks and fails open: if anything is off, the CLI shows its usual
 terminal dialog. Codex support is opt-in; see [Codex CLI](#codex-cli).
 
-Hook Me Up has its own blue/teal fishing-hook icon. Each session notification carries
+Hook Me Up's app icon uses its blue/teal logo: a notification card with a fishing hook
+hanging from it. Each session notification carries
 a small client symbol: Claude's official symbol for Claude Code, OpenAI's black
 Blossom for Codex. These identify the source; they are separate from our app icon.
 
