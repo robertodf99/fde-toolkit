@@ -104,7 +104,7 @@ public enum EditorExtension {
     ) -> Bool {
         switch plan {
         case .focusWindow, .activateApp: break
-        case .selectTab, .focusTerminalByFolder, .none: return false
+        case .selectTab, .focusTerminalByFolder, .focusHerdrTerminal, .none: return false
         }
         guard editor(bundleID: bundleID) != nil, sessionAlive else { return false }
         return openWindowCount() > 0 && isInstalled()

@@ -159,6 +159,9 @@ syntax; they are text checks, not a full TOML parser or a query of effective pol
   session set meanwhile shows again when it next sets one), and Ghostty just comes to
   the front, as it does when the session has ended, when no terminal is in the folder, or
   when Ghostty's AppleScript is off (`macos-applescript = false`).
+  Herdr Desktop focuses the session's terminal (including sub-agents) using the
+  `HC_TERMINAL_ID` inherited from Herdr Core. Without a valid id, or if Herdr cannot
+  focus it, Desktop just comes to the front.
   VS Code and Cursor (and VS Code Insiders and Windsurf) focus the open window that
   contains the folder Claude Code was started in: that folder's window, the window of
   the repository a worktree or subfolder belongs to, or a saved `.code-workspace` that

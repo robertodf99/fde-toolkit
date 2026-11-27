@@ -64,6 +64,27 @@ private let vsCodeFamily = [
 ]
 
 @Suite struct SessionActivationTests {
+    @Test(arguments: ["dev.herdr.core", "dev.herdr.app"])
+    func herdrFocusesItsTerminalOrOnlyComesForward(_ bundleID: String) {
+        for id: String? in ["test-pane_1", nil, "", "bad id", "pane\n", String(repeating: "x", count: 65)] {
+            let result = SessionActivation.plan(
+                ownerBundleID: bundleID, tty: "ttys003", folder: nil, home: home, fileSystem: disk,
+                herdrTerminal: id, sessionAlive: true,
+                openWindowCount: {
+                    Issue.record("Herdr must not count windows")
+                    return 0
+                })
+            #expect(result == (id == "test-pane_1" ? .focusHerdrTerminal(id: "test-pane_1") : .activateApp))
+        }
+    }
+
+    @Test func herdrHintDoesNotChangeOtherTerminals() {
+        let result = SessionActivation.plan(
+            ownerBundleID: "com.apple.Terminal", tty: "ttys003", folder: nil, home: home, fileSystem: disk,
+            herdrTerminal: "test-pane_1", sessionAlive: true, openWindowCount: { 0 })
+        #expect(result == .selectTab(.appleTerminal, tty: "ttys003"))
+    }
+
     @Test func terminalAndITermSelectTheTab() {
         #expect(plan("com.apple.Terminal", tty: "ttys003") == .selectTab(.appleTerminal, tty: "ttys003"))
         #expect(plan("com.googlecode.iterm2", tty: "/dev/ttys012") == .selectTab(.iTerm2, tty: "/dev/ttys012"))
