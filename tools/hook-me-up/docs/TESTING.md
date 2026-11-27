@@ -121,7 +121,8 @@ said otherwise, so that permission prompts actually appear.
    `notifications: authorized, style alert`. Notifications show the original app icon: a white
    fishing hook and notification dot on a blue/teal rounded square. Session notifications
    also show a small client symbol (Claude or Codex).
-6. The menu bar shows ✻ (with the number of waiting entries, ⏸ while paused).
+6. The menu bar shows a monochrome hook (with the number of waiting entries, ⏸ while
+   paused). Check that macOS adapts the template image in light/dark mode and when highlighted.
 7. The first click on a notification with Terminal, iTerm2 or Ghostty asks once for
    Automation permission: allow it.
 8. `~/Applications/"Hook Me Up.app"/Contents/MacOS/hook-me-up-setup doctor`: every line
@@ -184,7 +185,7 @@ said otherwise, so that permission prompts actually appear.
 | # | Check | Expected |
 |---|---|---|
 | 21 | The uninstall one-liner (or `make uninstall`) | Shows the diff (only our five hook entries removed), asks, backs up, writes; LaunchAgent removed, the app and `~/Library/Application Support/hook-me-up` removed, backups kept; "Removed the Hook Me Up extension from VS Code." (and each other editor that had it), and `code --list-extensions` no longer lists it. Other hooks and keys untouched. |
-| 22 | Reinstall, reboot | The agent starts at login (✻ in the menu bar); notifications work without opening anything. |
+| 22 | Reinstall, reboot | The agent starts at login (the hook icon in the menu bar); notifications work without opening anything. |
 
 
 ## Codex CLI automated coverage

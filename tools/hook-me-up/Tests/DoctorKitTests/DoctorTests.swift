@@ -432,6 +432,7 @@ private func run(_ probe: FakeProbe, _ options: Doctor.Options = realHome) -> Do
         #expect(report.check("Pause")?.result == .info)
         #expect(report.exitCode == 0)
         #expect(report.rendered().contains("INFO  Pause: paused"))
+        #expect(report.check("Pause")?.fix == "To end it now, choose Resume in the Hook Me Up menu-bar item.")
         #expect(report.rendered().contains("      Note: To end it now"))
     }
 

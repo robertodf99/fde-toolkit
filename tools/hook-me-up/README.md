@@ -181,8 +181,8 @@ syntax; they are text checks, not a full TOML parser or a query of effective pol
   request you answer in the terminal goes away when the session finishes its turn or
   you send the next prompt, not at once.
 
-The ✻ menu-bar item shows how many requests are waiting and offers **Pause for 30
-minutes**, **Resume** and **Quit**.
+The hook-shaped menu-bar item shows how many requests are waiting and offers
+**Pause for 30 minutes**, **Resume** and **Quit**.
 
 ### Editor extension
 
@@ -367,8 +367,8 @@ The agent writes its log to `~/Library/Logs/hook-me-up.log`.
 - **No notifications.** Check System Settings → Notifications → Hook Me Up. While
   notifications are off, every request goes to the terminal and the log says how to
   turn them on.
-- **Nothing happens at all.** Make sure the agent runs (✻ in the menu bar; else run the
-  installer again) and restart your Claude Code sessions so they load the hooks.
+- **Nothing happens at all.** Make sure the agent runs (the hook icon in the menu bar;
+  else run the installer again) and restart your Claude Code sessions so they load the hooks.
 - **The agent's folder was deleted** (`~/Library/Application Support/hook-me-up`, say by
   a cleanup tool): the agent notices within about 5 seconds, creates it again and keeps
   listening (the log says `socket was removed or replaced; listening again`). Requests in

@@ -486,7 +486,7 @@ public enum Doctor {
         guard status.paused else { return DoctorCheck("Pause", .pass, "not paused") }
         return DoctorCheck(
             "Pause", .info, "paused: requests go to the terminal until the pause ends",
-            fix: "To end it now, choose Resume in the ✻ menu-bar item.")
+            fix: "To end it now, choose Resume in the Hook Me Up menu-bar item.")
     }
 
     /// Which VS Code-family editors have Hook Me Up's extension (`EditorExtension`), which

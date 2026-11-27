@@ -18,6 +18,8 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         menu.delegate = self
         menu.autoenablesItems = false
         statusItem.menu = menu
+        statusItem.button?.image = MenuBarIcon.makeImage()
+        statusItem.button?.imagePosition = .imageLeading
         controller.$store
             .receive(on: RunLoop.main)
             .sink { [weak self] store in self?.updateButton(store) }
@@ -27,8 +29,12 @@ final class StatusMenu: NSObject, NSMenuDelegate {
     private func updateButton(_ store: PendingStore) {
         guard let button = statusItem.button else { return }
         let count = store.entries.count
-        button.title = "✻" + (count > 0 ? " \(count)" : "") + (controller.isPaused ? " ⏸" : "")
+        button.title = Self.buttonTitle(count: count, isPaused: controller.isPaused)
         button.toolTip = count == 0 ? "Hook Me Up: nothing waiting" : "Hook Me Up: \(count) waiting"
+    }
+
+    nonisolated static func buttonTitle(count: Int, isPaused: Bool) -> String {
+        [count > 0 ? String(count) : nil, isPaused ? "⏸" : nil].compactMap { $0 }.joined(separator: " ")
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
