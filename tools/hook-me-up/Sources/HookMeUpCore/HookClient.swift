@@ -2,4 +2,7 @@
 public enum HookClient: String, Sendable, Codable {
     case claude
     case codex
+
+    /// Bundled PNG used only to identify the source of a notification.
+    public var notificationImageName: String { "notification-" + rawValue }
 }

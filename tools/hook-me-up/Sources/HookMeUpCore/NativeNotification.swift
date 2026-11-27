@@ -40,7 +40,8 @@ public enum NativeNotification {
             NotificationSpec(
                 identifier: entry.id.uuidString, threadIdentifier: threadIdentifier(for: entry.project),
                 categoryIdentifier: category,
-                title: "\(project) · \(kind)\(origin)", body: body, actions: actions, playsSound: sound)
+                title: "\(project) · \(kind)\(origin)", body: body, actions: actions, playsSound: sound,
+                clientImage: entry.client ?? .claude)
         }
 
         if entry.state == .timedOut {
