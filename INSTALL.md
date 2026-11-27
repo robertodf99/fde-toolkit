@@ -49,10 +49,21 @@ in every command below; never use `/tmp` or a worktree for methodology symlinks.
    env -u HOOK_ME_UP_YES HOOK_ME_UP_NO_TTY=1 bash "$HOME/fde-toolkit/tools/hook-me-up/install.sh"
    ```
 
-   This installs the app, login agent and editor extension but leaves hook settings
-   alone. Show the diff for `~/.claude/settings.json`; **only after explicit yes**:
-   `HOOK_ME_UP_YES=1 bash "$HOME/fde-toolkit/tools/hook-me-up/install.sh"`.
-   Allow notifications, choose **Alerts**, restart Claude Code sessions, then run
+   This installs the app, login agent and editor extension but leaves both clients'
+   hook settings alone. Show the previews for `~/.claude/settings.json` and
+   `$CODEX_HOME/hooks.json` (default `~/.codex/hooks.json`), including each diff,
+   "No changes" result or missing-profile notice. **Only after explicit yes for the
+   displayed changes**, run:
+
+   ```sh
+   HOOK_ME_UP_YES=1 HOOK_ME_UP_NO_TTY=1 bash "$HOME/fde-toolkit/tools/hook-me-up/install.sh"
+   ```
+
+   If the user excludes Codex, append `--no-codex` to **both** the preview and
+   confirmed commands; only Claude's hook changes then need approval. Keep the same
+   `CODEX_HOME` for both runs. Allow notifications, choose **Alerts**, review and
+   approve `/hooks` in Codex if its hooks were added, and restart existing sessions
+   of **both Claude Code and Codex CLI** so they load the hooks. Then run
    `"$HOME/Applications/Hook Me Up.app/Contents/MacOS/hook-me-up-setup" doctor`.
    [First-run details](tools/hook-me-up/README.md#first-run).
 
@@ -90,7 +101,11 @@ in every command below; never use `/tmp` or a worktree for methodology symlinks.
 8. **Update/remove:** repeat step 2, then steps 3–4, including dry-run and consent.
    To remove Hook Me Up, after permission, preview hook removal without prompts:
    `env -u HOOK_ME_UP_YES HOOK_ME_UP_NO_TTY=1 bash "$HOME/fde-toolkit/tools/hook-me-up/uninstall.sh"`.
-   After explicit yes, run `HOOK_ME_UP_YES=1 bash "$HOME/fde-toolkit/tools/hook-me-up/uninstall.sh"`.
+   Show both clients' removal previews as in step 3; after explicit yes for those
+   changes, run `HOOK_ME_UP_YES=1 bash "$HOME/fde-toolkit/tools/hook-me-up/uninstall.sh"`.
+   To keep Codex hooks, append `--no-codex` to both commands; the app and agent stay
+   installed if those hooks still call the app. Keep `CODEX_HOME` the same for both
+   runs. After hook removal, restart existing Claude Code and Codex CLI sessions.
    Preview methodology removal with `bash "$HOME/fde-toolkit/methodology/agent-workflow/install.sh" --uninstall`;
    after approval repeat with `--yes`. Uninstall restores originals; destinations
    no longer owned are preserved and reported. Missing backups are reported;

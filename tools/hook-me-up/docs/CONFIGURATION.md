@@ -21,8 +21,10 @@ Example:
 curl -fsSL https://raw.githubusercontent.com/robertodf99/fde-toolkit/main/tools/hook-me-up/install.sh | HOOK_ME_UP_YES=1 bash
 ```
 
-Without a terminal and without `HOOK_ME_UP_YES=1`, the installer changes nothing in
-your settings and prints the command to run.
+Without a terminal and without `HOOK_ME_UP_YES=1`, the installer leaves both
+clients' hook files unchanged. For pending Claude changes it prints a setup command;
+for Codex it tells you to rerun the installer with `HOOK_ME_UP_YES=1`. Review both
+clients' diffs before accepting them, retaining `--no-codex` if it was selected.
 
 To take a break, use **Pause for 30 minutes** in the menu bar: requests go to the
 terminal until it ends or you choose **Resume**.
@@ -77,8 +79,9 @@ notification, and tells you what is left to do:
 ## Uninstall details
 
 The [uninstaller](../README.md#uninstall) shows both clients’ hook diffs and asks
-before writing, with a backup beside each file. It stops the agent and removes
-Hook Me Up's hooks, the app, its support folder and the editor extension (with each
-editor's command-line tool it finds). Settings backups and the log stay in place.
+before writing, with a backup beside each file. It removes Hook Me Up's hooks
+first; only then does it stop the agent and remove the app, its LaunchAgent, its
+support folder and the editor extension (with each editor's command-line tool it
+finds). Settings backups and the log stay in place.
 With `--no-codex`, Codex hooks stay intact; if they still call the app, the app and
 agent stay installed too, with a warning. Rerun without `--no-codex` to finish.

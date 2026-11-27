@@ -597,10 +597,13 @@ check "default uninstall without consent previews both clients before exiting" \
 check "previewing both uninstall diffs leaves hooks, app and backups unchanged" 'same_tree "$CODEX_PREVIEW_STATE"'
 if run_flag uninstall.sh --no-codex HOOK_ME_UP_YES=1 >"$LOGS/codex-kept.txt" 2>&1; then status=0; else status=$?; fi
 check "uninstall --no-codex warns and keeps app and Codex files byte identical" \
-  '[ "$status" = 0 ] && [ -x "$APP/Contents/MacOS/hook-me-up-setup" ] && [ -f "$PLIST" ] && cmp -s "$CODEX/hooks.json" "$WORKDIR/codex-installed.json" && cmp -s "$CODEX/config.toml" "$WORKDIR/codex-config.toml" && grep -q "Codex hooks are still" "$LOGS/codex-kept.txt"'
+  '[ "$status" = 0 ] && [ -x "$APP/Contents/MacOS/hook-me-up-setup" ] && [ -f "$PLIST" ] && cmp -s "$CODEX/hooks.json" "$WORKDIR/codex-installed.json" && cmp -s "$CODEX/config.toml" "$WORKDIR/codex-config.toml" && grep -q "Codex hooks are still" "$LOGS/codex-kept.txt" && grep -q "Run this again without --no-codex" "$LOGS/codex-kept.txt"'
+# A Codex-only uninstall reaches the Codex retry path without Claude's early exit.
+mv "$SETTINGS" "$WORKDIR/settings-before-codex-decline.json"
 run uninstall.sh >"$LOGS/codex-uninstall-decline.txt" 2>&1
-check "declined Codex removal keeps app and hooks" \
-  '[ -d "$APP" ] && cmp -s "$CODEX/hooks.json" "$WORKDIR/codex-installed.json"'
+mv "$WORKDIR/settings-before-codex-decline.json" "$SETTINGS"
+check "declined Codex removal keeps app and hooks and gives a plain retry command" \
+  '[ -d "$APP" ] && cmp -s "$CODEX/hooks.json" "$WORKDIR/codex-installed.json" && grep -q "Run this again in a terminal" "$LOGS/codex-uninstall-decline.txt" && ! grep -q -- "--no-codex" "$LOGS/codex-uninstall-decline.txt"'
 run uninstall.sh HOOK_ME_UP_YES=1 >"$LOGS/codex-uninstall.txt" 2>&1
 check "default uninstall removes only our Codex hooks, keeps backups and trust, removes app" \
   '[ ! -e "$APP" ] && json_equal "$CODEX/hooks.json" "$WORKDIR/codex-original.json" && ls "$CODEX" | grep -q "^hooks.json.bak-" && cmp -s "$CODEX/config.toml" "$WORKDIR/codex-config.toml"'
@@ -610,8 +613,14 @@ run install.sh HOOK_ME_UP_YES=1 HOOK_ME_UP_ZIP="$OLD/hook-me-up-old-macos.zip" >
 check "old setup without --client skips Codex and continues Claude" \
   'grep -q "does not support --client" "$LOGS/codex-old.txt" && json_equal "$CODEX/hooks.json" "$WORKDIR/codex-original.json" && grep -q "Hooks in ~/.claude/settings.json: added" "$LOGS/codex-old.txt"'
 run uninstall.sh HOOK_ME_UP_YES=1 >"$LOGS/codex-uninstall-old.txt" 2>&1
-check "old uninstaller reports missing --client support" \
-  'grep -q "does not support --client" "$LOGS/codex-uninstall-old.txt" && [ ! -e "$APP" ]'
+check "old uninstaller with only foreign Codex hooks needs no --client support" \
+  '! grep -q "does not support --client" "$LOGS/codex-uninstall-old.txt" && [ ! -e "$APP" ] && json_equal "$CODEX/hooks.json" "$WORKDIR/codex-original.json"'
+# The same foreign-only profile must not trigger the warning during a chat preview.
+run install.sh HOOK_ME_UP_YES=1 HOOK_ME_UP_ZIP="$OLD/hook-me-up-old-macos.zip" >"$LOGS/codex-old-preview-install.txt" 2>&1
+run uninstall.sh >"$LOGS/codex-old-foreign-preview.txt" 2>&1
+check "old uninstaller preview with foreign Codex hooks needs no --client support" \
+  '! grep -q "does not support --client" "$LOGS/codex-old-foreign-preview.txt" && [ -e "$APP" ]'
+run uninstall.sh HOOK_ME_UP_YES=1 >"$LOGS/codex-old-preview-cleanup.txt" 2>&1
 echo "--- --no-codex excludes Codex, and --codex remains compatible"
 cp "$CODEX/hooks.json" "$WORKDIR/codex-before-exclusion.json"
 if run_flag install.sh --no-codex HOOK_ME_UP_YES=1 >"$LOGS/no-codex-install.txt" 2>&1; then status=0; else status=$?; fi
@@ -626,6 +635,20 @@ check "legacy --codex install still adds both clients" \
 run_flag uninstall.sh --codex HOOK_ME_UP_YES=1 >"$LOGS/codex-compat-uninstall.txt" 2>&1
 check "legacy --codex uninstall still removes both clients" \
   '[ ! -e "$APP" ] && json_equal "$CODEX/hooks.json" "$WORKDIR/codex-original.json" && json_equal "$SETTINGS" "$WORKDIR/original.json"'
+# An old package must still warn and retain the app when our Codex hooks remain.
+run install.sh HOOK_ME_UP_YES=1 >"$LOGS/codex-before-downgrade.txt" 2>&1
+cp "$CODEX/hooks.json" "$WORKDIR/codex-before-downgrade.json"
+run install.sh HOOK_ME_UP_YES=1 HOOK_ME_UP_ZIP="$OLD/hook-me-up-old-macos.zip" >"$LOGS/codex-downgrade.txt" 2>&1
+run uninstall.sh >"$LOGS/codex-old-owned-preview.txt" 2>&1
+check "old uninstaller preview warns when our Codex hooks need removal" \
+  'grep -q "does not support --client" "$LOGS/codex-old-owned-preview.txt" && cmp -s "$CODEX/hooks.json" "$WORKDIR/codex-before-downgrade.json"'
+run uninstall.sh HOOK_ME_UP_YES=1 >"$LOGS/codex-old-owned.txt" 2>&1
+check "old uninstaller warns and keeps app when our Codex hooks remain" \
+  'grep -q "does not support --client" "$LOGS/codex-old-owned.txt" && [ -e "$APP" ] && [ -f "$PLIST" ] && cmp -s "$CODEX/hooks.json" "$WORKDIR/codex-before-downgrade.json"'
+run install.sh HOOK_ME_UP_YES=1 >"$LOGS/codex-downgrade-repair.txt" 2>&1
+run uninstall.sh HOOK_ME_UP_YES=1 >"$LOGS/codex-downgrade-cleanup.txt" 2>&1
+check "existing Codex profile gets the backup location message" \
+  'grep -q "Codex backups (hooks.json.bak-.*were left beside" "$LOGS/codex-downgrade-cleanup.txt"'
 # An explicit profile outside ~/.codex takes precedence over the default.
 CODEX="$WORKDIR/custom-codex"
 mkdir -p "$CODEX"
@@ -643,6 +666,13 @@ check "default install skips missing ~/.codex without creating it" \
 run uninstall.sh CODEX_HOME= HOOK_ME_UP_YES=1 >"$LOGS/codex-absent-uninstall.txt" 2>&1
 check "default uninstall without ~/.codex succeeds without creating it" \
   '[ ! -e "$FAKE/.codex" ] && [ ! -e "$APP" ]'
+
+check "absent Codex profile produces no backup location message" \
+  '! grep -q "Codex backups" "$LOGS/codex-absent-uninstall.txt"'
+run install.sh CODEX_HOME= HOOK_ME_UP_YES=1 HOOK_ME_UP_ZIP="$OLD/hook-me-up-old-macos.zip" >"$LOGS/codex-old-absent-install.txt" 2>&1
+run uninstall.sh CODEX_HOME= HOOK_ME_UP_YES=1 >"$LOGS/codex-old-absent-uninstall.txt" 2>&1
+check "old uninstaller without Codex profile needs no --client support or backup message" \
+  '[ ! -e "$APP" ] && [ ! -e "$FAKE/.codex" ] && ! grep -q "does not support --client" "$LOGS/codex-old-absent-uninstall.txt" && ! grep -q "Codex backups" "$LOGS/codex-old-absent-uninstall.txt"'
 
 check "the real HOME was not touched" '[ "$BEFORE" = "$(fingerprint)" ]'
 
