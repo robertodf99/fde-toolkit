@@ -81,10 +81,23 @@ run_limited() {
 setup_has() {
   local usage
   usage="$("$1" --help 2>&1 </dev/null)" || true
-  if [ "$2" = "--client" ]; then
-    case "$usage" in *"--client"*) return 0 ;; esac
+  if [[ "$2" = --* ]]; then
+    case "$usage" in *"$2"*) return 0 ;; esac
   else
     case "$usage" in *"hook-me-up-setup $2"*) return 0 ;; esac
+  fi
+  return 1
+}
+
+# A supported, read-only check exits 0 only when the requested operation needs no
+# changes. Keep its output only on success; errors/pending changes use the normal
+# consent flow below. Older packages keep that same flow without the new flag.
+setup_unchanged() {
+  local setup="$1" result
+  shift
+  if setup_has "$setup" --check && result="$("$setup" "$@" --check </dev/null 2>/dev/null)"; then
+    say "$result"
+    return 0
   fi
   return 1
 }
@@ -128,7 +141,9 @@ main() {
     removed=1
   else
     local args=(uninstall --settings "$settings" --hook "$app/Contents/MacOS/hook-me-up" --state "$support/setup-state.json")
-    if [ "${HOOK_ME_UP_YES:-0}" = "1" ]; then
+    if setup_unchanged "$setup" "${args[@]}"; then
+      removed=1
+    elif [ "${HOOK_ME_UP_YES:-0}" = "1" ]; then
       if "$setup" "${args[@]}" --yes; then removed=1; fi
     elif has_tty; then
       if "$setup" "${args[@]}" </dev/tty; then removed=1; fi
@@ -144,8 +159,11 @@ main() {
     # while Claude's hooks keep us from reaching the Codex removal below.
     if [ "$codex" = 1 ] && ! has_tty && [ -x "$setup" ] && [ -f "$codex_settings" ]; then
       if setup_has "$setup" --client; then
-        "$setup" uninstall --client codex --settings "$codex_settings" --hook "$app/Contents/MacOS/hook-me-up" --state "$support/setup-state.json" --dry-run || true
-        say "No terminal to ask, so $codex_settings was not changed."
+        local preview_args=(uninstall --client codex --settings "$codex_settings" --hook "$app/Contents/MacOS/hook-me-up" --state "$support/setup-state.json")
+        if ! setup_unchanged "$setup" "${preview_args[@]}"; then
+          "$setup" "${preview_args[@]}" --dry-run || true
+          say "No terminal to ask, so $codex_settings was not changed."
+        fi
       else
         warn "this package does not support --client; upgrade Hook Me Up before removing its Codex hooks."
       fi

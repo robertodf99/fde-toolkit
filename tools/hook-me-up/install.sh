@@ -81,15 +81,28 @@ run_limited() {
   done
   wait "$pid"
 }
-# Whether this hook-me-up-setup has the command $2 (older releases only have install and
-# uninstall): its usage lists the commands it knows.
+# Whether this hook-me-up-setup supports command/flag $2: its usage lists what it
+# knows (older releases only have install and uninstall).
 setup_has() {
   local usage
   usage="$("$1" --help 2>&1 </dev/null)" || true
-  if [ "$2" = "--client" ]; then
-    case "$usage" in *"--client"*) return 0 ;; esac
+  if [[ "$2" = --* ]]; then
+    case "$usage" in *"$2"*) return 0 ;; esac
   else
     case "$usage" in *"hook-me-up-setup $2"*) return 0 ;; esac
+  fi
+  return 1
+}
+
+# A supported, read-only check exits 0 only when the requested operation needs no
+# changes. Keep its output only on success; errors/pending changes use the normal
+# consent flow below. Older packages keep that same flow without the new flag.
+setup_unchanged() {
+  local setup="$1" result
+  shift
+  if setup_has "$setup" --check && result="$("$setup" "$@" --check </dev/null 2>/dev/null)"; then
+    say "$result"
+    return 0
   fi
   return 1
 }
@@ -230,6 +243,8 @@ main() {
   local setup_args=(install --settings "$settings" --hook "$APP/Contents/MacOS/hook-me-up" --state "$support/setup-state.json")
   if [ ! -d "$HOME/.claude" ]; then
     hooks="skipped (no Claude Code)"
+  elif setup_unchanged "$setup" "${setup_args[@]}"; then
+    hooks="already set up"
   elif [ "${HOOK_ME_UP_YES:-0}" = "1" ]; then
     if "$setup" "${setup_args[@]}" --yes; then hooks="added"; fi
   elif has_tty; then
@@ -253,7 +268,9 @@ main() {
       codex_hooks="skipped (this package does not support --client; upgrade Hook Me Up)"
     else
       local codex_args=(install --client codex --settings "$codex_home/hooks.json" --hook "$APP/Contents/MacOS/hook-me-up" --state "$support/setup-state.json")
-      if [ "${HOOK_ME_UP_YES:-0}" = 1 ]; then
+      if setup_unchanged "$setup" "${codex_args[@]}"; then
+        codex_hooks="already set up"
+      elif [ "${HOOK_ME_UP_YES:-0}" = 1 ]; then
         if "$setup" "${codex_args[@]}" --yes; then codex_hooks="added"; fi
       elif has_tty; then
         if "$setup" "${codex_args[@]}" </dev/tty; then codex_hooks="added"; fi
