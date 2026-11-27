@@ -306,9 +306,42 @@ echo "--- uninstall without a terminal when neither client has our hooks"
 mkdir -p "$FAKE/.codex"
 printf '{"custom":true}\n' >"$FAKE/.codex/hooks.json"
 run install.sh HOOK_ME_UP_YES=0 >"$LOGS/install-without-hooks.txt" 2>&1
-run uninstall.sh HOOK_ME_UP_YES=0 >"$LOGS/uninstall-without-hooks.txt" 2>&1
-check "no hooks to remove needs no consent and removes the app" \
-  '[ ! -e "$APP" ] && [ ! -e "$PLIST" ] && json_equal "$WORKDIR/original.json" "$SETTINGS" && ! grep -q -e "No terminal to ask" -e "keeps running" "$LOGS/uninstall-without-hooks.txt"'
+# Record any extension removal attempt; all other installed files must stay identical.
+CONSENT_EDITOR="$WORKDIR/consent-editor"
+mkdir -p "$CONSENT_EDITOR/bin"
+cat >"$CONSENT_EDITOR/bin/code" <<'STUB'
+#!/bin/bash
+printf '%s\n' "$*" >>"$CONSENT_EDITOR_LOG"
+STUB
+chmod +x "$CONSENT_EDITOR/bin/code"
+: >"$LOGS/consent-editor.txt"
+NO_HOOKS_STATE="$(tree_state)"
+run uninstall.sh HOOK_ME_UP_YES=0 PATH="$CONSENT_EDITOR/bin:$SAFE_PATH" CONSENT_EDITOR_LOG="$LOGS/consent-editor.txt" \
+  >"$LOGS/uninstall-without-hooks.txt" 2>&1
+check "no hooks to remove without consent preserves the app, agent, support and extension" \
+  'same_tree "$NO_HOOKS_STATE" && [ ! -s "$LOGS/consent-editor.txt" ]'
+check "no hooks preview retains the plugin result and asks for app removal consent" \
+  'grep -q "No changes: .*already free of Hook Me Up" "$LOGS/uninstall-without-hooks.txt" && grep -q "HOOK_ME_UP_YES=1.*remove the app" "$LOGS/uninstall-without-hooks.txt" && ! grep -q -e "keeps running" -e "hooks are still in" "$LOGS/uninstall-without-hooks.txt"'
+run uninstall.sh HOOK_ME_UP_YES=1 >"$LOGS/uninstall-without-hooks-yes.txt" 2>&1
+check "no hooks with YES removes the app after the plugin confirmation" \
+  '[ ! -e "$APP" ] && [ ! -e "$PLIST" ] && [ ! -e "$FAKE/Library/Application Support/hook-me-up" ] && json_equal "$WORKDIR/original.json" "$SETTINGS"'
+run install.sh HOOK_ME_UP_YES=0 >"$LOGS/install-missing-settings.txt" 2>&1
+rm "$SETTINGS"
+: >"$LOGS/consent-editor.txt"
+MISSING_SETTINGS_STATE="$(tree_state)"
+run uninstall.sh HOOK_ME_UP_YES=0 PATH="$CONSENT_EDITOR/bin:$SAFE_PATH" CONSENT_EDITOR_LOG="$LOGS/consent-editor.txt" \
+  >"$LOGS/uninstall-missing-settings.txt" 2>&1
+check "missing settings without consent preserves the app, agent, support and extension" \
+  'same_tree "$MISSING_SETTINGS_STATE" && [ ! -s "$LOGS/consent-editor.txt" ]'
+check "missing settings preview reports absence and asks for app removal consent" \
+  'grep -q "No settings file:" "$LOGS/uninstall-missing-settings.txt" && grep -q "HOOK_ME_UP_YES=1.*remove the app" "$LOGS/uninstall-missing-settings.txt" && ! grep -q -e "keeps running" -e "hooks are still in" "$LOGS/uninstall-missing-settings.txt"'
+run uninstall.sh HOOK_ME_UP_YES=1 >"$LOGS/uninstall-missing-settings-yes.txt" 2>&1
+check "missing settings with YES removes the app without creating settings" \
+  '[ ! -e "$APP" ] && [ ! -e "$PLIST" ] && [ ! -e "$SETTINGS" ] && [ ! -e "$FAKE/Library/Application Support/hook-me-up" ]'
+cp "$WORKDIR/original.json" "$SETTINGS"
+run install.sh HOOK_ME_UP_YES=0 >"$LOGS/install-without-hooks-tty.txt" 2>&1
+run_tty uninstall.sh >"$LOGS/uninstall-without-hooks-tty.txt" 2>&1
+check "no hooks in a terminal still permits app removal" '[ ! -e "$APP" ] && [ ! -e "$PLIST" ]'
 rm "$FAKE/.codex/hooks.json"
 rmdir "$FAKE/.codex"
 

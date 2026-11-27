@@ -133,16 +133,17 @@ main() {
 
   # The hooks go first: while they remain, the agent and the app stay, so the hooks
   # never point at nothing.
-  local removed=0
+  local removed=0 no_hooks=0
   if [ ! -f "$settings" ]; then
-    removed=1
+    say "No settings file: $settings."
+    no_hooks=1
   elif [ ! -x "$setup" ]; then
     warn "$setup is missing: remove the hook-me-up entries from $settings by hand."
     removed=1
   else
     local args=(uninstall --settings "$settings" --hook "$app/Contents/MacOS/hook-me-up" --state "$support/setup-state.json")
     if setup_unchanged "$setup" "${args[@]}"; then
-      removed=1
+      no_hooks=1
     elif [ "${HOOK_ME_UP_YES:-0}" = "1" ]; then
       if "$setup" "${args[@]}" --yes; then removed=1; fi
     elif has_tty; then
@@ -152,6 +153,12 @@ main() {
       say ""
       say "No terminal to ask, so ~/.claude/settings.json was not changed."
     fi
+  fi
+
+  # No hooks needing removal is not consent to remove the app. Chat previews
+  # must leave the installation intact until the user approves the second run.
+  if [ "$no_hooks" = 1 ] && { [ "${HOOK_ME_UP_YES:-0}" = 1 ] || has_tty; }; then
+    removed=1
   fi
 
   if [ "$removed" != "1" ]; then
@@ -168,8 +175,12 @@ main() {
         warn "this package does not support --client; upgrade Hook Me Up before removing its Codex hooks."
       fi
     fi
-    say "The hooks are still in $settings, so Hook Me Up keeps running and stays installed."
-    say "Run this again in a terminal, or with HOOK_ME_UP_YES=1, to finish."
+    if [ "$no_hooks" = 1 ]; then
+      say "No Claude Code hooks to remove; run again with HOOK_ME_UP_YES=1 (or in a terminal) to remove the app."
+    else
+      say "The hooks are still in $settings, so Hook Me Up keeps running and stays installed."
+      say "Run this again in a terminal, or with HOOK_ME_UP_YES=1, to finish."
+    fi
     exit 0
   fi
 
