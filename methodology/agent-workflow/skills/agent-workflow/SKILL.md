@@ -100,8 +100,10 @@ instrucción del usuario o regla explícita del repo y los ejecuta el coordinado
 
 Lee [roles.md](references/roles.md) para modelos, contratos y permisos. En sesiones
 interactivas sigue [Herdr](references/herdr-hc.md) y los overrides opcionales de
-`~/.config/agent-workflow/HERDR.md`. Cada rol aparece en su pestaña del espacio
-resuelto en vivo. Si falta Herdr requerido, informa bloqueo, sin sustitución nativa.
+`~/.config/agent-workflow/HERDR.md`. Cada rol aparece bajo su padre en la lista
+de agentes de la barra lateral; puede inspeccionarse con `terminal.peek` y
+convertirse en pestaña con `terminal.keep` si se solicita. Si falta Herdr
+requerido, informa bloqueo, sin sustitución nativa.
 
 Referencias nativas: [Claude Code](references/claude-code.md) y [Codex](references/codex.md).
 Esta metodología autoriza los modelos de roles.md para ese despacho.
