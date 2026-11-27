@@ -13,7 +13,7 @@ func runDoctor(_ arguments: [String]) -> Never {
     while let argument = arguments.first {
         arguments.removeFirst()
         switch argument {
-        case "--settings", "--app", "--socket", "--home":
+        case "--settings", "--app", "--socket", "--home", "--codex-hooks":
             guard let value = arguments.first, !value.isEmpty else { fail("\(argument) needs a value\n\(usage)") }
             arguments.removeFirst()
             values[argument] = absolutePath(value)
@@ -22,8 +22,11 @@ func runDoctor(_ arguments: [String]) -> Never {
         }
     }
     let probe = SystemDoctorProbe()
+    // An explicit --home always isolates both clients from this process's environment.
+    let codexHooks = values["--codex-hooks"] ?? (values["--home"] == nil ? HookMeUpPaths.codexHooksURL().path : nil)
     let options = Doctor.Options.resolve(
         home: values["--home"], app: values["--app"], settings: values["--settings"], socket: values["--socket"],
+        codexHooks: codexHooks,
         executablePath: Bundle.main.executablePath, realHome: HookMeUpPaths.homeDirectory.path, uid: getuid(),
         probe: probe)
     print("Hook Me Up doctor: \(options.app)\n")

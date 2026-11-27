@@ -549,8 +549,9 @@ private func run(
 @Suite(.serialized) struct CodexHookTests {
     @Test func parsesClientInEveryMode() {
         for mode in ["permission", "notify", "finished", "clear"] {
-            #expect(HookInvocation.parse([mode, "--client", "codex"]) != nil)
-            #expect(HookInvocation.parse([mode, "--client", "claude"]) != nil)
+            #expect(HookInvocation.parse([mode, "--client", "codex"])?.client == .codex)
+            #expect(HookInvocation.parse([mode, "--client", "claude"])?.client == .claude)
+            #expect(HookInvocation.parse([mode])?.client == .claude)
             #expect(HookInvocation.parse([mode, "--client", "other"]) == nil)
         }
     }
@@ -616,5 +617,17 @@ extension CodexHookTests {
             #expect(note.kind == .finished)
             #expect(note.message == (message == "null" ? "" : "All tests pass."))
         }
+    }
+}
+
+extension HookInvocationTests {
+    @Test func codexProfilePathDefaultsOrUsesCodexHome() {
+        #expect(
+            HookMeUpPaths.codexHooksURL(home: URL(fileURLWithPath: "/test-home"), environment: [:]).path
+                == "/test-home/.codex/hooks.json")
+        #expect(
+            HookMeUpPaths.codexHooksURL(
+                home: URL(fileURLWithPath: "/test-home"), environment: ["CODEX_HOME": "/test-profile"]
+            ).path == "/test-profile/hooks.json")
     }
 }

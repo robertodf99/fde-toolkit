@@ -589,6 +589,12 @@ cp "$CODEX/hooks.json" "$WORKDIR/codex-installed.json"
 run_codex install.sh HOOK_ME_UP_YES=1 >"$LOGS/codex-upgrade.txt" 2>&1
 check "Codex install is idempotent byte for byte" \
   'cmp -s "$CODEX/hooks.json" "$WORKDIR/codex-installed.json" && grep -q "No changes: .*hooks.json" "$LOGS/codex-upgrade.txt"'
+if doctor "$LOGS/doctor-codex.txt"; then status=0; else status=$?; fi
+check "doctor --home checks Codex hooks and trust without requiring Codex" \
+  '[ "$status" = 0 ] && grep -q "^PASS  Codex hooks:" "$LOGS/doctor-codex.txt" && grep -q "^INFO  Codex trust:.* /hooks in Codex" "$LOGS/doctor-codex.txt"'
+# --home takes priority over a process-level profile override.
+env CODEX_HOME="$WORKDIR/no-codex" "$APP/Contents/MacOS/hook-me-up-setup" doctor --home "$FAKE" >"$LOGS/doctor-codex-isolated.txt" 2>&1
+check "doctor --home ignores ambient CODEX_HOME" 'grep -q "^PASS  Codex hooks:" "$LOGS/doctor-codex-isolated.txt"'
 run uninstall.sh HOOK_ME_UP_YES=1 >"$LOGS/codex-kept.txt" 2>&1
 check "uninstall without --codex warns and keeps app and Codex hooks" \
   '[ -x "$APP/Contents/MacOS/hook-me-up-setup" ] && [ -f "$PLIST" ] && cmp -s "$CODEX/hooks.json" "$WORKDIR/codex-installed.json" && grep -q -- "--codex" "$LOGS/codex-kept.txt"'
@@ -604,6 +610,8 @@ run_codex install.sh HOOK_ME_UP_YES=1 HOOK_ME_UP_ZIP="$OLD/hook-me-up-old-macos.
 check "old setup without --client skips Codex and continues Claude" \
   'grep -q "does not support --client" "$LOGS/codex-old.txt" && json_equal "$CODEX/hooks.json" "$WORKDIR/codex-original.json" && grep -q "Hooks in ~/.claude/settings.json: added" "$LOGS/codex-old.txt"'
 run_codex uninstall.sh HOOK_ME_UP_YES=1 >"$LOGS/codex-uninstall-old.txt" 2>&1
+check "old uninstaller reports missing --client support" \
+  'grep -q "does not support --client" "$LOGS/codex-uninstall-old.txt" && [ ! -e "$APP" ]'
 # No Codex profile: no Codex CLI needed, and no profile is created.
 CODEX="$WORKDIR/no-codex"
 run_codex install.sh HOOK_ME_UP_YES=1 >"$LOGS/codex-absent.txt" 2>&1

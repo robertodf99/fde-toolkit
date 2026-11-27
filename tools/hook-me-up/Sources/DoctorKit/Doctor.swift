@@ -25,17 +25,23 @@ public enum Doctor {
         public var app: String
         /// The Claude Code settings file.
         public var settings: String
+        /// Codex user hook file, checked without requiring the Codex CLI.
+        public var codexHooks: String
         /// The agent's socket; nil skips the checks that need the running agent.
         public var socket: String?
         /// The user id, for `launchctl` commands in fixes.
         public var uid: UInt32
 
         /// Creates options.
-        public init(home: String, isRealHome: Bool, app: String, settings: String, socket: String?, uid: UInt32) {
+        public init(
+            home: String, isRealHome: Bool, app: String, settings: String, socket: String?, uid: UInt32,
+            codexHooks: String? = nil
+        ) {
             self.home = home
             self.isRealHome = isRealHome
             self.app = app
             self.settings = settings
+            self.codexHooks = codexHooks ?? home + "/.codex/hooks.json"
             self.socket = socket
             self.uid = uid
         }
@@ -45,7 +51,8 @@ public enum Doctor {
         /// it counts), else `<home>/Applications/Hook Me Up.app`. The running agent is
         /// checked for the user's own home, or at an explicit `socket`.
         public static func resolve(
-            home: String?, app: String?, settings: String?, socket: String?, executablePath: String?,
+            home: String?, app: String?, settings: String?, socket: String?, codexHooks: String? = nil,
+            executablePath: String?,
             realHome: String, uid: UInt32, probe: some DoctorProbe
         ) -> Options {
             let home = home ?? realHome
@@ -56,7 +63,7 @@ public enum Doctor {
             return Options(
                 home: home, isRealHome: isRealHome, app: app, settings: settings ?? home + "/.claude/settings.json",
                 socket: socket ?? (isRealHome ? HookMeUpPaths.socketURL(home: URL(fileURLWithPath: home)).path : nil),
-                uid: uid)
+                uid: uid, codexHooks: codexHooks)
         }
     }
 
@@ -97,6 +104,7 @@ public enum Doctor {
         let noStatus = options.socket == nil ? notHome : "not checked: the agent didn't answer"
         checks.append(versionCheck(status, install, skipped: noStatus))
         checks += hookChecks(install, options, probe)
+        checks += codexHookChecks(install, options, probe)
         checks += notificationChecks(status, install, skipped: noStatus)
         checks.append(pauseCheck(status, skipped: noStatus))
         checks.append(editorExtensionCheck(install, options, probe))
@@ -290,6 +298,109 @@ public enum Doctor {
                     "\(settings) also runs hook-me-up from \(found.otherPaths.joined(separator: ", "))",
                     fix: fix.joined(separator: "\n")))
         }
+        return checks
+    }
+
+    static func codexHookChecks(_ install: Installation, _ options: Options, _ probe: some DoctorProbe) -> [DoctorCheck]
+    {
+        let path = options.codexHooks
+        let command =
+            "\(quoted(install.setupPath)) install --client codex --settings \(quoted(path)) --hook \(quoted(install.hookPath))"
+            + " --state "
+            + quoted(
+                HookMeUpPaths.supportFolder(home: URL(fileURLWithPath: options.home)).appendingPathComponent(
+                    "setup-state.json"
+                ).path)
+        let fix = "Add them (shows the changes and asks first):\n" + command
+        guard let data = probe.contents(of: path) else {
+            return [
+                probe.exists(path)
+                    ? DoctorCheck("Codex hooks", .fail, "\(path) can't be read", fix: fix)
+                    : DoctorCheck("Codex", .info, "not set up")
+            ]
+        }
+        guard let value = try? JSONDecoder().decode(JSONValue.self, from: data), value.objectValue != nil,
+            value["hooks"] == nil || value["hooks"]?.objectValue != nil
+        else {
+            return [
+                DoctorCheck(
+                    "Codex hooks", .fail, "\(path) is not a valid hooks JSON object",
+                    fix: "Correct the JSON by hand, then run:\n" + command)
+            ]
+        }
+        let found = SettingsMerger.inspect(
+            settings: value, hookPath: install.hookPath, client: .codex, canonicalPath: probe.canonicalPath)
+        let hasOurHandlers =
+            SettingsMerger.uninstall(
+                from: value, hookPath: install.hookPath, client: .codex, canonicalPath: probe.canonicalPath) != value
+        guard hasOurHandlers || !found.otherPaths.isEmpty else { return [DoctorCheck("Codex", .info, "not set up")] }
+        var checks = [
+            DoctorCheck(
+                "Codex hooks", found.missing.isEmpty ? .pass : .fail,
+                found.missing.isEmpty
+                    ? "all five events run \(install.hookPath)"
+                    : "missing for \(found.missing.joined(separator: ", ")) in \(path)",
+                fix: found.missing.isEmpty ? nil : fix)
+        ]
+        if !found.differences.isEmpty {
+            checks.append(
+                DoctorCheck(
+                    "Codex hooks set up differently", .warn,
+                    found.differences.map { "\($0.event): \($0.detail)" }.joined(separator: "; "), fix: fix))
+        }
+        if !found.duplicated.isEmpty {
+            checks.append(
+                DoctorCheck(
+                    "Codex duplicate hooks", .warn,
+                    "hook-me-up runs more than once for \(found.duplicated.joined(separator: ", "))",
+                    fix: "Keep one hook-me-up handler per event in \(path)."))
+        }
+        if !found.otherPaths.isEmpty {
+            checks.append(
+                DoctorCheck(
+                    "Codex other installation", .warn,
+                    "\(path) also runs hook-me-up from \(found.otherPaths.joined(separator: ", "))",
+                    fix:
+                        "Keep the hooks for the app you use; remove the others with uninstall --client codex and an explicit --settings and --hook."
+                ))
+        }
+        let config = URL(fileURLWithPath: path).deletingLastPathComponent().appendingPathComponent("config.toml").path
+        if let data = probe.contents(of: config), let text = String(data: data, encoding: .utf8) {
+            // Deliberately a text check of standard TOML tables, not a trust lookup.
+            // [hooks.state.*] belongs to Codex and is never treated as inline hooks.
+            var section = ""
+            var disabled = false
+            var inline = false
+            for raw in text.components(separatedBy: .newlines) {
+                let line = raw.split(separator: "#", maxSplits: 1, omittingEmptySubsequences: false)[0]
+                    .trimmingCharacters(in: .whitespaces)
+                if line.hasPrefix("[") {
+                    section = line.replacingOccurrences(of: " ", with: "").replacingOccurrences(of: "\t", with: "")
+                    if section == "[hooks]" { inline = true }
+                } else if section == "[features]",
+                    line.range(of: #"^hooks\s*=\s*false\s*$"#, options: .regularExpression) != nil
+                {
+                    disabled = true
+                }
+            }
+            if disabled {
+                checks.append(
+                    DoctorCheck(
+                        "Codex hooks disabled", .fail, "\(config) sets [features] hooks = false",
+                        fix: "Enable hooks in Codex's config.toml."))
+            }
+            if inline {
+                checks.append(
+                    DoctorCheck(
+                        "Codex inline hooks", .warn,
+                        "\(config) also defines [hooks]; Codex warns when the same layer uses both formats",
+                        fix:
+                            "Keep hook definitions in one format; review config.toml and hooks.json yourself. Do not remove [hooks.state.*]."
+                    ))
+            }
+        }
+        checks.append(
+            DoctorCheck("Codex trust", .info, "review /hooks in Codex to trust these hooks; trust is not queried here"))
         return checks
     }
 

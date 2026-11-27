@@ -239,3 +239,18 @@ func parse(_ json: String) throws -> HookInput {
         }
     }
 }
+
+extension CodexWireTests {
+    @Test func codexPermissionSchemaAllowsNullTranscript() throws {
+        let input = try HookInput.parse(
+            Data(
+                #"{"session_id":"codex-session","turn_id":"turn-1","cwd":"/tmp/test-project","hook_event_name":"PermissionRequest","model":"test-model","permission_mode":"default","tool_name":"Bash","tool_input":{"command":"touch test.txt","description":"Create test file"},"transcript_path":null}"#
+                    .utf8))
+        #expect(input.sessionID == "codex-session")
+        #expect(input.cwd == "/tmp/test-project")
+        #expect(input.transcriptPath == nil)
+        #expect(input.toolInput?["command"] == "touch test.txt")
+        #expect(input.permissionSuggestions.isEmpty)
+        #expect(input.raw["turn_id"] == "turn-1")
+    }
+}

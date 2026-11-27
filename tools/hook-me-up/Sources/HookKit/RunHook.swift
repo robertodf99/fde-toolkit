@@ -37,8 +37,8 @@ private func requestDecision(
     _ input: HookInput, client: HookClient, handlerTimeout requestedTimeout: TimeInterval, socketPath: URL,
     headless: Bool, sessionFolder: String, watchProcess: pid_t?, clock: () -> Date
 ) -> Data? {
-    guard input.hookEventName == "PermissionRequest", input.toolName != nil else { return nil }
-    if client == .codex, ["AskUserQuestion", "ExitPlanMode"].contains(input.toolName!) { return nil }
+    guard input.hookEventName == "PermissionRequest", let toolName = input.toolName else { return nil }
+    if client == .codex, ["AskUserQuestion", "ExitPlanMode"].contains(toolName) { return nil }
     let handlerTimeout = min(max(requestedTimeout, 1), HookTiming.defaultHandlerTimeout)
     let start = clock()
     let project = ProjectInfo.resolve(cwd: URL(fileURLWithPath: input.cwd), fileSystem: LocalFileSystem())
