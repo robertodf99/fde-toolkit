@@ -115,6 +115,7 @@ main() {
   local app="$HOME/Applications/Hook Me Up.app"
   local support="$HOME/Library/Application Support/hook-me-up"
   local settings="$HOME/.claude/settings.json"
+  local codex_settings="${CODEX_HOME:-$HOME/.codex}/hooks.json"
   local setup="$app/Contents/MacOS/hook-me-up-setup"
 
   # The hooks go first: while they remain, the agent and the app stay, so the hooks
@@ -139,6 +140,16 @@ main() {
   fi
 
   if [ "$removed" != "1" ]; then
+    # A chat-driven preview must show both clients before asking for consent, even
+    # while Claude's hooks keep us from reaching the Codex removal below.
+    if [ "$codex" = 1 ] && ! has_tty && [ -x "$setup" ] && [ -f "$codex_settings" ]; then
+      if setup_has "$setup" --client; then
+        "$setup" uninstall --client codex --settings "$codex_settings" --hook "$app/Contents/MacOS/hook-me-up" --state "$support/setup-state.json" --dry-run || true
+        say "No terminal to ask, so $codex_settings was not changed."
+      else
+        warn "this package does not support --client; upgrade Hook Me Up before removing its Codex hooks."
+      fi
+    fi
     say "The hooks are still in $settings, so Hook Me Up keeps running and stays installed."
     say "Run this again in a terminal, or with HOOK_ME_UP_YES=1, to finish."
     exit 0
@@ -146,7 +157,7 @@ main() {
 
   # Codex hooks must not be left pointing at an app we remove. Inspection is a
   # read-only uninstall preview, understood even by setup versions before --client.
-  local codex_settings="${CODEX_HOME:-$HOME/.codex}/hooks.json" codex_remain=0 codex_supported=1 preview
+  local codex_remain=0 codex_supported=1 preview
   if [ "$codex" = 1 ] && [ -x "$setup" ] && ! setup_has "$setup" --client; then
     codex_supported=0
     warn "this package does not support --client; upgrade Hook Me Up before removing its Codex hooks."

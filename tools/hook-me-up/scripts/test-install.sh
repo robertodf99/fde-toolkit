@@ -595,6 +595,12 @@ check "doctor --home checks Codex hooks and trust without requiring Codex" \
 # --home takes priority over a process-level profile override.
 env CODEX_HOME="$WORKDIR/no-codex" "$APP/Contents/MacOS/hook-me-up-setup" doctor --home "$FAKE" >"$LOGS/doctor-codex-isolated.txt" 2>&1
 check "doctor --home ignores ambient CODEX_HOME" 'grep -q "^PASS  Codex hooks:" "$LOGS/doctor-codex-isolated.txt"'
+# Both clients still have our hooks: a chat preview must show both removal diffs.
+CODEX_PREVIEW_STATE="$(tree_state)"
+run_codex uninstall.sh HOOK_ME_UP_YES=0 >"$LOGS/codex-uninstall-both-preview.txt" 2>&1
+check "uninstall --codex without consent previews both clients before exiting" \
+  'grep -q "Exact text changes to .*settings.json" "$LOGS/codex-uninstall-both-preview.txt" && grep -q "Exact text changes to .*hooks.json" "$LOGS/codex-uninstall-both-preview.txt"'
+check "previewing both uninstall diffs leaves hooks, app and backups unchanged" 'same_tree "$CODEX_PREVIEW_STATE"'
 run uninstall.sh HOOK_ME_UP_YES=1 >"$LOGS/codex-kept.txt" 2>&1
 check "uninstall without --codex warns and keeps app and Codex hooks" \
   '[ -x "$APP/Contents/MacOS/hook-me-up-setup" ] && [ -f "$PLIST" ] && cmp -s "$CODEX/hooks.json" "$WORKDIR/codex-installed.json" && grep -q -- "--codex" "$LOGS/codex-kept.txt"'
