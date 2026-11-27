@@ -69,8 +69,9 @@ for executable in HookMeUp hook-me-up hook-me-up-setup; do
   cp "$BIN/$executable" "$APP/Contents/MacOS/$executable"
 done
 
-# App icon, drawn from the committed symbol path (see THIRD_PARTY_NOTICES.md).
-xcrun swift scripts/make-icon.swift Resources/icon/claude-symbol.svg "$APP/Contents/Resources/AppIcon.icns"
+# Original app icon and separate, source-identifying client attachment images.
+xcrun swift scripts/make-icon.swift "$APP/Contents/Resources/AppIcon.icns"
+xcrun swift scripts/make-client-symbols.swift Resources/icon "$APP/Contents/Resources"
 
 # The editor extension, which install.sh adds to VS Code and the editors built on it.
 ./scripts/build-vsix.sh "$APP/Contents/Resources/hook-me-up.vsix"

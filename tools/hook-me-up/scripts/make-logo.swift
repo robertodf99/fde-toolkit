@@ -1,4 +1,4 @@
-// Draws the project logo (a notification card on a warm gradient, with a fishing hook
+// Draws the project logo (a notification card on a blue/teal gradient, with a fishing hook
 // hanging from it) and the images made from it: the README logo, GitHub's social
 // preview and a square Product Hunt thumbnail. The app icon is a different picture,
 // drawn by scripts/make-icon.swift. Only the constants below go into the images, so
@@ -36,19 +36,19 @@ func srgb(_ red: CGFloat, _ green: CGFloat, _ blue: CGFloat, _ alpha: CGFloat = 
 }
 
 let logoUnits: CGFloat = 480
-let gradientStart = srgb(0.98, 0.55, 0.33)
-let gradientEnd = srgb(0.85, 0.30, 0.27)
+let gradientStart = srgb(0.12, 0.65, 0.67)
+let gradientEnd = srgb(0.08, 0.29, 0.56)
 let gradientAngle: CGFloat = -60  // degrees, from the light corner (top left) to the dark one
 let white = srgb(1, 1, 1)
-let appSquare = srgb(0.93, 0.42, 0.30)
+let appSquare = srgb(0.10, 0.48, 0.62)
 let titleBar = srgb(0.20, 0.20, 0.20)
 let bodyBar = srgb(0.78, 0.78, 0.78)
 
-/// The social preview's background: a warm near-black, so the orange logo stands out.
-let darkTop = srgb(0.17, 0.12, 0.10)
-let darkBottom = srgb(0.09, 0.06, 0.06)
-let glow = srgb(0.98, 0.55, 0.33, 0.30)
-let tagline = srgb(0.97, 0.78, 0.68)
+/// The social preview's background: a deep blue, so the teal logo stands out.
+let darkTop = srgb(0.035, 0.10, 0.17)
+let darkBottom = srgb(0.015, 0.045, 0.08)
+let glow = srgb(0.12, 0.65, 0.67, 0.30)
+let tagline = srgb(0.67, 0.90, 0.94)
 
 /// Fills `rect` with a linear gradient at `angle` degrees, its ends on the rect's
 /// extreme corners along that direction (as NSGradient's draw(in:angle:) does).
@@ -161,7 +161,7 @@ func socialPreview() -> CGImage? {
     guard let context = makeContext(width: Int(size.width), height: Int(size.height), opaque: true),
         let space = CGColorSpace(name: CGColorSpace.sRGB),
         let halo = CGGradient(
-            colorsSpace: space, colors: [glow, srgb(0.98, 0.55, 0.33, 0)] as CFArray, locations: [0, 1])
+            colorsSpace: space, colors: [glow, srgb(0.12, 0.65, 0.67, 0)] as CFArray, locations: [0, 1])
     else { return nil }
     fillGradient(context, CGRect(origin: .zero, size: size), from: darkTop, to: darkBottom, angle: -60)
     let logo = CGRect(x: 110, y: 140, width: 360, height: 360)
@@ -182,10 +182,23 @@ func socialPreview() -> CGImage? {
     drawLines(
         context,
         [
-            attributed("Answer Claude Code from", font: "Helvetica", size: 46, color: tagline),
-            attributed("your Mac\u{2019}s notifications", font: "Helvetica", size: 46, color: tagline),
+            attributed("for Claude Code & Codex", font: "Helvetica", size: 44, color: tagline),
+            attributed("Answer from notifications", font: "Helvetica", size: 42, color: tagline),
         ],
         origin: CGPoint(x: textX + 4, y: 268), leading: 58)
+    return context.makeImage()
+}
+
+func productThumbnail() -> CGImage? {
+    guard let context = makeContext(width: 960, height: 960, opaque: true) else { return nil }
+    fillGradient(context, CGRect(x: 0, y: 0, width: 960, height: 960), from: darkTop, to: darkBottom, angle: -60)
+    drawLogo(context, in: CGRect(x: 220, y: 320, width: 520, height: 520), rounded: true)
+    drawLines(
+        context, [attributed("Hook Me Up", font: "Helvetica-Bold", size: 82, color: white)],
+        origin: CGPoint(x: 240, y: 200), leading: 0)
+    drawLines(
+        context, [attributed("for Claude Code & Codex", font: "Helvetica", size: 48, color: tagline)],
+        origin: CGPoint(x: 218, y: 116), leading: 0)
     return context.makeImage()
 }
 
@@ -206,7 +219,7 @@ case 2:
     writePNG(logoImage(pixels: 256, rounded: true), to: folder.appendingPathComponent("logo.png").path)
     writePNG(socialPreview(), to: folder.appendingPathComponent("social-preview.png").path)
     writePNG(
-        logoImage(pixels: 960, rounded: false),
+        productThumbnail(),
         to: folder.appendingPathComponent("product-hunt-thumbnail.png").path)
 case 4 where arguments[1] == "--logo":
     guard let pixels = Int(arguments[2]), (16...4096).contains(pixels) else { usage() }
