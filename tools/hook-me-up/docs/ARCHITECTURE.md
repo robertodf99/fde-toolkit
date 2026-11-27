@@ -187,3 +187,45 @@ old to answer.
   and keeps the settings backups.
   `scripts/test-install.sh` runs both against a throwaway HOME, with system folders only
   on `PATH` and stand-ins for the editors' tools.
+
+
+## Codex CLI protocol
+
+`HookClient` selects the protocol in `HookInvocation`, `runHook`, `DecisionEncoder`
+and `SettingsMerger`; omitted `--client` means `claude`. Claude's handler commands,
+settings bytes and notification titles retain their existing format. Codex handlers
+use `--client codex`. `RequestEnvelope` and `NotifyEnvelope` carry an optional
+`client` label, omitted for Claude and understood when absent from older messages;
+`AgentCore` keeps it in the entry and `NativeNotification` adds `· Codex` to its title.
+The socket transport, UID checks, per-request decisions and terminal activation are
+shared unchanged.
+
+Codex uses `cwd` as the session folder and doesn't inherit `CLAUDE_PROJECT_DIR` or
+`CLAUDE_CODE_ENTRYPOINT`. It sends no session permission suggestions. Questions and
+plans are released before contacting the agent. At the output boundary its encoder
+accepts only Approve / Deny and emits only `hookSpecificOutput.hookEventName` and
+`decision.behavior`, plus `decision.message` on denial. All other outcomes return
+nothing, with process exit 0. No `updatedInput`, `updatedPermissions` or `interrupt`
+can cross that boundary.
+
+Codex waits for PermissionRequest hooks before presenting its own dialog. A click
+returns `openInTerminal` on the existing socket flow, which emits nothing and lets
+Codex present the dialog. The 600 s handler has a status message explaining this;
+the hook exits around 590 s if nobody answers. Connection closure removes a pending
+notification; UserPromptSubmit, SessionEnd and Interrupt also clear the session.
+Stop posts a Finished gist (possibly empty); headless `codex exec` is not detected.
+
+`install.sh --codex` adds Codex user hooks in addition to the existing Claude setup.
+`HookMeUpPaths.codexHooksURL` resolves `CODEX_HOME/hooks.json` or `~/.codex/hooks.json`.
+The same backup, diff, confirmation, changed-since-read check, atomic write and
+path-keyed setup state protect both clients. SessionEnd and Interrupt get 3 s, Stop
+and UserPromptSubmit 10 s, PermissionRequest 600 s. Reinstallation is idempotent.
+Without the flag the installer does nothing to Codex. Uninstall without the flag
+previews Codex removal read-only and retains the app if its handlers remain. Older
+setup packages without `--client` are detected from usage and skip Codex.
+
+Doctor reads the selected hooks file and its sibling `config.toml` through
+`DoctorProbe`. It checks event arguments, path, duplicates and shapes; standard TOML
+table text checks report disabled features and competing inline hooks. Trust remains
+an INFO reminder to review `/hooks`; no app-server call or Codex installation is
+required. Neither setup nor doctor writes trust state, config.toml or project hooks.

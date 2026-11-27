@@ -7,7 +7,8 @@ for a tool, asks you a question, wants a plan approved or finishes a turn, Hook 
 shows a notification you can act on right there: approve or deny, pick an answer,
 approve the plan or ask for changes. Click the notification to jump to the session.
 It is built on Claude Code's hooks and fails open: if anything is off, Claude Code
-simply shows its usual terminal dialog.
+simply shows its usual terminal dialog. Codex CLI support is available with the
+opt-in `--codex` installer flag (see [Codex CLI](#codex-cli)).
 
 ![Claude Code asks for permission and you approve or deny it from a macOS notification, pick an answer to its question or open Reply… for every option plus a box for your own, then click a notification to jump to its session](docs/images/demo.gif)
 
@@ -35,7 +36,8 @@ the diff and asking), and removes the app, its support folder and the editor ext
 (with each editor's command-line tool it finds). Your settings backups stay where they
 are.
 
-Requirements: macOS 14 or later, and [Claude Code](https://docs.claude.com/en/docs/claude-code/overview).
+Requirements: macOS 14 or later, and [Claude Code](https://docs.claude.com/en/docs/claude-code/overview)
+or Codex CLI 0.172 or later.
 
 ### Install from Claude Code
 
@@ -72,6 +74,64 @@ notification, and tells you what is left to do:
    Notifications when the style isn't Alerts yet; on an upgrade, only when
    notifications are off.
 3. Restart Claude Code sessions that were already running, so they load the hooks.
+
+## Codex CLI
+
+To add Codex support **alongside Claude Code**, explicitly opt in:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/robertodf99/fde-toolkit/main/tools/hook-me-up/install.sh | bash -s -- --codex
+```
+
+The installer shows a separate diff for `$CODEX_HOME/hooks.json` (default
+`~/.codex/hooks.json`), asks before writing it, backs it up and writes atomically.
+It skips Codex if that profile folder doesn't exist, and never needs the Codex binary
+on PATH. An older package without `--client` support skips Codex and tells you to
+upgrade. Without `--codex`, installation leaves all Codex files untouched.
+
+After installation, **review and approve the hooks with `/hooks` in Codex**. Until
+trusted, they don't run. Hook Me Up never writes Codex's `config.toml`, `trusted_hash`
+or trust state. Changing the hook command or moving its groups may require another
+review in `/hooks`. Project hooks and hook definitions in `config.toml` are outside
+this installer's scope.
+
+| Codex event | What Hook Me Up does | Handler timeout |
+|---|---|---|
+| PermissionRequest | Approve or Deny from `project · Codex · Needs permission` | 600 s |
+| Stop | `project · Codex · Finished`, with a gist of `last_assistant_message` when present | 10 s |
+| UserPromptSubmit | Clear the session's notifications | 10 s |
+| SessionEnd, Interrupt | Clear the session's notifications | 3 s |
+
+**Codex waits for the hook before showing its approval dialog.** While a notification
+waits, the terminal shows “Answer in the notification, or click it to answer here”.
+Click the notification to focus the session and release the hook so Codex can show
+its own dialog, or answer Approve / Deny in the notification. If nobody responds, the
+hook returns without a decision after about 590 s. An unavailable agent, pause,
+notifications off or a hook failure also returns without a decision; Codex then shows
+its usual dialog. A managed policy may still require approval after an Allow.
+
+Codex supports no “Approve for session”, question answers, plan approval or “Waiting
+for your reply” notifications here. Its decisions contain only allow or deny (and a
+message for deny). `apply_patch` summaries list paths from patch headers, warning on
+writes outside the project. `codex exec` isn't distinguished in v1 and may show
+“Finished”. This integration covers the CLI, not the Codex desktop app.
+
+To remove both clients' hooks and the app:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/robertodf99/fde-toolkit/main/tools/hook-me-up/uninstall.sh | bash -s -- --codex
+```
+
+Without the flag, the uninstaller leaves Codex hooks untouched; if they still call
+this app, it warns and keeps the app and agent installed. Backups remain beside each
+client's hook file. `HOOK_ME_UP_YES=1` accepts both clients' diffs without prompting.
+
+The doctor checks Codex hooks automatically, including duplicate handlers, the app
+path, `[features] hooks = false` and a conflicting `[hooks]` table. Its trust line
+is informational: review `/hooks` yourself. With no Hook Me Up hooks for Codex it
+prints `INFO  Codex: not set up`. `doctor --home <folder>` isolates both clients;
+`--codex-hooks <path>` checks another hooks file. The TOML checks cover standard table
+syntax; they are text checks, not a full TOML parser or a query of effective policy.
 
 ## What you'll see
 

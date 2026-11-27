@@ -15,6 +15,11 @@ chat.
 Never remove anything without an explicit yes from the user in this conversation, and
 never edit `~/.claude/settings.json` yourself.
 
+If the user explicitly asks for Codex CLI support, use `bash -s -- --codex` in
+installer/uninstaller commands and apply the same diff and consent steps to both
+clients. Never edit `~/.codex` or `$CODEX_HOME` by hand; remind them to review `/hooks`
+in Codex after installing. Without that request, keep the commands below as they are.
+
 ## Steps
 
 1. Run the uninstaller without a terminal, so it changes nothing and prints what it

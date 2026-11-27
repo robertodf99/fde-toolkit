@@ -10,6 +10,11 @@ disable-model-invocation: true
 check: `PASS`, `WARN`, `FAIL`, `SKIP` or `INFO`, with a `Fix:` under each problem. It
 changes nothing. It exits 1 when a check failed; warnings don't.
 
+If the user explicitly asks for Codex CLI support, use `bash -s -- --codex` in
+installer/uninstaller commands and apply the same diff and consent steps to both
+clients. Never edit `~/.codex` or `$CODEX_HOME` by hand; remind them to review `/hooks`
+in Codex after installing. Without that request, keep the commands below as they are.
+
 ## Steps
 
 1. Find `hook-me-up-setup` where the installer puts it:
