@@ -1,0 +1,4 @@
+interface:
+  display_name: "Work with agents"
+  short_description: "Multi-agent methodology for development"
+  default_prompt: "Use $agent-workflow to plan or work on the assignment in this project."

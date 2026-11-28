@@ -31,6 +31,8 @@ with tempfile.TemporaryDirectory(prefix="aw-test-") as temporary:
     codex = home / ".codex/skills/agent-workflow"
     agent = home / ".claude/agents/implementador.md"
     assert "DRY-RUN" in run() and snapshot() == []
+    assert "DRY-RUN" in run("--lang", "en") and snapshot() == []
+    assert "invalid choice" in run("--lang", "fr", ok=False) and snapshot() == []
     skill.mkdir(parents=True)
     (skill / "original.txt").write_text("original")
     agent.parent.mkdir(parents=True)
@@ -50,6 +52,46 @@ with tempfile.TemporaryDirectory(prefix="aw-test-") as temporary:
     before, manifest = snapshot(), state.read_text()
     run("--uninstall")
     assert snapshot() == before and state.read_text() == manifest
+    # Alternar idiomas conserva destinos, formato y backups originales.
+    original_entries = json.loads(manifest)["entries"]
+    backups = sorted(str(p) for p in (state.parent / "backups").rglob("*"))
+    output = run("--lang", "en")
+    assert "DRY-RUN" in output and snapshot() == before and state.read_text() == manifest
+    run("--yes", "--lang", "en")
+    english = json.loads(state.read_text())
+    assert set(english) == {"version", "entries"} and english["version"] == 1
+    assert set(english["entries"]) == set(original_entries) and len(english["entries"]) == 17
+    for destination, entry in english["entries"].items():
+        expected = root / "en" / Path(original_entries[destination]["target"]).relative_to(root)
+        assert entry["target"] == str(expected) and Path(destination).resolve() == expected
+        assert entry["backup"] == original_entries[destination]["backup"]
+        assert set(entry) == set(original_entries[destination])
+    before, english_manifest = snapshot(), state.read_text()
+    assert run("--yes", "--lang", "en").count("SIN CAMBIOS") == 17
+    assert snapshot() == before and state.read_text() == english_manifest
+    assert sorted(str(p) for p in (state.parent / "backups").rglob("*")) == backups
+    for runtime in ("claude", "codex", "hc"):
+        output = run("--yes", "--only", runtime)  # es por defecto
+        assert "AVISO:" in output and "idioma" in output
+        entries = json.loads(state.read_text())["entries"]
+        for destination, entry in entries.items():
+            expected = original_entries[destination]["target"] if entry["runtime"] == runtime else english["entries"][destination]["target"]
+            assert entry["target"] == expected
+        run("--yes", "--lang", "en")
+    run("--yes", "--lang", "es")
+    assert json.loads(state.read_text())["entries"] == original_entries
+    assert sorted(str(p) for p in (state.parent / "backups").rglob("*")) == backups
+    run("--yes", "--uninstall")
+    assert (skill / "original.txt").read_text() == "original"
+    assert agent.is_symlink() and os.readlink(agent) == "original-inexistente"
+    assert json.loads(state.read_text())["entries"] == {}
+    run("--yes", "--lang", "en")
+    run("--yes", "--uninstall")  # no exige repetir --lang
+    assert (skill / "original.txt").read_text() == "original"
+    assert agent.is_symlink() and os.readlink(agent) == "original-inexistente"
+    assert json.loads(state.read_text())["entries"] == {}
+    run("--yes")
+    before, manifest = snapshot(), state.read_text()
     # Un enlace reemplazado por el usuario nunca se sigue ni se borra.
     foreign = home / "archivo-ajeno"
     foreign.write_text("conservar")
