@@ -18,8 +18,27 @@ El coordinador ejecuta `git rev-parse HEAD`, inspecciona `git diff <base> HEAD`
 y `git status --short`; contrasta evidencia y SHA revisado. El estado «terminado»
 del terminal no demuestra criterios. No afirma que una revisión previa a cambios
 cubra el SHA corregido. Checks requeridos pendientes dejan entrega draft.
-Si está autorizado crear un PR y quedan checks/hallazgos abiertos, debe ser draft;
-no crees PR ni publiques sin autorización aplicable.
+
+## PR de entrega
+
+Todo encargo que implementa cambios termina con un PR abierto: el trabajo nunca
+se queda solo en el worktree ni en la sesión del terminal. Esta regla autoriza al
+coordinador a hacer push de la rama de trabajo y abrir el PR. Solo se sustituye
+por un commit directo con push cuando el usuario lo pide, a la rama que indique.
+Un encargo de solo planificar no abre PR.
+
+La base es la rama menos productiva que aplique, según el trabajo en curso y cómo
+esté montado el repo:
+
+1. La rama de la feature, si el usuario trabaja con una rama por feature que
+   luego integra en desarrollo.
+2. La rama de desarrollo (`dev`, `develop`…), si trabaja directamente contra ella.
+3. `main` (o la rama productiva), si no hay rama de desarrollo.
+
+Las instrucciones del usuario, del repo o del perfil fijan la base y prevalecen.
+Si hay varias candidatas razonables, pregunta antes de abrir el PR. Con checks
+requeridos pendientes o hallazgos abiertos, el PR es draft y los enumera. El
+coordinador indica en la entrega la URL del PR (o el SHA del commit directo).
 
 ## Estado y puertas humanas
 

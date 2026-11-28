@@ -114,6 +114,9 @@ Si no puedes delegar, declara la limitación; una revisión inline no es indepen
 Sigue [delivery.md](references/delivery.md): SHA, archivos, evidencia por criterio,
 checks reales y omitidos, riesgos, rondas y disposición de cada hallazgo.
 El coordinador verifica por su cuenta SHA, diff, estado del worktree y evidencia.
+La entrega final siempre deja un **PR abierto** contra la rama menos productiva
+aplicable (feature → desarrollo → main), o un commit directo si el usuario lo
+pide; nunca trabajo solo en el terminal. Detalle en delivery.md.
 Registra IDs, modelos solicitados/confirmados y aprobaciones sin secretos en
 estado privado, nunca en el repo público.
 Modo desatendido opcional y privado: [contrato y aprobaciones](references/unattended.md).
