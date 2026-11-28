@@ -56,7 +56,8 @@ in every command below; never use `/tmp` or a worktree for methodology symlinks.
    `"$HOME/Applications/Hook Me Up.app/Contents/MacOS/hook-me-up-setup" doctor`.
    [First-run details](tools/hook-me-up/README.md#first-run).
 
-4. **Methodology:** run `bash "$HOME/fde-toolkit/methodology/agent-workflow/install.sh"`
+4. **Methodology:** ask which language to install (español or English), then run
+   `bash "$HOME/fde-toolkit/methodology/agent-workflow/install.sh" --lang <es|en>`
    and show its dry-run plan. After approval, repeat with `--yes`.
    It links skills, roles and Herdr templates, backing up originals under
    `~/.local/share/agent-workflow/backups/`. For partial setups use
