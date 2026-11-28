@@ -41,8 +41,8 @@ agents or ask the user questions; return doubts and blockers in the final report
 
 Read AGENTS.md / CLAUDE.md for domain areas. Authentication, SQL, migrations,
 security, critical architecture, irreversible changes and deployment require
-escalation. If implementador-simple discovers them, stop writing and return the
-assignment to the coordinator; do not decide a design independently.
+escalation. If implementador-simple discovers them, it stops writing and returns the
+assignment to the coordinator; it does not decide a design independently.
 
 Native Claude disables editing for planner/reviewer, but Bash and MCP remain
 subject to the read-only contract; they do not provide technical isolation.

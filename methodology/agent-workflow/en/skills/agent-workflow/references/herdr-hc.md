@@ -38,7 +38,7 @@ Models, flags and permissions: [roles.md](roles.md); optional private overrides 
    ```
 
    Core adds the template body and sends `encargo` as the first message.
-   Include the coordinator's literal ID so the role can report with `hc send`;
+   Include the coordinator's literal ID in `encargo` so the role can report with `hc send`;
    the worker's `HC_TERMINAL_ID` will be its own. Do not add `herdr.space` or
    `herdr.tab` labels. The name must be at most 32 characters:
    shorten the slug if needed. Do not use `--outlive-parent` or `terminal.keep`

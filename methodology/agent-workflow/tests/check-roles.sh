@@ -112,10 +112,12 @@ for language, base in (("es", root), ("en", root / "en")):
             ("hc/templates", "aw-" + role + ".md"))]
     for path in paths:
         content = path.read_text() if path.is_file() else ""
+        paragraph = next((part for part in re.split(r"\n\s*\n", content) if "`language`" in part), "")
+        paragraph = " ".join(paragraph.split())
         ordered = ("AGENTS.md / CLAUDE.md", "`language`", "commits", "español" if language == "es" else "Spanish")
         position = 0
         for fragment in ordered:
-            position = content.find(fragment, position)
+            position = paragraph.find(fragment, position)
             if position < 0:
                 break
             position += len(fragment)
