@@ -30,8 +30,9 @@ Un encargo de solo planificar no abre PR.
 La rama de trabajo se nombra `<tipo>/<descripcion-corta>` según la tarea:
 `feat/` para features, `fix/` para correcciones, `chore/` para mantenimiento o
 tareas recurrentes, y `docs/`, `refactor/` o `test/` cuando encajen mejor. Si hay
-ticket, inclúyelo tras el prefijo (`feat/ENG-123-descripcion`). La convención del
-repo, si existe, prevalece.
+ticket, inclúyelo tras el prefijo (`feat/ENG-123-descripcion`). Este prefijo
+sustituye al del agente (`claude/`, `codex/`); la autoría ya consta en commits y
+PR. La convención del repo, si existe, prevalece.
 
 La base es la rama menos productiva que aplique, según el trabajo en curso y cómo
 esté montado el repo:
