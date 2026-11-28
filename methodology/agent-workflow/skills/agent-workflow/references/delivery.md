@@ -27,6 +27,12 @@ coordinador a hacer push de la rama de trabajo y abrir el PR. Solo se sustituye
 por un commit directo con push cuando el usuario lo pide, a la rama que indique.
 Un encargo de solo planificar no abre PR.
 
+La rama de trabajo se nombra `<tipo>/<descripcion-corta>` según la tarea:
+`feat/` para features, `fix/` para correcciones, `chore/` para mantenimiento o
+tareas recurrentes, y `docs/`, `refactor/` o `test/` cuando encajen mejor. Si hay
+ticket, inclúyelo tras el prefijo (`feat/ENG-123-descripcion`). La convención del
+repo, si existe, prevalece.
+
 La base es la rama menos productiva que aplique, según el trabajo en curso y cómo
 esté montado el repo:
 
