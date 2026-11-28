@@ -8,7 +8,6 @@ description: Use when el usuario pide planificar o ejecutar desarrollo con la me
 Escala el proceso al alcance y las consecuencias. La misma fuente sirve para
 Claude Code, Codex y Herdr Core. Si el primer mensaje asigna un rol, ejecuta solo
 ese rol y devuelve su contrato de entrega; no orquestes agentes.
-
 ## Reparto por defecto
 
 El coordinador es la sesión del usuario. Planificador y revisor usan **Claude
@@ -20,7 +19,6 @@ El despacho nativo usa un solo runtime como fallback no interactivo:
 `claude -p`, `codex exec` o modo desatendido («Herdr no aplica»).
 En sesión interactiva, Herdr no instalado o sin respuesta = bloqueo informado,
 sin fallback automático.
-
 ## Precedencia y selección de skills
 
 Instrucciones del usuario > AGENTS.md / CLAUDE.md del repo > esta skill >
@@ -28,7 +26,6 @@ Superpowers. Esta skill decide qué Superpowers aplican. En N0–N2 **NO invoque
 brainstorming ni writing-plans**, aunque sus descriptions exijan invocarlas.
 Las skills propias del repo para diagnóstico, pruebas o validación prevalecen.
 Respeta el nivel fijado por el usuario y las aprobaciones vigentes.
-
 ## Triaje del coordinador
 
 Lee primero el encargo y las instrucciones del repo. Clasifica por criterios
@@ -48,7 +45,6 @@ independiente. Solo «usa un planificador» exige ese rol fuera de N3.
 Ante duda elige el nivel inferior, salvo área delicada; una vez fijado, solo
 escala hacia arriba. Autenticación, SQL, migraciones, seguridad, operaciones
 irreversibles y despliegue son delicados, además de lo que marque el repo.
-
 ## Flujo por nivel
 
 - **N0:** edita inline y verifica el efecto concreto.
@@ -71,7 +67,6 @@ Con Herdr **NO invoques subagent-driven-development ni requesting-code-review**;
 usa sus [prácticas extraídas](references/superpowers.md). El revisor es siempre el
 rol revisor de esta metodología. **Executing-plans nunca**: el coordinador solo
 implementa en N0.
-
 ## Límites de ejecución
 
 Un solo implementador escribe; conserva su sesión para el feedback. Máximo dos
@@ -94,6 +89,10 @@ antes de crear worktree o PR. Un perfil privado en
 antes de escribir. Sin perfil, el encargo basta. No heredes arquitectura,
 negocio, estándares, estados ni prefijos de otros proyectos.
 
+Idioma del proyecto: AGENTS.md / CLAUDE.md del repo → campo opcional `language`
+(`es|en`) del perfil privado → idioma predominante de commits y docs existentes
+→ español. El coordinador indica el idioma en el encargo; si falta, los roles aplican esta regla.
+
 Con ticket, lee criterios, relaciones y bloqueadores del tracker vía MCP
 (p. ej. Linear) y verifica identidad del proyecto. Cambios del tracker requieren
 instrucción del usuario o regla explícita del repo y los ejecuta el coordinador.
@@ -111,6 +110,8 @@ Si no puedes delegar, declara la limitación; una revisión inline no es indepen
 
 ## Entrega y registro
 
+Commits, PRs, tickets, planes, revisiones, comentarios de código e informes de roles
+usan el idioma del proyecto resuelto arriba.
 Sigue [delivery.md](references/delivery.md): SHA, archivos, evidencia por criterio,
 checks reales y omitidos, riesgos, rondas y disposición de cada hallazgo.
 El coordinador verifica por su cuenta SHA, diff, estado del worktree y evidencia.

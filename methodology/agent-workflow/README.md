@@ -1,8 +1,9 @@
 # agent-workflow
 
-Metodología multiagente en español para Claude Code, Codex y Herdr Core.
+Metodología multiagente en español e inglés para Claude Code, Codex y Herdr Core.
 La fuente común es [SKILL.md](skills/agent-workflow/SKILL.md); los cinco roles
-mantienen el mismo cuerpo en los tres formatos.
+mantienen el mismo cuerpo en los tres formatos de cada idioma.
+La versión inglesa está en [en/](en/), con los mismos nombres e IDs de rol.
 
 | Nivel | Flujo |
 |---|---|
@@ -31,12 +32,22 @@ Desde un checkout estable, ejecuta:
 
 ```sh
 bash methodology/agent-workflow/install.sh                 # dry-run
-bash methodology/agent-workflow/install.sh --yes           # aplica
+bash methodology/agent-workflow/install.sh --yes           # aplica (español por defecto)
+bash methodology/agent-workflow/install.sh --lang en       # dry-run en inglés
+bash methodology/agent-workflow/install.sh --lang en --yes # aplica inglés
 bash methodology/agent-workflow/install.sh --only codex    # solo muestra Codex
 bash methodology/agent-workflow/install.sh --yes --only hc
 bash methodology/agent-workflow/install.sh --uninstall  # dry-run
 bash methodology/agent-workflow/install.sh --yes --uninstall
 ```
+
+`--lang es|en` selecciona el idioma de las fuentes; el defecto es `es`.
+Para cambiar de idioma, revisa el dry-run con `--lang en` o `--lang es` y repite
+con `--yes`, sin `--only` para actualizar los tres runtimes. Los destinos y sus
+backups originales se conservan; no hace falta desinstalar antes. Solo debe haber
+un idioma activo. Con `--only`, si otros runtimes tienen otro idioma, se imprime
+un aviso; `check-setup.sh` exige un único idioma del mismo checkout estable.
+Desinstalar usa el manifiesto y no requiere repetir `--lang`.
 
 `--only claude|codex|hc` limita instalación y desinstalación. Sin `--yes` no crea
 ni modifica archivos. Con `--yes` crea estos symlinks:
@@ -67,7 +78,8 @@ Con el marketplace ya añadido:
 /plugin install agent-workflow@fde-toolkit
 ```
 
-El plugin expone `skills/` y `agents/`; para Codex/Herdr usa el instalador local.
+El plugin expone `skills/` y `agents/` en español; para inglés y para Codex/Herdr
+usa el instalador local.
 No combina automáticamente perfil privado, punteros ni configuración global.
 
 ## Estado privado y despacho
@@ -77,6 +89,14 @@ Perfiles, runners y overrides siguen fuera del repositorio en
 No se necesitan perfiles ni tracker para un encargo explícito. Un tracker se
 consulta vía MCP (p. ej. Linear). Los punteros personales de AGENTS.md / CLAUDE.md
 se mantienen aparte.
+
+El campo opcional `language: es` o `language: en` del perfil privado indica el
+idioma de entregables (commits, PRs, tickets, planes, revisiones, comentarios de
+código e informes de roles). Precedencia: AGENTS.md / CLAUDE.md del repo →
+`language` del perfil → idioma predominante de commits y docs existentes → español.
+El coordinador lo indica en el encargo y, si falta, los roles aplican esa regla.
+El idioma instalado no sustituye esta decisión. HERDR.md y los perfiles existentes
+siguen funcionando sin cambios.
 
 ## Validación
 

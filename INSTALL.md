@@ -61,6 +61,18 @@ in every command below; never use `/tmp` or a worktree for methodology symlinks.
    It links skills, roles and Herdr templates, backing up originals under
    `~/.local/share/agent-workflow/backups/`. For partial setups use
    `--only claude|codex|hc`; the checker reports omitted components.
+   Choose English sources with `--lang en` (default: `--lang es`). To switch,
+   preview with the chosen `--lang`, then repeat with `--yes` after approval;
+   omit `--only` to switch all runtimes together. Destinations and original backups
+   are preserved; uninstall needs no `--lang`. A partial switch warns if other
+   runtimes use another language; the setup checker requires one language.
+   The Claude marketplace plugin remains Spanish; use local installation for English.
+   The optional private profile field `language: es` or `language: en` controls
+   deliverables: repo AGENTS.md / CLAUDE.md → profile `language` → predominant
+   language of existing commits and docs → Spanish. The coordinator states it in
+   the brief; roles apply the rule if absent. This covers commits, PRs, tickets,
+   plans, reviews, code comments and role reports, independently of installed language.
+   Existing profiles and private HERDR.md need no changes.
    [Installation details](methodology/agent-workflow/README.md#instalación-local).
 
 5. **Personal precedence, only with permission.** This prevents Superpowers

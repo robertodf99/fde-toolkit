@@ -17,8 +17,10 @@ parser = argparse.ArgumentParser(description="Instala agent-workflow; dry-run po
 parser.add_argument("--yes", action="store_true", help="aplica el plan")
 parser.add_argument("--uninstall", action="store_true", help="retira enlaces propios y restaura originales")
 parser.add_argument("--only", choices=("claude", "codex", "hc"), help="limita el runtime")
+parser.add_argument("--lang", choices=("es", "en"), default="es", help="idioma de las fuentes (defecto: es)")
 root = Path(sys.argv[1]).resolve()
 args = parser.parse_args(sys.argv[2:])
+base = root / "en" if args.lang == "en" else root
 home = Path.home()
 state_dir = home / ".local/share/agent-workflow"
 state_path = state_dir / "install-manifest.json"
@@ -49,16 +51,25 @@ except (OSError, ValueError) as error:
     sys.exit(f"ERROR: manifiesto ilegible: {error}")
 entries = state["entries"]
 selected = (args.only,) if args.only else ("claude", "codex", "hc")
+if args.only and not args.uninstall:
+    for entry in entries.values():
+        target = Path(entry["target"])
+        depth = 2 if target.parent.name == "templates" or target.suffix == ".toml" else 1
+        installed_base = target.parents[depth] if len(target.parents) > depth else target
+        language = "en" if installed_base.name == "en" else "es"
+        if entry["runtime"] not in selected and language != args.lang:
+            print("AVISO: otros runtimes están instalados en otro idioma; repite sin --only para unificarlos.")
+            break
 mappings = []
 for runtime in selected:
     if runtime in ("claude", "codex"):
-        mappings.append((runtime, root / "skills/agent-workflow", home / f".{runtime}/skills/agent-workflow"))
+        mappings.append((runtime, base / "skills/agent-workflow", home / f".{runtime}/skills/agent-workflow"))
     folder, destination, pattern = {
         "claude": ("agents", ".claude/agents", "*.md"),
         "codex": ("codex/agents", ".config/agent-workflow/.codex/agents", "*.toml"),
         "hc": ("hc/templates", ".config/herdr-core/templates", "aw-*.md"),
     }[runtime]
-    mappings.extend((runtime, source, home / destination / source.name) for source in sorted((root / folder).glob(pattern)))
+    mappings.extend((runtime, source, home / destination / source.name) for source in sorted((base / folder).glob(pattern)))
 
 try:
     git = subprocess.run(["git", "-C", str(root), "rev-parse", "--git-common-dir", "--git-dir"], capture_output=True, text=True)

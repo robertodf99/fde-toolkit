@@ -5,6 +5,14 @@ base a partir de instrucciones del proyecto, no de otro perfil. Evita colisiones
 con trabajo paralelo; solo el implementador escribe. No copies .env, secretos,
 credenciales ni datos reales. Toda ampliación de alcance vuelve al coordinador.
 
+## Idioma de los entregables
+
+Commits, PRs, tickets, planes, revisiones, comentarios de código e informes de roles
+usan el idioma del proyecto: AGENTS.md / CLAUDE.md del repo → campo opcional
+`language` (`es|en`) del perfil privado → idioma predominante de commits y docs
+existentes → español. El coordinador indica el idioma en el encargo; los roles
+lo usan y, si falta, aplican esta regla.
+
 ## Evidencia mínima
 
 - SHA(s), HEAD, base y archivos cambiados.

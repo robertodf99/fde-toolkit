@@ -43,19 +43,20 @@ else:
 
 skill = home / '.codex/skills/agent-workflow'
 target = skill.resolve()
-checkout = target.parents[3] if len(target.parents) > 3 else target
-package = checkout / 'methodology/agent-workflow'
-links = [(home / ('.' + runtime) / 'skills/agent-workflow', package / 'skills/agent-workflow') for runtime in ('claude', 'codex')]
+base = target.parent.parent
+package = base.parent if base.name == 'en' else base
+checkout = package.parent.parent
+links = [(home / ('.' + runtime) / 'skills/agent-workflow', base / 'skills/agent-workflow') for runtime in ('claude', 'codex')]
 for destination, source, files in (
     ('.claude/agents', 'agents', [r + '.md' for r in roles]),
     ('.config/agent-workflow/.codex/agents', 'codex/agents', [r.replace('-', '_') + '.toml' for r in roles]),
     ('.config/herdr-core/templates', 'hc/templates', ['aw-' + r + '.md' for r in roles]),
 ):
-    links += [(home / destination / name, package / source / name) for name in files]
+    links += [(home / destination / name, base / source / name) for name in files]
 temporary = ('/tmp/', '/private/tmp/', '/var/tmp/', '/private/var/tmp/', '/var/folders/', '/private/var/folders/')
-stable = (checkout / '.git').is_dir() and not str(checkout).startswith(temporary)
+stable = package == checkout / 'methodology/agent-workflow' and (checkout / '.git').is_dir() and not str(checkout).startswith(temporary)
 linked = stable and all(link.is_symlink() and source.exists() and link.resolve() == source.resolve() for link, source in links)
-report(linked, 'Methodology links (17, same stable checkout)', 'Run the methodology installer from a stable clone, not /tmp or a worktree')
+report(linked, 'Methodology links (17, same language and stable checkout)', 'Run the methodology installer from a stable clone, not /tmp or a worktree')
 
 result = read_command('herdr-core', 'templates', '--json')
 try:

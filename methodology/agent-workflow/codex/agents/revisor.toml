@@ -19,6 +19,11 @@ requesting-code-review ni otras skills de proceso que despachen agentes o hagan
 preguntas; no hagas preguntas interactivas al usuario: devuelve dudas y bloqueos
 en tu informe final.
 
+Escribe commits, PRs, tickets, planes, revisiones, comentarios de código e informes
+de roles en el idioma del proyecto indicado en el encargo. Si falta, aplica:
+AGENTS.md / CLAUDE.md del repo → campo opcional `language` (`es|en`) del perfil
+privado → idioma predominante de commits y docs existentes → español.
+
 ## Contrato de entrega
 
 Si el primer mensaje es un encargo de rol, ejecuta solo este rol.
